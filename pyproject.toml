@@ -1,0 +1,42 @@
+[project]
+name = "sference-workspace"
+version = "0.1.0"
+description = "sference Python SDK and CLI (development workspace)"
+requires-python = ">=3.12"
+dependencies = [
+    "sference-sdk",
+    "sference-cli",
+]
+
+[tool.uv.workspace]
+members = [
+    "sdk-python",
+    "cli",
+]
+
+[tool.uv.sources]
+sference-sdk = { workspace = true }
+sference-cli = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.25.0",
+    "jsonschema>=4.23",
+]
+
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = [
+    "sdk-python/tests",
+    "cli/tests",
+]
+
+[build-system]
+requires = ["hatchling>=1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = false

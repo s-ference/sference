@@ -1,0 +1,635 @@
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+import webbrowser
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, Optional, TypeVar
+
+import typer
+
+from sference_sdk import ApiError, SferenceClient
+from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
+
+from . import stream_cache as stream_cache_mod
+
+_T = TypeVar("_T")
+
+
+app = typer.Typer(help="sference CLI", invoke_without_command=True)
+auth_app = typer.Typer(help="Auth commands", invoke_without_command=True)
+batch_app = typer.Typer(help="Batch commands", invoke_without_command=True)
+stream_app = typer.Typer(help="Stream commands", invoke_without_command=True)
+app.add_typer(auth_app, name="auth")
+app.add_typer(batch_app, name="batch")
+app.add_typer(stream_app, name="stream")
+
+CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
+
+DEFAULT_CONSOLE_URL = "https://console.sference.com"
+
+
+def _write_token(token: str) -> None:
+    CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CREDENTIALS_PATH.write_text(json.dumps({"token": token}), encoding="utf-8")
+
+
+def _read_token() -> str | None:
+    env = os.environ.get("SFERENCE_API_KEY")
+    if env:
+        return env.strip() or None
+    if not CREDENTIALS_PATH.exists():
+        return None
+    try:
+        payload = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
+        tok = payload.get("token")
+        return tok.strip() if isinstance(tok, str) else None
+    except Exception:
+        return None
+
+
+def _client(base_url: Optional[str] = None) -> SferenceClient:
+    return SferenceClient(base_url=base_url, api_key=_read_token())
+
+
+def _ensure_api_credential() -> None:
+    if _read_token() is None:
+        typer.echo(
+            "No API credential configured.\n"
+            "  • Run: sference auth login\n"
+            "  • Or: sference auth login --api-key 'sk_...'\n"
+            "  • Or set environment variable SFERENCE_API_KEY",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+
+def _call_api(fn: Callable[[], _T]) -> _T:
+    try:
+        return fn()
+    except ApiError as exc:
+        err = str(exc)
+        if err.startswith("401:"):
+            typer.echo(
+                "Unauthorized (401). Create a key in Console → API Keys (while signed in), then run:\n"
+                "  sference auth login --api-key 'sk_...'\n"
+                "If SFERENCE_API_KEY is set, it overrides ~/.sference/credentials.json.\n"
+                "If you already saved a key, it may be revoked or not registered for this API/database.",
+                err=True,
+            )
+            raise typer.Exit(code=1) from None
+        typer.echo(err, err=True)
+        raise typer.Exit(code=1) from None
+
+
+def _batch_id_and_status(obj: object) -> tuple[str, str]:
+    if hasattr(obj, "model_dump"):
+        d = obj.model_dump()
+        return str(d["id"]), str(d["status"])
+    bid = getattr(obj, "id", None)
+    st = getattr(obj, "status", None)
+    return str(bid), str(st)
+
+
+def _get_batch_or_missing(client: SferenceClient, batch_id: str) -> Any | None:
+    try:
+        return client.get_batch(batch_id)
+    except ApiError as exc:
+        err = str(exc)
+        if err.startswith("404:"):
+            return None
+        if err.startswith("401:"):
+            typer.echo(
+                "Unauthorized (401). Create a key in Console → API Keys (while signed in), then run:\n"
+                "  sference auth login --api-key 'sk_...'\n"
+                "If SFERENCE_API_KEY is set, it overrides ~/.sference/credentials.json.\n"
+                "If you already saved a key, it may be revoked or not registered for this API/database.",
+                err=True,
+            )
+            raise typer.Exit(code=1) from None
+        typer.echo(err, err=True)
+        raise typer.Exit(code=1) from None
+
+
+def _print(value: object, as_json: bool) -> None:
+    if as_json:
+        typer.echo(json.dumps(value, indent=2, default=str))
+    else:
+        typer.echo(value)
+
+
+def _mvp_batch_window_only(value: str) -> str:
+    if value != "24h":
+        raise typer.BadParameter('Only "24h" is supported in MVP.', param_hint="--window")
+    return value
+
+
+def _stream_window_only(value: str) -> str:
+    if value not in ("1h", "24h"):
+        raise typer.BadParameter('Window must be "1h" or "24h".', param_hint="--window")
+    return value
+
+
+@app.callback()
+def _root(ctx: typer.Context) -> None:
+    """Print help when invoked without a command."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
+
+
+@auth_app.callback()
+def _auth_root(ctx: typer.Context) -> None:
+    """Print help when invoked without a command."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
+
+
+@batch_app.callback()
+def _batch_root(ctx: typer.Context) -> None:
+    """Print help when invoked without a command."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
+
+
+@stream_app.callback()
+def _stream_root(ctx: typer.Context) -> None:
+    """Print help when invoked without a command."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
+
+
+@auth_app.command("login")
+def auth_login(
+    api_key: Optional[str] = typer.Option(
+        None,
+        "--api-key",
+        help="API key (sk_...) or JWT. Non-interactive: saves immediately (e.g. CI).",
+    ),
+    console_url: Optional[str] = typer.Option(
+        None,
+        "--console-url",
+        envvar="SFERENCE_CONSOLE_URL",
+        help="Console base URL for the browser step (default: https://console.sference.com).",
+    ),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not open a browser; print the URL and prompt only."),
+) -> None:
+    """Authenticate: store an API key for API requests (Baseten-style: optional --api-key for non-interactive)."""
+    if api_key is not None:
+        key = api_key.strip()
+        if not key:
+            typer.echo("Empty --api-key.", err=True)
+            raise typer.Exit(code=1)
+        _write_token(key)
+        typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
+        return
+
+    base = (console_url or DEFAULT_CONSOLE_URL).rstrip("/")
+    login_url = f"{base}/login"
+    api_keys_url = f"{base}/api-keys"
+
+    if not no_browser:
+        typer.echo(f"Opening {login_url} in your browser...")
+        try:
+            webbrowser.open(login_url)
+        except Exception:
+            typer.echo("Could not open the browser automatically.")
+
+    typer.echo("")
+    typer.echo("After signing in:")
+    typer.echo(f"  1. Open {api_keys_url}")
+    typer.echo("  2. Create an API key")
+    typer.echo("  3. Paste it below")
+    typer.echo("")
+    token = typer.prompt("API key", hide_input=True)
+    if not token.strip():
+        typer.echo("No API key provided.", err=True)
+        raise typer.Exit(code=1)
+    _write_token(token.strip())
+    typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
+
+
+@auth_app.command("me")
+def auth_me(
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    me = _call_api(client.get_me)
+    _print(me, as_json)
+
+
+@batch_app.command("list")
+def batch_list(
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    payload = _call_api(lambda: client.list_batches().model_dump())
+    if as_json:
+        _print(payload, True)
+        return
+    if not isinstance(payload, dict):
+        typer.echo(str(payload))
+        return
+    items = payload.get("items")
+    if not isinstance(items, list):
+        typer.echo(str(payload))
+        return
+    if not items:
+        typer.echo("No batches.")
+        return
+    w_id, w_status, w_reqs, w_tok = 36, 12, 6, 10
+    typer.echo(
+        f"{'id':<{w_id}} {'status':<{w_status}} {'reqs':>{w_reqs}} {'tokens':>{w_tok}}"
+    )
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        bid = str(it.get("id", ""))
+        if len(bid) > w_id:
+            bid = bid[: w_id - 3] + "..."
+        status = str(it.get("status", ""))
+        if len(status) > w_status:
+            status = status[: w_status - 1] + "…"
+        reqs = int(it.get("request_count") or 0)
+        tokens = int(it.get("total_tokens") or 0)
+        typer.echo(f"{bid:<{w_id}} {status:<{w_status}} {reqs:>{w_reqs}} {tokens:>{w_tok}}")
+
+
+@batch_app.command("submit")
+def batch_submit(
+    input_file: str = typer.Option(..., "--input-file"),
+    model: Optional[str] = typer.Option(None, "--model", help="Required for content-only JSONL; ignored per line for OpenAI-compatible JSONL."),
+    window: str = typer.Option(
+        "24h",
+        "--window",
+        help='Batch SLA window (MVP: only "24h").',
+        callback=_mvp_batch_window_only,
+    ),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    batch = _call_api(lambda: client.submit_batch(input_file=input_file, model=model, window=window))
+    _print(batch.model_dump(), as_json)
+
+
+@batch_app.command("status")
+def batch_status(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    batch = _call_api(lambda: client.get_batch(batch_id))
+    _print(batch.model_dump(), as_json)
+
+
+@batch_app.command("stream")
+def batch_stream(
+    input_file: str = typer.Option(..., "--input-file"),
+    model: Optional[str] = typer.Option(None, "--model", help="Required for content-only JSONL; ignored per line for OpenAI-compatible JSONL."),
+    window: str = typer.Option(
+        "24h",
+        "--window",
+        help='Batch SLA window (MVP: only "24h").',
+        callback=_mvp_batch_window_only,
+    ),
+    poll_interval: float = typer.Option(2.0, "--poll-interval", help="Seconds between status polls while the batch is running."),
+    no_cache: bool = typer.Option(
+        False,
+        "--no-cache",
+        help="Skip resumable cache; always submit a new batch.",
+    ),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    """Submit a JSONL batch, wait until it finishes, print JSONL results to stdout (progress on stderr).
+
+    The same input file content can be resumed after Ctrl+C: a cache maps file hash → batch_id
+    under ~/.sference/stream_cache.json (override with SFERENCE_STREAM_CACHE).
+    """
+    _ensure_api_credential()
+    path = Path(input_file)
+    if not path.is_file():
+        typer.echo(f"Not a file: {input_file}", err=True)
+        raise typer.Exit(code=1)
+
+    client = _client(base_url)
+    key = stream_cache_mod.cache_key_from_file(path)
+    bu = base_url.rstrip("/")
+
+    batch: object | None = None
+    batch_id: str | None = None
+    terminal = ("completed", "failed", "cancelled")
+
+    if not no_cache:
+        cached_id = stream_cache_mod.get_cached_batch_id(key, bu)
+        if cached_id:
+            batch = _get_batch_or_missing(client, cached_id)
+            if batch is None:
+                stream_cache_mod.remove_cached_batch(key)
+            else:
+                batch_id, st_cached = _batch_id_and_status(batch)
+                if st_cached not in terminal:
+                    typer.echo(f"Resuming batch {batch_id}…", err=True)
+
+    if batch_id is None:
+        batch = _call_api(lambda: client.submit_batch(input_file=input_file, model=model, window=window))
+        batch_id, _st = _batch_id_and_status(batch)
+        if not no_cache:
+            stream_cache_mod.set_cached_batch(key, batch_id, bu)
+
+    assert batch_id is not None
+    assert batch is not None
+    start = time.monotonic()
+    _, status = _batch_id_and_status(batch)
+    while status not in terminal:
+        elapsed = int(time.monotonic() - start)
+        typer.echo(f"Batch {batch_id} status={status} ({elapsed}s)", err=True)
+        time.sleep(poll_interval)
+        batch = _call_api(lambda: client.get_batch(batch_id))
+        _, status = _batch_id_and_status(batch)
+
+    elapsed = int(time.monotonic() - start)
+    typer.echo(f"Batch {batch_id} status={status} ({elapsed}s)", err=True)
+
+    try:
+        _call_api(lambda: client.download_results_jsonl(batch_id, sys.stdout.buffer))
+    finally:
+        if not no_cache:
+            stream_cache_mod.remove_cached_batch(key)
+
+    raise typer.Exit(code=0 if status == "completed" else 1)
+
+
+@batch_app.command("wait")
+def batch_wait(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    poll_interval: float = typer.Option(1.0, "--poll-interval"),
+    timeout: float = typer.Option(30.0, "--timeout"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    batch = _call_api(
+        lambda: client.wait_for_completion(batch_id, poll_interval=poll_interval, timeout=timeout)
+    )
+    _print(batch.model_dump(), as_json)
+
+
+@batch_app.command("results")
+def batch_results(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    results = _call_api(lambda: client.get_results(batch_id))
+    _print(results.model_dump(), as_json)
+
+
+@batch_app.command("cancel")
+def batch_cancel(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    batch = _call_api(lambda: client.cancel_batch(batch_id))
+    _print(batch.model_dump(), as_json)
+
+
+@stream_app.command("create")
+def stream_create(
+    name: str = typer.Option(..., "--name"),
+    window: str = typer.Option(
+        "24h",
+        "--window",
+        help='Per-item SLA window: "1h" or "24h" (recorded only in MVP).',
+        callback=_stream_window_only,
+    ),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    stream = _call_api(lambda: client.create_stream(name=name, window=window))
+    _print(stream.model_dump(), as_json)
+
+
+@stream_app.command("list")
+def stream_list(
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    payload = _call_api(lambda: client.list_streams().model_dump())
+    _print(payload, as_json)
+
+
+@stream_app.command("status")
+def stream_status(
+    stream_id: str = typer.Option(..., "--stream-id"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    st = _call_api(lambda: client.get_stream(stream_id))
+    _print(st.model_dump(), as_json)
+
+
+@stream_app.command("submit")
+def stream_submit(
+    stream_id: str = typer.Option(..., "--stream-id"),
+    input_file: str = typer.Option(
+        ...,
+        "--input-file",
+        help="JSONL per line: OpenAI-compatible {input: [{role, content}]} or content-only {content} (requires --model).",
+    ),
+    model: Optional[str] = typer.Option(
+        None,
+        "--model",
+        help="Required for content-only JSONL; creates responses using /v1/responses with metadata.stream_id.",
+    ),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Submit items to a stream using the unified /v1/responses endpoint.
+
+    Each line in the JSONL file creates a response associated with the stream
+    via metadata.stream_id. The responses are queued and processed by the
+    inference worker.
+    """
+    _ensure_api_credential()
+    path = Path(input_file)
+    if not path.is_file():
+        typer.echo(f"Not a file: {input_file}", err=True)
+        raise typer.Exit(code=1)
+
+    if not model:
+        typer.echo("--model is required for stream submit (e.g., gpt-4o)", err=True)
+        raise typer.Exit(code=1)
+
+    client = _client(base_url)
+
+    # Read and parse the JSONL file
+    lines = path.read_text(encoding="utf-8").strip().split("\n")
+    created_responses = []
+
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError as e:
+            typer.echo(f"Invalid JSON in input file: {e}", err=True)
+            raise typer.Exit(code=1)
+
+        # Handle content-only format: {"content": "..."}
+        if "content" in data and "input" not in data:
+            body = {
+                "model": model,
+                "input": [{"role": "user", "content": data["content"]}],
+                "metadata": {"stream_id": stream_id},
+            }
+        # Handle OpenAI-compatible format with input
+        elif "input" in data:
+            body = {
+                "model": model,
+                "input": data["input"],
+                "metadata": {"stream_id": stream_id, **data.get("metadata", {})},
+            }
+        else:
+            typer.echo(f"Unrecognized line format: {line[:100]}", err=True)
+            raise typer.Exit(code=1)
+
+        resp = _call_api(lambda: client.create_response(body))
+        created_responses.append(resp)
+
+    # Return stream detail-like response for compatibility
+    result = {
+        "stream_id": stream_id,
+        "total_items": len(created_responses),
+        "items": [r.model_dump() for r in created_responses],
+    }
+    _print(result, as_json)
+
+
+@stream_app.command("archive")
+def stream_archive(
+    stream_id: str = typer.Option(..., "--stream-id"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    st = _call_api(lambda: client.archive_stream(stream_id))
+    _print(st.model_dump(), as_json)
+
+
+@stream_app.command("cancel")
+def stream_cancel(
+    stream_id: str = typer.Option(..., "--stream-id"),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Stop accepting new items and stop enqueueing pending work; in-flight items are not auto-cancelled."""
+    _ensure_api_credential()
+    client = _client(base_url)
+    st = _call_api(lambda: client.cancel_stream(stream_id))
+    _print(st.model_dump(), as_json)
+
+
+@stream_app.command("tail")
+def stream_tail(
+    stream_id: str = typer.Option(..., "--stream-id"),
+    consumer: str = typer.Option("default", "--consumer", help="Checkpoint namespace for resume."),
+    from_latest: bool = typer.Option(
+        False,
+        "--from-latest",
+        help="Ignore saved checkpoint and start from the latest events page.",
+    ),
+    no_checkpoint: bool = typer.Option(False, "--no-checkpoint", help="Do not read or write checkpoints."),
+    poll_ms: int = typer.Option(5000, "--poll-ms", help="Long-poll wait_ms when catching up (max 30000)."),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Print stream result events as JSONL (stdout). Checkpoints after each event unless --no-checkpoint."""
+    _ = as_json
+    _ensure_api_credential()
+    client = _client(base_url)
+    bu = base_url.rstrip("/")
+
+    if from_latest and not no_checkpoint:
+        clear_checkpoint(bu, stream_id, consumer)
+
+    last: str | None = None
+    if not no_checkpoint and not from_latest:
+        last = load_checkpoint(bu, stream_id, consumer)
+
+    try:
+        while True:
+
+            def fetch() -> Any:
+                return client.list_stream_events(
+                    stream_id,
+                    limit=50,
+                    starting_after=last,
+                    wait_ms=min(poll_ms, 30000),
+                )
+
+            page = _call_api(fetch)
+            if not page.data:
+                time.sleep(max(1, poll_ms) / 1000.0)
+                continue
+            for ev in page.data:
+                typer.echo(json.dumps(ev.model_dump(), default=str))
+                last = ev.completion_id
+                if not no_checkpoint:
+                    save_checkpoint(bu, stream_id, consumer, ev.completion_id)
+    except KeyboardInterrupt:
+        typer.echo("Interrupted.", err=True)
+        raise typer.Exit(code=130) from None
+
+
+@batch_app.command("download-results")
+def batch_download_results(
+    batch_id: str = typer.Option(..., "--batch-id"),
+    out: Path = typer.Option(..., "--out", help="Output path for downloaded results."),
+    format: str = typer.Option("jsonl", "--format", help="Download format (only jsonl is supported)."),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    _ensure_api_credential()
+    if format.lower() != "jsonl":
+        typer.echo("Only --format jsonl is supported.", err=True)
+        raise typer.Exit(code=1)
+    client = _client(base_url)
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("wb") as f:
+        _call_api(lambda: client.download_results_jsonl(batch_id, f))
+    typer.echo(str(out))
+
+
+def main() -> None:
+    app()
+
+
+if __name__ == "__main__":
+    main()

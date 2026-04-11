@@ -1,0 +1,18 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "completion_id": "019d58a7-2ece-7742-bc3e-69ba44168279",
+      "position": 1,
+      "custom_id": "c1",
+      "status": "completed",
+      "result": {"ok": true},
+      "error": null,
+      "prompt_tokens": 1,
+      "completion_tokens": 1,
+      "total_tokens": 2,
+      "completed_at": "2026-04-04T10:12:09+00:00"
+    }
+  ],
+  "has_more": false
+}

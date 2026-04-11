@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "id": "batch_abc",
+      "status": "pending",
+      "window": "24h",
+      "request_count": 2,
+      "created_at": "2025-01-01T00:00:00+00:00",
+      "updated_at": "2025-01-01T00:00:00+00:00",
+      "completed_at": null,
+      "total_prompt_tokens": 0,
+      "total_completion_tokens": 0,
+      "total_tokens": 0
+    }
+  ]
+}
+

@@ -1,0 +1,44 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-sdk:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build sference-sdk
+        run: uv build --package sference-sdk --out-dir dist-sdk
+
+      - name: Publish sference-sdk
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-sdk/
+
+  publish-cli:
+    runs-on: ubuntu-latest
+    needs: publish-sdk
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build sference-cli
+        run: uv build --package sference-cli --out-dir dist-cli
+
+      - name: Publish sference-cli
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-cli/

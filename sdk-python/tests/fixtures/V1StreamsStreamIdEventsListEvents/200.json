@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "completion_id": "019d58a7-2ece-7742-bc3e-69ba44168279",
+      "custom_id": "req-1",
+      "status": "completed",
+      "result": {"choices": []},
+      "error": null,
+      "prompt_tokens": 10,
+      "completion_tokens": 5,
+      "total_tokens": 15,
+      "completed_at": "2026-04-04T10:12:09+00:00"
+    }
+  ],
+  "has_more": false
+}

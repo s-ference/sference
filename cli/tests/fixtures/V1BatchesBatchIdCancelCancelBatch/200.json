@@ -1,0 +1,12 @@
+{
+  "id": "batch_1",
+  "status": "cancelled",
+  "window": "24h",
+  "request_count": 1,
+  "created_at": "2025-01-01T00:00:00+00:00",
+  "updated_at": "2025-01-01T00:00:01+00:00",
+  "completed_at": "2025-01-01T00:00:01+00:00",
+  "total_prompt_tokens": 0,
+  "total_completion_tokens": 0,
+  "total_tokens": 0
+}

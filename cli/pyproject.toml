@@ -1,0 +1,22 @@
+[project]
+name = "sference-cli"
+version = "0.1.0"
+description = "sference command-line interface"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.24.1",
+    "sference-sdk>=0.1.0",
+]
+
+[project.scripts]
+sference = "sference_cli.main:main"
+
+[build-system]
+requires = ["hatchling>=1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sference_cli"]
+
+[tool.hatch.build.targets.sdist]
+include = ["sference_cli"]

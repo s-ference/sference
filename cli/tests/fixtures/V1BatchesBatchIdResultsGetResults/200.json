@@ -1,0 +1,7 @@
+{
+  "batch_id": "batch_1",
+  "status": "completed",
+  "output_url": "https://mock-s3.local/x",
+  "completed_at": "2025-01-01T00:00:01+00:00",
+  "results": null
+}

@@ -1,0 +1,2 @@
+{"custom_id":"example-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"user","content":"Say hello in exactly one word."}]}}
+{"custom_id":"example-2","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen2.5-7B-Instruct","messages":[{"role":"system","content":"You reply with one short sentence only."},{"role":"user","content":"What is 2+2?"}]}}

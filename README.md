@@ -1,0 +1,47 @@
+# sference
+
+Python SDK and CLI for the [sference](https://sference.com) batch inference API.
+
+## Install
+
+```bash
+pip install sference-sdk          # library only
+pip install sference-cli          # CLI (includes SDK)
+# or
+uv tool install sference-cli     # isolated CLI on PATH
+```
+
+## Quick start
+
+```python
+from sference_sdk import SferenceClient
+
+client = SferenceClient(api_key="sk_...")
+batch = client.submit_batch(input_file="workload.jsonl", model="your-model", window="24h")
+done = client.wait_for_completion(batch.id)
+results = client.get_results(done.id)
+```
+
+```bash
+sference auth login --api-key 'sk_...'
+sference batch submit --input-file workload.jsonl --model your-model --window 24h
+sference batch wait --batch-id <id>
+```
+
+## Packages
+
+| Package | PyPI | Description |
+|---------|------|-------------|
+| [sdk-python](sdk-python/) | `sference-sdk` | Sync and async Python clients |
+| [cli](cli/) | `sference-cli` | `sference` command-line interface |
+
+## Development
+
+```bash
+uv sync --group dev
+uv run pytest -q
+```
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).

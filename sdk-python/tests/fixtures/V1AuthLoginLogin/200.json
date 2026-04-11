@@ -1,0 +1,9 @@
+{
+  "access_token": "mock-admin-token",
+  "token_type": "bearer",
+  "user": {
+    "username": "admin",
+    "role": "admin"
+  }
+}
+
