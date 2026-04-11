@@ -1,0 +1,31 @@
+name: Publish CLI to PyPI
+
+on:
+  workflow_run:
+    workflows: ["Publish SDK to PyPI"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-cli:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Build sference-cli
+        run: uv build --package sference-cli --out-dir dist-cli
+
+      - name: Publish sference-cli
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-cli/
