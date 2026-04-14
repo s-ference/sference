@@ -16,7 +16,6 @@ from .models import (
     BatchList,
     BatchResults,
     InferenceRequest,
-    LoginResponse,
     Response,
     ResponseList,
     Stream,
@@ -76,12 +75,6 @@ class SferenceClient:
                 payload = {"detail": response.text}
             raise ApiError(f"{response.status_code}: {payload}")
         return response
-
-    def login(self, username: str, password: str) -> LoginResponse:
-        payload = self._request("POST", "/v1/auth/login", {"username": username, "password": password})
-        result = LoginResponse.model_validate(payload)
-        self._token = result.access_token
-        return result
 
     def get_me(self) -> dict[str, Any]:
         return self._request("GET", "/v1/auth/me")

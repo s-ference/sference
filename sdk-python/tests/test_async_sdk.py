@@ -13,20 +13,15 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 @pytest.mark.asyncio
-async def test_async_login_and_get_me_via_mock_transport() -> None:
+async def test_async_get_me_via_mock_transport() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" and request.url.path == "/v1/auth/login":
-            payload = json.loads((FIXTURES / "V1AuthLoginLogin" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=200, json=payload)
         if request.method == "GET" and request.url.path == "/v1/auth/me":
             assert request.headers.get("authorization") == "Bearer mock-admin-token"
             payload = json.loads((FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8"))
             return httpx.Response(status_code=200, json=payload)
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler)) as client:
-        login = await client.login("admin", "admin")
-        assert login.access_token == "mock-admin-token"
+    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="mock-admin-token") as client:
         me = await client.get_me()
         assert me["username"] == "admin"
 

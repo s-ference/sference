@@ -61,23 +61,15 @@ def test_parse_content_only_requires_model(tmp_path: Path) -> None:
         SferenceClient._parse_jsonl(p, model=None)
 
 
-def test_login_and_get_me_via_httpx_mock_transport() -> None:
+def test_get_me_via_httpx_mock_transport() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" and request.url.path == "/v1/auth/login":
-            payload = json.loads((FIXTURES / "V1AuthLoginLogin" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(
-                status_code=200,
-                json=payload,
-            )
         if request.method == "GET" and request.url.path == "/v1/auth/me":
             assert request.headers.get("authorization") == "Bearer mock-admin-token"
             payload = json.loads((FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8"))
             return httpx.Response(status_code=200, json=payload)
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
-    with SferenceClient(transport=httpx.MockTransport(handler)) as client:
-        login = client.login("admin", "admin")
-        assert login.access_token == "mock-admin-token"
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="mock-admin-token") as client:
         me = client.get_me()
         assert me["username"] == "admin"
 
