@@ -26,9 +26,11 @@ app = typer.Typer(help="sference CLI", invoke_without_command=True)
 auth_app = typer.Typer(help="Auth commands", invoke_without_command=True)
 batch_app = typer.Typer(help="Batch commands", invoke_without_command=True)
 stream_app = typer.Typer(help="Stream commands", invoke_without_command=True)
+response_app = typer.Typer(help="Response commands", invoke_without_command=True)
 app.add_typer(auth_app, name="auth")
 app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
+app.add_typer(response_app, name="response")
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
 
@@ -130,6 +132,26 @@ def _print(value: object, as_json: bool) -> None:
         typer.echo(value)
 
 
+def _wait_for_response(
+    client: SferenceClient, response_id: str, *, poll_ms: int, timeout_s: int
+) -> Any:
+    """Poll GET /v1/responses/{id} until terminal status or timeout."""
+    deadline = time.time() + max(1, timeout_s)
+    last: Any = None
+    while True:
+        last = _call_api(lambda: client.get_response(response_id))
+        if hasattr(last, "model_dump"):
+            d = last.model_dump()
+            status = d.get("status") if isinstance(d, dict) else None
+        else:
+            status = getattr(last, "status", None)
+        if status in ("completed", "failed", "cancelled"):
+            return last
+        if time.time() >= deadline:
+            return last
+        time.sleep(max(10, poll_ms) / 1000.0)
+
+
 def _mvp_batch_window_only(value: str) -> str:
     if value != "24h":
         raise typer.BadParameter('Only "24h" is supported in MVP.', param_hint="--window")
@@ -168,6 +190,14 @@ def _batch_root(ctx: typer.Context) -> None:
 
 @stream_app.callback()
 def _stream_root(ctx: typer.Context) -> None:
+    """Print help when invoked without a command."""
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
+
+
+@response_app.callback()
+def _response_root(ctx: typer.Context) -> None:
     """Print help when invoked without a command."""
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -260,6 +290,89 @@ def auth_me(
     me = _call_api(client.get_me)
     _print(me, as_json)
 
+
+@response_app.command("create")
+def response_create(
+    model: str = typer.Option(..., "--model"),
+    content: str = typer.Option(..., "--content"),
+    wait: bool = typer.Option(False, "--wait/--no-wait"),
+    poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval when --wait is enabled."),
+    timeout_s: int = typer.Option(60, "--timeout-s", help="Timeout in seconds when --wait is enabled."),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    _ensure_api_credential()
+    client = _client(base_url)
+    resp = _call_api(
+        lambda: client.create_response(model=model, input=[{"role": "user", "content": content}])
+    )
+    if wait:
+        final = _wait_for_response(client, resp.id, poll_ms=poll_ms, timeout_s=timeout_s)
+        if getattr(final, "status", None) not in ("completed", "failed", "cancelled"):
+            _print(final.model_dump(), True)
+            raise typer.Exit(code=1)
+        resp = final
+    _print(resp.model_dump(), True)
+
+
+@response_app.command("result")
+def response_result(
+    id: str = typer.Option(..., "--id"),
+    poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval while waiting for completion."),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    """Wait for a response to reach a terminal status and print the final JSON.
+
+    Use Ctrl-C to stop waiting.
+    """
+    _ensure_api_credential()
+    client = _client(base_url)
+    try:
+        while True:
+            resp = _call_api(lambda: client.get_response(id))
+            d = resp.model_dump()
+            status = d.get("status") if isinstance(d, dict) else None
+            if status in ("completed", "failed", "cancelled"):
+                _print(d, True)
+                return
+            time.sleep(max(10, poll_ms) / 1000.0)
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
+
+
+@response_app.command("tail")
+def response_tail(
+    poll_ms: int = typer.Option(1000, "--poll-ms", help="Polling interval between snapshots."),
+    limit: int = typer.Option(20, "--limit", help="How many recent responses to scan when tailing without --id."),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    """Tail newly created responses as JSONL snapshots.
+
+    Polls the response list and prints newly observed responses (full JSON via GET /v1/responses/{id}).
+    Use Ctrl-C to stop.
+    """
+    _ensure_api_credential()
+    client = _client(base_url)
+
+    seen: set[str] = set()
+
+    try:
+        while True:
+            page = _call_api(lambda: client.list_responses(limit=limit))
+            if hasattr(page, "model_dump"):
+                d = page.model_dump()
+                items = d.get("data") if isinstance(d, dict) else []
+            else:
+                items = getattr(page, "data", None) or []
+            for it in items:
+                rid = it.get("id") if isinstance(it, dict) else getattr(it, "id", None)
+                if not isinstance(rid, str) or not rid or rid in seen:
+                    continue
+                seen.add(rid)
+                full = _call_api(lambda rid=rid: client.get_response(rid))
+                typer.echo(json.dumps(full.model_dump(), default=str, separators=(",", ":")))
+            time.sleep(max(10, poll_ms) / 1000.0)
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
 
 @batch_app.command("list")
 def batch_list(

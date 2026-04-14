@@ -33,6 +33,11 @@ class FakeClient:
     def __init__(self, *args, **kwargs):
         pass
 
+    def get_response(self, response_id: str):
+        _ = response_id
+        # Default fake: always in progress.
+        return self.create_response(model="m", input=[{"role": "user", "content": "x"}])
+
     def get_me(self):
         return json.loads((FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8"))
 
@@ -464,6 +469,93 @@ def test_stream_submit_jsonl(monkeypatch, tmp_path: Path):
     )
     assert r.exit_code == 0
     assert json.loads(r.stdout)["total_items"] == 1
+
+
+def test_response_create_returns_json_with_id(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
+    r = runner.invoke(
+        cli_main.app,
+        ["response", "create", "--model", "m", "--content", "hello"],
+    )
+    assert r.exit_code == 0
+    payload = json.loads(r.stdout)
+    assert payload["id"].startswith("resp_")
+
+
+def test_response_result_returns_json(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    class CompletedClient(FakeClient):
+        def get_response(self, response_id: str):
+            r = super().get_response(response_id)
+            d = r.model_dump()
+            d["id"] = response_id
+            d["status"] = "completed"
+            return FakeResult(d)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", CompletedClient)
+    r = runner.invoke(cli_main.app, ["response", "result", "--id", "resp_any", "--poll-ms", "10"])
+    assert r.exit_code == 0
+    payload = json.loads(r.stdout)
+    assert payload["object"] == "response"
+
+
+def test_response_tail_without_id_prints_new_responses(monkeypatch):
+    _with_fake_credential(monkeypatch)
+
+    class TailAllClient(FakeClient):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._listed = 0
+
+        def list_responses(self, *, limit: int = 100, stream_id: str | None = None):
+            _ = limit
+            _ = stream_id
+            self._listed += 1
+            # first call shows one response, second call same response
+            rid = "resp_new"
+            return FakeResult(
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": rid,
+                            "object": "response",
+                            "created_at": 1712345678,
+                            "model": "m",
+                            "status": "completed",
+                        }
+                    ],
+                    "has_more": False,
+                }
+            )
+
+        def get_response(self, response_id: str):
+            r = super().get_response(response_id)
+            d = r.model_dump()
+            d["id"] = response_id
+            d["status"] = "completed"
+            return FakeResult(d)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", TailAllClient)
+    sleeps = 0
+
+    def fake_sleep(_sec: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        if sleeps >= 2:
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
+    r = runner.invoke(
+        cli_main.app,
+        ["response", "tail", "--poll-ms", "10", "--limit", "5"],
+    )
+    assert r.exit_code == 130  # interrupted by our fake sleep
+    lines = [ln for ln in r.stdout.splitlines() if ln.strip()]
+    assert len(lines) >= 1
+    first = json.loads(lines[0])
+    assert first["id"] == "resp_new"
 
 
 def test_stream_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
