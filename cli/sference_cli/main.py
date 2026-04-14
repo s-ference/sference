@@ -554,7 +554,8 @@ def stream_submit(
             typer.echo(f"Unrecognized line format: {line[:100]}", err=True)
             raise typer.Exit(code=1)
 
-        resp = _call_api(lambda: client.create_response(body))
+        # SDK signature is keyword-only; pass the payload as kwargs.
+        resp = _call_api(lambda: client.create_response(**body))
         created_responses.append(resp)
 
     # Return stream detail-like response for compatibility

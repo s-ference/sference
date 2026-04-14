@@ -90,16 +90,17 @@ class FakeClient:
         _ = model
         return self.append_stream_items(stream_id, items=[])
 
-    def create_response(self, body: dict | None = None, **kwargs):
-        """Mock create_response for the new stream submit implementation."""
-        # Handle both positional dict argument (how CLI calls it) and keyword arguments
-        data = body if body is not None else kwargs
+    def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
+        """Mock create_response (keyword-only, matches SDK signature)."""
+        _ = kwargs
         return FakeResult({
             "id": "resp_019d58a7e8b472c8a8f10346c9b7f3c5",
             "object": "response",
             "created_at": 1712345678,
-            "model": data.get("model", "gpt-4o") if isinstance(data, dict) else "gpt-4o",
+            "model": model,
             "status": "in_progress",
+            "metadata": metadata or {},
+            "input": input,
             "output": [{"type": "output_text", "text": "Mock response"}],
             "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
         })
