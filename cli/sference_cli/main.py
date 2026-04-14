@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
 import time
@@ -17,6 +18,8 @@ from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_chec
 from . import stream_cache as stream_cache_mod
 
 _T = TypeVar("_T")
+
+_logger = logging.getLogger(__name__)
 
 
 app = typer.Typer(help="sference CLI", invoke_without_command=True)
@@ -52,6 +55,12 @@ def _read_token() -> str | None:
 
 
 def _client(base_url: Optional[str] = None) -> SferenceClient:
+    # If the caller didn't explicitly pass --base-url, allow SFERENCE_BASE_URL
+    # to override the default.
+    env_base_url = os.environ.get("SFERENCE_BASE_URL")
+    if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
+        _logger.info(f"Using SFERENCE_BASE_URL: {env_base_url}")
+        base_url = env_base_url
     return SferenceClient(base_url=base_url, api_key=_read_token())
 
 
@@ -172,6 +181,12 @@ def auth_login(
         "--api-key",
         help="API key (sk_...) or JWT. Non-interactive: saves immediately (e.g. CI).",
     ),
+    as_json: bool = typer.Option(False, "--json", help="Print authenticated user as JSON after validation."),
+    validate: bool = typer.Option(
+        True,
+        "--validate/--no-validate",
+        help="Validate the credential by calling GET /v1/auth/me and print the authenticated user.",
+    ),
     console_url: Optional[str] = typer.Option(
         None,
         "--console-url",
@@ -188,6 +203,16 @@ def auth_login(
             raise typer.Exit(code=1)
         _write_token(key)
         typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
+        if validate:
+            client = _client(None)
+            me = _call_api(client.get_me)
+            if as_json:
+                _print(me, True)
+            else:
+                if isinstance(me, dict) and "username" in me and "role" in me:
+                    typer.echo(f"Authenticated as {me['username']} ({me['role']}).")
+                else:
+                    typer.echo(f"Authenticated. {me}")
         return
 
     base = (console_url or DEFAULT_CONSOLE_URL).rstrip("/")
@@ -213,6 +238,16 @@ def auth_login(
         raise typer.Exit(code=1)
     _write_token(token.strip())
     typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
+    if validate:
+        client = _client(None)
+        me = _call_api(client.get_me)
+        if as_json:
+            _print(me, True)
+        else:
+            if isinstance(me, dict) and "username" in me and "role" in me:
+                typer.echo(f"Authenticated as {me['username']} ({me['role']}).")
+            else:
+                typer.echo(f"Authenticated. {me}")
 
 
 @auth_app.command("me")

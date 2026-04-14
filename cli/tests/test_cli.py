@@ -143,7 +143,7 @@ def test_auth_login_api_key_noninteractive(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
     result = runner.invoke(
         cli_main.app,
-        ["auth", "login", "--api-key", "sk_test_cli_key_abc"],
+        ["auth", "login", "--api-key", "sk_test_cli_key_abc", "--no-validate"],
     )
     assert result.exit_code == 0
     assert "Credentials saved" in result.stdout
@@ -162,7 +162,7 @@ def test_auth_login_interactive_opens_browser(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main.webbrowser, "open", fake_open)
     result = runner.invoke(
         cli_main.app,
-        ["auth", "login", "--console-url", "http://localhost:3000"],
+        ["auth", "login", "--console-url", "http://localhost:3000", "--no-validate"],
         input="sk_pasted_key\n",
     )
     assert result.exit_code == 0
@@ -177,7 +177,7 @@ def test_auth_login_no_browser(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main.webbrowser, "open", mock_open)
     result = runner.invoke(
         cli_main.app,
-        ["auth", "login", "--no-browser"],
+        ["auth", "login", "--no-browser", "--no-validate"],
         input="sk_no_browser\n",
     )
     assert result.exit_code == 0

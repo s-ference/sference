@@ -3,6 +3,5 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$REPO_ROOT"
 
-exec uv run --package sference-cli sference "$@"
+exec uv run --project "$REPO_ROOT" --package sference-cli sference "$@"

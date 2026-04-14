@@ -760,6 +760,26 @@
         "deprecated": false
       }
     },
+    "/v1/auth/me": {
+      "get": {
+        "summary": "Me",
+        "operationId": "V1AuthMeMe",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/v1/batches/{batch_id}/cancel": {
       "post": {
         "summary": "CancelBatch",
