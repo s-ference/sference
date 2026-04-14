@@ -2260,12 +2260,6 @@
           "prefix": {
             "type": "string"
           },
-          "scopes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "created_at": {
             "type": "string"
           }
@@ -2276,8 +2270,7 @@
           "id",
           "name",
           "plaintext",
-          "prefix",
-          "scopes"
+          "prefix"
         ],
         "title": "ApiKeyCreateResponse"
       },
@@ -2292,12 +2285,6 @@
           },
           "prefix": {
             "type": "string"
-          },
-          "scopes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           },
           "created_at": {
             "type": "string"
@@ -2318,8 +2305,7 @@
           "created_at",
           "id",
           "name",
-          "prefix",
-          "scopes"
+          "prefix"
         ],
         "title": "ApiKeyItemResponse"
       },
