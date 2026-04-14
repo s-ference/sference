@@ -122,7 +122,7 @@ asyncio.run(main())
 
 ### Async client — streams
 
-Stream-associated jobs use `create_response(..., metadata={"stream_id": ..., "completion_window": "24h"})`. Consume completions with `list_stream_events` (optional `wait_ms` long-poll) or `iter_stream_events` (paged replay; optional checkpoints align with CLI `stream tail`).
+Stream-associated jobs use `create_response(..., metadata={"stream_id": ..., "completion_window": "24h"})`. Consume completions with `list_responses_events` / `iter_responses_events` (optional `stream_id`, `wait_ms` long-poll; optional checkpoints align with CLI `sference responses tail`).
 
 **Use case:** Work arrives over time, or you want one id to group many responses and observe completions as they land.
 
@@ -142,7 +142,7 @@ async def main() -> None:
             input=[{"role": "user", "content": "Hello"}],
             metadata={"stream_id": stream.id, "completion_window": "24h"},
         )
-        async for ev in client.iter_stream_events(stream.id, checkpoint=False):
+        async for ev in client.iter_responses_events(stream_id=stream.id, checkpoint=False):
             print(ev.completion_id, ev.status)
 
 

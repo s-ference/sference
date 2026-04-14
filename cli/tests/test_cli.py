@@ -123,8 +123,10 @@ class FakeClient:
         d["archived_at"] = None
         return FakeResult(d)
 
-    def list_stream_events(self, stream_id: str, **kwargs):
-        raw = json.loads((FIXTURES / "V1StreamsStreamIdEventsListEvents" / "200.json").read_text(encoding="utf-8"))
+    def list_responses_events(self, *, stream_id: str | None = None, **kwargs):
+        _ = stream_id
+        _ = kwargs
+        raw = json.loads((FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8"))
         return StreamEventList.model_validate(raw)
 
 
@@ -402,15 +404,15 @@ def test_auth_me_401_shows_friendly_message(monkeypatch):
     assert "auth login" in out
 
 
-class FakeStreamTailClient(FakeClient):
+class FakeResponsesTailClient(FakeClient):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._tail_i = 0
 
-    def list_stream_events(self, stream_id: str, **kwargs):
+    def list_responses_events(self, *, stream_id: str | None = None, **kwargs):
         self._tail_i += 1
         if self._tail_i == 1:
-            return super().list_stream_events(stream_id, **kwargs)
+            return super().list_responses_events(stream_id=stream_id, **kwargs)
         return StreamEventList.model_validate({"object": "list", "data": [], "has_more": False})
 
 
@@ -471,19 +473,19 @@ def test_stream_submit_jsonl(monkeypatch, tmp_path: Path):
     assert json.loads(r.stdout)["total_items"] == 1
 
 
-def test_response_create_returns_json_with_id(monkeypatch):
+def test_responses_create_returns_json_with_id(monkeypatch):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
     r = runner.invoke(
         cli_main.app,
-        ["response", "create", "--model", "m", "--content", "hello"],
+        ["responses", "create", "--model", "m", "--content", "hello"],
     )
     assert r.exit_code == 0
     payload = json.loads(r.stdout)
     assert payload["id"].startswith("resp_")
 
 
-def test_response_result_returns_json(monkeypatch):
+def test_responses_result_returns_json(monkeypatch):
     _with_fake_credential(monkeypatch)
     class CompletedClient(FakeClient):
         def get_response(self, response_id: str):
@@ -494,73 +496,15 @@ def test_response_result_returns_json(monkeypatch):
             return FakeResult(d)
 
     monkeypatch.setattr(cli_main, "SferenceClient", CompletedClient)
-    r = runner.invoke(cli_main.app, ["response", "result", "--id", "resp_any", "--poll-ms", "10"])
+    r = runner.invoke(cli_main.app, ["responses", "result", "--id", "resp_any", "--poll-ms", "10"])
     assert r.exit_code == 0
     payload = json.loads(r.stdout)
     assert payload["object"] == "response"
 
 
-def test_response_tail_without_id_prints_new_responses(monkeypatch):
+def test_responses_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-
-    class TailAllClient(FakeClient):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._listed = 0
-
-        def list_responses(self, *, limit: int = 100, stream_id: str | None = None):
-            _ = limit
-            _ = stream_id
-            self._listed += 1
-            # first call shows one response, second call same response
-            rid = "resp_new"
-            return FakeResult(
-                {
-                    "object": "list",
-                    "data": [
-                        {
-                            "id": rid,
-                            "object": "response",
-                            "created_at": 1712345678,
-                            "model": "m",
-                            "status": "completed",
-                        }
-                    ],
-                    "has_more": False,
-                }
-            )
-
-        def get_response(self, response_id: str):
-            r = super().get_response(response_id)
-            d = r.model_dump()
-            d["id"] = response_id
-            d["status"] = "completed"
-            return FakeResult(d)
-
-    monkeypatch.setattr(cli_main, "SferenceClient", TailAllClient)
-    sleeps = 0
-
-    def fake_sleep(_sec: float) -> None:
-        nonlocal sleeps
-        sleeps += 1
-        if sleeps >= 2:
-            raise KeyboardInterrupt()
-
-    monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
-    r = runner.invoke(
-        cli_main.app,
-        ["response", "tail", "--poll-ms", "10", "--limit", "5"],
-    )
-    assert r.exit_code == 130  # interrupted by our fake sleep
-    lines = [ln for ln in r.stdout.splitlines() if ln.strip()]
-    assert len(lines) >= 1
-    first = json.loads(lines[0])
-    assert first["id"] == "resp_new"
-
-
-def test_stream_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(cli_main, "SferenceClient", FakeStreamTailClient)
+    monkeypatch.setattr(cli_main, "SferenceClient", FakeResponsesTailClient)
     ck = tmp_path / "ck.json"
     monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(ck))
 
@@ -576,7 +520,7 @@ def test_stream_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
     result = runner.invoke(
         cli_main.app,
         [
-            "stream",
+            "responses",
             "tail",
             "--stream-id",
             "123e4567-e89b-12d3-a456-426614174000",
@@ -587,6 +531,81 @@ def test_stream_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
     )
     assert result.exit_code == 130
     assert "019d58a7" in result.stdout
+
+
+def test_responses_tail_without_stream_id_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "SferenceClient", FakeResponsesTailClient)
+    ck = tmp_path / "ck.json"
+    monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(ck))
+
+    sleeps = 0
+
+    def fake_sleep(_sec: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        if sleeps >= 2:
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
+    result = runner.invoke(
+        cli_main.app,
+        ["responses", "tail", "--poll-ms", "1", "--no-checkpoint"],
+    )
+    assert result.exit_code == 130
+    assert "019d58a7" in result.stdout
+
+
+def test_responses_tail_passes_saved_checkpoint_as_starting_after_then_cursor(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Tail loads checkpoint, lists with that ``starting_after``, then uses last event id on the next poll."""
+    from sference_sdk.checkpoint import save_checkpoint
+
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(tmp_path / "ck.json"))
+    save_checkpoint(
+        "https://api.sference.com",
+        "__responses_events__",
+        "tail-cursor",
+        "019d58a7-2ece-7742-bc3e-69ba44168210",
+    )
+
+    class Track(FakeClient):
+        def __init__(self) -> None:
+            self.starting_after_calls: list[str | None] = []
+            self._n = 0
+
+        def list_responses_events(self, *, stream_id: str | None = None, **kwargs):
+            self.starting_after_calls.append(kwargs.get("starting_after"))
+            self._n += 1
+            if self._n == 1:
+                raw = json.loads(
+                    (FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8")
+                )
+                return StreamEventList.model_validate(raw)
+            return StreamEventList.model_validate({"object": "list", "data": [], "has_more": False})
+
+    tracker = Track()
+    monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: tracker)
+
+    sleeps = 0
+
+    def fake_sleep(_sec: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        if sleeps >= 2:
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
+    result = runner.invoke(
+        cli_main.app,
+        ["responses", "tail", "--poll-ms", "1", "--consumer", "tail-cursor"],
+    )
+    assert result.exit_code == 130
+    assert "019d58a7" in result.stdout
+    assert tracker.starting_after_calls[0] == "019d58a7-2ece-7742-bc3e-69ba44168210"
+    assert tracker.starting_after_calls[1] == "019d58a7-2ece-7742-bc3e-69ba44168279"
 
 
 def test_cli_exits_nonzero_on_client_error(monkeypatch):

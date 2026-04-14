@@ -87,6 +87,7 @@ class Stream(BaseModel):
 
 class StreamInferenceCompletionEvent(BaseModel):
     completion_id: str
+    response_id: str | None = None
     custom_id: str | None = None
     status: str
     result: dict[str, Any] | None = None

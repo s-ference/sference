@@ -26,11 +26,11 @@ app = typer.Typer(help="sference CLI", invoke_without_command=True)
 auth_app = typer.Typer(help="Auth commands", invoke_without_command=True)
 batch_app = typer.Typer(help="Batch commands", invoke_without_command=True)
 stream_app = typer.Typer(help="Stream commands", invoke_without_command=True)
-response_app = typer.Typer(help="Response commands", invoke_without_command=True)
+responses_app = typer.Typer(help="Responses commands", invoke_without_command=True)
 app.add_typer(auth_app, name="auth")
 app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
-app.add_typer(response_app, name="response")
+app.add_typer(responses_app, name="responses")
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
 
@@ -196,8 +196,8 @@ def _stream_root(ctx: typer.Context) -> None:
         raise typer.Exit(code=0)
 
 
-@response_app.callback()
-def _response_root(ctx: typer.Context) -> None:
+@responses_app.callback()
+def _responses_root(ctx: typer.Context) -> None:
     """Print help when invoked without a command."""
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -291,8 +291,8 @@ def auth_me(
     _print(me, as_json)
 
 
-@response_app.command("create")
-def response_create(
+@responses_app.command("create")
+def responses_create(
     model: str = typer.Option(..., "--model"),
     content: str = typer.Option(..., "--content"),
     wait: bool = typer.Option(False, "--wait/--no-wait"),
@@ -314,8 +314,8 @@ def response_create(
     _print(resp.model_dump(), True)
 
 
-@response_app.command("result")
-def response_result(
+@responses_app.command("result")
+def responses_result(
     id: str = typer.Option(..., "--id"),
     poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval while waiting for completion."),
     base_url: str = typer.Option("https://api.sference.com"),
@@ -339,39 +339,63 @@ def response_result(
         raise typer.Exit(code=130) from None
 
 
-@response_app.command("tail")
-def response_tail(
-    poll_ms: int = typer.Option(1000, "--poll-ms", help="Polling interval between snapshots."),
-    limit: int = typer.Option(20, "--limit", help="How many recent responses to scan when tailing without --id."),
+@responses_app.command("tail")
+def responses_tail(
+    stream_id: Optional[str] = typer.Option(
+        None,
+        "--stream-id",
+        help="Optional stream UUID; omit to tail non-stream completion events only.",
+    ),
+    consumer: str = typer.Option("default", "--consumer", help="Checkpoint namespace for resume."),
+    from_latest: bool = typer.Option(
+        False,
+        "--from-latest",
+        help="Ignore saved checkpoint and start from the latest events page.",
+    ),
+    no_checkpoint: bool = typer.Option(False, "--no-checkpoint", help="Do not read or write checkpoints."),
+    poll_ms: int = typer.Option(5000, "--poll-ms", help="Long-poll wait_ms when catching up (max 30000)."),
     base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
 ) -> None:
-    """Tail newly created responses as JSONL snapshots.
+    """Print completion events as JSONL (GET /v1/responses/events). Ctrl-C to stop.
 
-    Polls the response list and prints newly observed responses (full JSON via GET /v1/responses/{id}).
-    Use Ctrl-C to stop.
+    Omit --stream-id for standalone/batch completions; pass --stream-id to scope to a stream.
     """
+    _ = as_json
     _ensure_api_credential()
     client = _client(base_url)
+    bu = base_url.rstrip("/")
+    ck = stream_id if stream_id else "__responses_events__"
 
-    seen: set[str] = set()
+    if from_latest and not no_checkpoint:
+        clear_checkpoint(bu, ck, consumer)
+
+    last: str | None = None
+    if not no_checkpoint and not from_latest:
+        last = load_checkpoint(bu, ck, consumer)
 
     try:
         while True:
-            page = _call_api(lambda: client.list_responses(limit=limit))
-            if hasattr(page, "model_dump"):
-                d = page.model_dump()
-                items = d.get("data") if isinstance(d, dict) else []
-            else:
-                items = getattr(page, "data", None) or []
-            for it in items:
-                rid = it.get("id") if isinstance(it, dict) else getattr(it, "id", None)
-                if not isinstance(rid, str) or not rid or rid in seen:
-                    continue
-                seen.add(rid)
-                full = _call_api(lambda rid=rid: client.get_response(rid))
-                typer.echo(json.dumps(full.model_dump(), default=str, separators=(",", ":")))
-            time.sleep(max(10, poll_ms) / 1000.0)
+
+            def fetch() -> Any:
+                return client.list_responses_events(
+                    stream_id=stream_id,
+                    limit=50,
+                    starting_after=last,
+                    wait_ms=min(poll_ms, 30000),
+                )
+
+            page = _call_api(fetch)
+            if not page.data:
+                time.sleep(max(1, poll_ms) / 1000.0)
+                continue
+            for ev in page.data:
+                typer.echo(json.dumps(ev.model_dump(), default=str))
+                last = ev.completion_id
+                if not no_checkpoint:
+                    save_checkpoint(bu, ck, consumer, ev.completion_id)
     except KeyboardInterrupt:
+        typer.echo("Interrupted.", err=True)
         raise typer.Exit(code=130) from None
 
 @batch_app.command("list")
@@ -703,58 +727,6 @@ def stream_cancel(
     client = _client(base_url)
     st = _call_api(lambda: client.cancel_stream(stream_id))
     _print(st.model_dump(), as_json)
-
-
-@stream_app.command("tail")
-def stream_tail(
-    stream_id: str = typer.Option(..., "--stream-id"),
-    consumer: str = typer.Option("default", "--consumer", help="Checkpoint namespace for resume."),
-    from_latest: bool = typer.Option(
-        False,
-        "--from-latest",
-        help="Ignore saved checkpoint and start from the latest events page.",
-    ),
-    no_checkpoint: bool = typer.Option(False, "--no-checkpoint", help="Do not read or write checkpoints."),
-    poll_ms: int = typer.Option(5000, "--poll-ms", help="Long-poll wait_ms when catching up (max 30000)."),
-    base_url: str = typer.Option("https://api.sference.com"),
-    as_json: bool = typer.Option(False, "--json"),
-) -> None:
-    """Print stream result events as JSONL (stdout). Checkpoints after each event unless --no-checkpoint."""
-    _ = as_json
-    _ensure_api_credential()
-    client = _client(base_url)
-    bu = base_url.rstrip("/")
-
-    if from_latest and not no_checkpoint:
-        clear_checkpoint(bu, stream_id, consumer)
-
-    last: str | None = None
-    if not no_checkpoint and not from_latest:
-        last = load_checkpoint(bu, stream_id, consumer)
-
-    try:
-        while True:
-
-            def fetch() -> Any:
-                return client.list_stream_events(
-                    stream_id,
-                    limit=50,
-                    starting_after=last,
-                    wait_ms=min(poll_ms, 30000),
-                )
-
-            page = _call_api(fetch)
-            if not page.data:
-                time.sleep(max(1, poll_ms) / 1000.0)
-                continue
-            for ev in page.data:
-                typer.echo(json.dumps(ev.model_dump(), default=str))
-                last = ev.completion_id
-                if not no_checkpoint:
-                    save_checkpoint(bu, stream_id, consumer, ev.completion_id)
-    except KeyboardInterrupt:
-        typer.echo("Interrupted.", err=True)
-        raise typer.Exit(code=130) from None
 
 
 @batch_app.command("download-results")

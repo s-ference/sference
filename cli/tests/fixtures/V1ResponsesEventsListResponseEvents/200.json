@@ -3,14 +3,14 @@
   "data": [
     {
       "completion_id": "019d58a7-2ece-7742-bc3e-69ba44168279",
-      "position": 1,
-      "custom_id": "c1",
+      "response_id": "019d58a7-2ece-7742-bc3e-69ba44168280",
+      "custom_id": "req-1",
       "status": "completed",
-      "result": {"ok": true},
+      "result": {"choices": []},
       "error": null,
-      "prompt_tokens": 1,
-      "completion_tokens": 1,
-      "total_tokens": 2,
+      "prompt_tokens": 10,
+      "completion_tokens": 5,
+      "total_tokens": 15,
       "completed_at": "2026-04-04T10:12:09+00:00"
     }
   ],

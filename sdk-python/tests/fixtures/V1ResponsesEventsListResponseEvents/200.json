@@ -3,6 +3,7 @@
   "data": [
     {
       "completion_id": "019d58a7-2ece-7742-bc3e-69ba44168279",
+      "response_id": "019d58a7-2ece-7742-bc3e-69ba44168280",
       "custom_id": "req-1",
       "status": "completed",
       "result": {"choices": []},

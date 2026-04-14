@@ -56,7 +56,7 @@ sference stream create --name "my-stream" --window 24h
 sference stream list
 sference stream submit --stream-id <stream_id> --input-file ./lines.jsonl --model Qwen/Qwen2.5-7B-Instruct
 sference stream status --stream-id <stream_id>
-sference stream tail --stream-id <stream_id>
+sference responses tail --stream-id <stream_id>
 ```
 
 ### cURL: OpenAI-compatible `/v1/responses`
@@ -87,7 +87,7 @@ curl -sS "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses/${RID}" \
 | `SFERENCE_BASE_URL` | API base URL (default `https://api.sference.com`) |
 | `SFERENCE_CONSOLE_URL` | Console URL for `auth login` browser step (default `https://console.sference.com`) |
 | `SFERENCE_STREAM_CACHE` | Optional path to the stream resumable-cache file (default `~/.sference/stream_cache.json`) |
-| `SFERENCE_STREAM_CHECKPOINTS` | Optional path for **stream event** tail checkpoints (default `~/.sference/stream_checkpoints.json`) |
+| `SFERENCE_STREAM_CHECKPOINTS` | Optional path for **`responses tail`** event checkpoints (default `~/.sference/stream_checkpoints.json`) |
 
 ## Commands
 
@@ -113,9 +113,17 @@ curl -sS "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses/${RID}" \
 
 Global options on most batch commands: `--base-url` (default `https://api.sference.com`).
 
+### Responses (`/v1/responses`)
+
+| Command | Description |
+|---------|-------------|
+| `sference responses create` | Create one response (`--model`, `--content`, optional `--wait`, `--poll-ms`, `--timeout-s`) |
+| `sference responses result` | Poll until terminal state (`--id`, `--poll-ms`) |
+| `sference responses tail` | Print completion events as JSONL via `GET /v1/responses/events` (optional `--stream-id` to scope to a stream; omit for non-stream completions). Flags: `--consumer`, `--from-latest`, `--no-checkpoint`, `--poll-ms` |
+
 ### Stream (first-class streams API)
 
-Long-lived **streams** are separate from **batches**: you create a stream, submit **responses** tied to it over time (`POST /v1/responses` with `metadata.stream_id`), and consume **completion events** with cursor-based pagination (`GET /v1/streams/{id}/events`). New API keys include `streams:read` and `streams:write`; older keys keep their existing scopes.
+Long-lived **streams** are separate from **batches**: you create a stream, submit **responses** tied to it over time (`POST /v1/responses` with `metadata.stream_id`), and consume **completion events** with cursor-based pagination on **`GET /v1/responses/events`** (pass **`stream_id`** when scoping to a stream). Authenticate with your **secret API key** like other `/v1` calls.
 
 | Command | Description |
 |---------|-------------|
@@ -125,7 +133,6 @@ Long-lived **streams** are separate from **batches**: you create a stream, submi
 | `sference stream submit` | Create responses from JSONL via `POST /v1/responses` per line (`metadata.stream_id` set automatically; `--stream-id`, `--input-file`, `--model` required for content-only lines) — per line: OpenAI batch-style `{custom_id?, method, url, body}` or content-only `{content}` |
 | `sference stream cancel` | Stop accepting new items and stop enqueueing pending work; does not auto-cancel in-flight requests (`--stream-id`, `--json`) |
 | `sference stream archive` | Finalize the stream (optional after cancel); no new items (`--stream-id`, `--json`) |
-| `sference stream tail` | Print events as JSONL; checkpoints after each event (override with `SFERENCE_STREAM_CHECKPOINTS`). Flags: `--consumer`, `--from-latest`, `--no-checkpoint`, `--poll-ms` |
 
 Example JSONL lines for `stream submit` (both accepted):
 
@@ -211,6 +218,6 @@ For your own code, see **[`../sdk-python/README.md`](../sdk-python/README.md)** 
 
 - **Batches (sync):** `submit_batch`, `wait_for_completion`, `get_results`
 - **`/v1/responses` (sync):** `create_response`, `get_response` (standalone or `metadata.stream_id` for streams)
-- **Async:** **`AsyncSferenceClient`** — same surface as sync with `await`, plus `iter_stream_events` / `list_stream_events` for stream tailing
+- **Async:** **`AsyncSferenceClient`** — same surface as sync with `await`, plus `iter_responses_events` / `list_responses_events` for completion tailing (`GET /v1/responses/events`)
 
 That README also documents when to prefer **batches** vs **streams** and includes cURL examples.

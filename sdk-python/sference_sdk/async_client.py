@@ -224,23 +224,26 @@ class AsyncSferenceClient:
         response = await self._request("PATCH", f"/v1/streams/{stream_id}", {"status": "cancelled"})
         return Stream.model_validate(response)
 
-    async def list_stream_events(
+    async def list_responses_events(
         self,
-        stream_id: str,
         *,
+        stream_id: str | None = None,
         limit: int = 20,
         starting_after: str | None = None,
         ending_before: str | None = None,
         wait_ms: int = 0,
     ) -> StreamEventList:
+        """GET /v1/responses/events — completion events (omit stream_id for non-stream feed)."""
         params: dict[str, Any] = {"limit": limit, "wait_ms": wait_ms}
+        if stream_id is not None:
+            params["stream_id"] = stream_id
         if starting_after is not None:
             params["starting_after"] = starting_after
         if ending_before is not None:
             params["ending_before"] = ending_before
         response = await self._client.request(
             "GET",
-            f"/v1/streams/{stream_id}/events",
+            "/v1/responses/events",
             headers=self._headers(),
             params=params,
         )
@@ -252,37 +255,38 @@ class AsyncSferenceClient:
             raise ApiError(f"{response.status_code}: {payload}")
         return StreamEventList.model_validate(response.json())
 
-    async def iter_stream_events(
+    async def iter_responses_events(
         self,
-        stream_id: str,
         *,
+        stream_id: str | None = None,
         consumer_name: str = "default",
         starting_after: str | None = None,
         checkpoint: bool = True,
         from_latest: bool = False,
     ) -> AsyncIterator[StreamInferenceCompletionEvent]:
+        ck_stream = stream_id if stream_id is not None else "__responses_events__"
         if from_latest:
-            clear_checkpoint(self.base_url, stream_id, consumer_name)
+            clear_checkpoint(self.base_url, ck_stream, consumer_name)
         cur: str | None = starting_after
         if checkpoint and cur is None:
-            cur = load_checkpoint(self.base_url, stream_id, consumer_name)
+            cur = load_checkpoint(self.base_url, ck_stream, consumer_name)
 
         if cur is None:
-            page = await self.list_stream_events(stream_id, limit=100, wait_ms=0)
+            page = await self.list_responses_events(stream_id=stream_id, limit=100, wait_ms=0)
             for ev in reversed(page.data):
                 yield ev
                 if checkpoint:
-                    save_checkpoint(self.base_url, stream_id, consumer_name, ev.completion_id)
+                    save_checkpoint(self.base_url, ck_stream, consumer_name, ev.completion_id)
             return
 
         while True:
-            page = await self.list_stream_events(stream_id, limit=100, starting_after=cur, wait_ms=0)
+            page = await self.list_responses_events(stream_id=stream_id, limit=100, starting_after=cur, wait_ms=0)
             if not page.data:
                 return
             for ev in page.data:
                 yield ev
                 if checkpoint:
-                    save_checkpoint(self.base_url, stream_id, consumer_name, ev.completion_id)
+                    save_checkpoint(self.base_url, ck_stream, consumer_name, ev.completion_id)
                 cur = ev.completion_id
             if not page.has_more:
                 return

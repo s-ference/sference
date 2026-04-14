@@ -160,26 +160,27 @@ def test_create_and_list_streams_via_httpx_mock_transport() -> None:
         assert len(lst.items) == 1
 
 
-def test_list_stream_events_passes_query_params() -> None:
+def test_list_responses_events_passes_query_params() -> None:
     captured: dict[str, str] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/events"):
+        if request.url.path == "/v1/responses/events":
             captured.update(dict(request.url.params))
             payload = json.loads(
-                (FIXTURES / "V1StreamsStreamIdEventsListEvents" / "200.json").read_text(encoding="utf-8")
+                (FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8")
             )
             return httpx.Response(status_code=200, json=payload)
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
     with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        page = client.list_stream_events(
-            "123e4567-e89b-12d3-a456-426614174000",
+        page = client.list_responses_events(
+            stream_id="123e4567-e89b-12d3-a456-426614174000",
             limit=10,
             starting_after="019d58a7-2ece-7742-bc3e-69ba44168279",
             wait_ms=1000,
         )
     assert captured.get("limit") == "10"
+    assert captured.get("stream_id") == "123e4567-e89b-12d3-a456-426614174000"
     assert captured.get("starting_after") == "019d58a7-2ece-7742-bc3e-69ba44168279"
     assert captured.get("wait_ms") == "1000"
     assert page.data[0].completion_id == "019d58a7-2ece-7742-bc3e-69ba44168279"
@@ -194,4 +195,125 @@ def test_checkpoint_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None
     assert load_checkpoint("http://127.0.0.1:8000", "sid", "c1") == "e1"
     clear_checkpoint("http://127.0.0.1:8000", "sid", "c1")
     assert load_checkpoint("http://127.0.0.1:8000", "sid", "c1") is None
+
+
+def _completion_event_row(completion_id: str) -> dict:
+    return {
+        "completion_id": completion_id,
+        "response_id": None,
+        "custom_id": None,
+        "status": "completed",
+        "result": {},
+        "error": None,
+        "prompt_tokens": 1,
+        "completion_tokens": 1,
+        "total_tokens": 2,
+        "completed_at": "2026-04-04T10:12:09+00:00",
+    }
+
+
+def test_iter_responses_events_uses_starting_after_from_saved_checkpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sference_sdk.checkpoint import save_checkpoint
+
+    monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(tmp_path / "cp.json"))
+    base = "http://iter-checkpoint.local"
+    saved_cursor = "019d58a7-2ece-7742-bc3e-69ba44168279"
+    next_id = "019d58a7-2ece-7742-bc3e-69ba44168280"
+    save_checkpoint(base, "__responses_events__", "consumer-a", saved_cursor)
+
+    starting_after_log: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path != "/v1/responses/events":
+            return httpx.Response(status_code=404, json={"detail": "not found"})
+        params = dict(request.url.params)
+        starting_after_log.append(params.get("starting_after"))
+        assert params.get("starting_after") == saved_cursor
+        body = {
+            "object": "list",
+            "data": [_completion_event_row(next_id)],
+            "has_more": False,
+        }
+        return httpx.Response(status_code=200, json=body)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok", base_url=base) as client:
+        events = list(client.iter_responses_events(consumer_name="consumer-a", checkpoint=True))
+    assert len(events) == 1
+    assert events[0].completion_id == next_id
+    assert starting_after_log == [saved_cursor]
+
+
+def test_iter_responses_events_multipage_updates_checkpoint_to_last_completion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sference_sdk.checkpoint import load_checkpoint, save_checkpoint
+
+    monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(tmp_path / "cp.json"))
+    base = "http://iter-pages.local"
+    c0 = "019d58a7-2ece-7742-bc3e-69ba44168277"
+    c1 = "019d58a7-2ece-7742-bc3e-69ba44168278"
+    c2 = "019d58a7-2ece-7742-bc3e-69ba44168279"
+    save_checkpoint(base, "__responses_events__", "tail", c0)
+
+    starting_after_log: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path != "/v1/responses/events":
+            return httpx.Response(status_code=404, json={"detail": "not found"})
+        params = dict(request.url.params)
+        starting_after_log.append(params.get("starting_after"))
+        sa = params.get("starting_after")
+        if sa == c0:
+            body = {"object": "list", "data": [_completion_event_row(c1)], "has_more": True}
+        elif sa == c1:
+            body = {"object": "list", "data": [_completion_event_row(c2)], "has_more": False}
+        else:
+            return httpx.Response(status_code=500, json={"detail": f"unexpected starting_after={sa!r}"})
+        return httpx.Response(status_code=200, json=body)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok", base_url=base) as client:
+        events = list(client.iter_responses_events(consumer_name="tail", checkpoint=True))
+    assert [e.completion_id for e in events] == [c1, c2]
+    assert starting_after_log == [c0, c1]
+    assert load_checkpoint(base, "__responses_events__", "tail") == c2
+
+
+async def test_iter_responses_events_async_same_multipage_checkpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sference_sdk.async_client import AsyncSferenceClient
+    from sference_sdk.checkpoint import load_checkpoint, save_checkpoint
+
+    monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(tmp_path / "cp-async.json"))
+    base = "http://iter-async.local"
+    c0 = "019d58a7-2ece-7742-bc3e-69ba44168281"
+    c1 = "019d58a7-2ece-7742-bc3e-69ba44168282"
+    c2 = "019d58a7-2ece-7742-bc3e-69ba44168283"
+    save_checkpoint(base, "__responses_events__", "async-c", c0)
+
+    starting_after_log: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path != "/v1/responses/events":
+            return httpx.Response(status_code=404, json={"detail": "not found"})
+        params = dict(request.url.params)
+        starting_after_log.append(params.get("starting_after"))
+        sa = params.get("starting_after")
+        if sa == c0:
+            body = {"object": "list", "data": [_completion_event_row(c1)], "has_more": True}
+        elif sa == c1:
+            body = {"object": "list", "data": [_completion_event_row(c2)], "has_more": False}
+        else:
+            return httpx.Response(status_code=500, json={"detail": f"unexpected starting_after={sa!r}"})
+        return httpx.Response(status_code=200, json=body)
+
+    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok", base_url=base) as client:
+        out: list[str] = []
+        async for ev in client.iter_responses_events(consumer_name="async-c", checkpoint=True):
+            out.append(ev.completion_id)
+    assert out == [c1, c2]
+    assert starting_after_log == [c0, c1]
+    assert load_checkpoint(base, "__responses_events__", "async-c") == c2
 
