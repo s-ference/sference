@@ -1126,6 +1126,255 @@
         "deprecated": false
       }
     },
+    "/billing/topups": {
+      "post": {
+        "summary": "CreateTopup",
+        "operationId": "V1BillingTopupsCreateTopup",
+        "parameters": [
+          {
+            "name": "nonce",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "Client-generated nonce to stabilize idempotency."
+            },
+            "description": "Client-generated nonce to stabilize idempotency.",
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopupCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopupCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/billing/summary": {
+      "get": {
+        "summary": "GetSummary",
+        "operationId": "V1BillingSummaryGetSummary",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "default": 30
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/billing/transactions": {
+      "get": {
+        "summary": "GetTransactions",
+        "operationId": "V1BillingTransactionsGetTransactions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "default": 25
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/responses/{response_id}": {
       "get": {
         "summary": "GetResponse",
@@ -1935,6 +2184,29 @@
         },
         "deprecated": false
       }
+    },
+    "/webhooks/mollie/payments": {
+      "post": {
+        "summary": "MolliePaymentsWebhook",
+        "operationId": "V1WebhooksMolliePaymentsMolliePaymentsWebhook",
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
     }
   },
   "components": {
@@ -2202,6 +2474,103 @@
         ],
         "title": "BatchResultsResponse"
       },
+      "BillingModelSummary": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          },
+          "total_requests": {
+            "type": "integer"
+          },
+          "cost_micros": {
+            "type": "integer"
+          },
+          "pricing": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PricingInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "completion_tokens",
+          "cost_micros",
+          "model",
+          "prompt_tokens",
+          "total_requests",
+          "total_tokens"
+        ],
+        "title": "BillingModelSummary"
+      },
+      "BillingSummary": {
+        "properties": {
+          "days": {
+            "type": "integer"
+          },
+          "total_prompt_tokens": {
+            "type": "integer"
+          },
+          "total_completion_tokens": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          },
+          "total_requests": {
+            "type": "integer"
+          },
+          "estimated_cost_micros": {
+            "type": "integer"
+          },
+          "credit_balance_micros": {
+            "type": "integer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credit_balance_micros",
+          "days",
+          "estimated_cost_micros",
+          "total_completion_tokens",
+          "total_prompt_tokens",
+          "total_requests",
+          "total_tokens"
+        ],
+        "title": "BillingSummary"
+      },
+      "BillingSummaryResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/BillingSummary"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/BillingModelSummary"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "by_model",
+          "summary"
+        ],
+        "title": "BillingSummaryResponse"
+      },
       "DailyUsage": {
         "properties": {
           "date": {
@@ -2286,6 +2655,90 @@
           "body"
         ],
         "title": "InferenceRequest"
+      },
+      "LedgerEntryItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "type": "string"
+          },
+          "amount_micros": {
+            "type": "integer"
+          },
+          "balance_after_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "external_provider": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "external_payment_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_micros",
+          "created_at",
+          "description",
+          "id",
+          "type"
+        ],
+        "title": "LedgerEntryItem"
+      },
+      "LedgerListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntryItem"
+            },
+            "type": "array"
+          },
+          "next_starting_after": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "LedgerListResponse"
       },
       "LinkOAuthResponse": {
         "properties": {
@@ -2436,6 +2889,31 @@
           "provider"
         ],
         "title": "OAuthCompleteRequest"
+      },
+      "PricingInfo": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "prompt_token_price_micros": {
+            "type": "integer"
+          },
+          "completion_token_price_micros": {
+            "type": "integer"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "completion_token_price_micros",
+          "effective_from",
+          "model",
+          "prompt_token_price_micros"
+        ],
+        "title": "PricingInfo"
       },
       "ResetPasswordRequest": {
         "properties": {
@@ -3153,6 +3631,34 @@
         "type": "object",
         "required": [],
         "title": "StreamPatchRequest"
+      },
+      "TopupCreateRequest": {
+        "properties": {
+          "amount_euros": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_euros"
+        ],
+        "title": "TopupCreateRequest"
+      },
+      "TopupCreateResponse": {
+        "properties": {
+          "mollie_payment_id": {
+            "type": "string"
+          },
+          "checkout_url": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checkout_url",
+          "mollie_payment_id"
+        ],
+        "title": "TopupCreateResponse"
       },
       "UsageDailyResponse": {
         "properties": {
