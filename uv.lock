@@ -434,7 +434,7 @@ wheels = [
 
 [[package]]
 name = "sference-cli"
-version = "0.0.2"
+version = "0.0.3"
 source = { editable = "cli" }
 dependencies = [
     { name = "sference-sdk" },
@@ -449,7 +449,7 @@ requires-dist = [
 
 [[package]]
 name = "sference-sdk"
-version = "0.0.1"
+version = "0.0.3"
 source = { editable = "sdk-python" }
 dependencies = [
     { name = "httpx" },
