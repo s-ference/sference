@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -130,14 +130,35 @@ class ResponseCreatePayload(BaseModel):
     max_output_tokens: int | None = None
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    include_reasoning: bool = True
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-class ResponseOutputContent(BaseModel):
-    """Content item in a response output."""
+ReasoningFormat = Literal[
+    "think_tag",
+    "qwen_preamble",
+    "provider_field",
+    "anthropic_thinking",
+    "openai_summary",
+    "unknown",
+]
 
+
+class ResponseOutputText(BaseModel):
     type: Literal["output_text"] = "output_text"
     text: str
+
+
+class ResponseOutputReasoning(BaseModel):
+    type: Literal["reasoning"] = "reasoning"
+    text: str
+    format: ReasoningFormat
+
+
+ResponseOutputContent = Annotated[
+    ResponseOutputText | ResponseOutputReasoning,
+    Field(discriminator="type"),
+]
 
 
 class ResponseUsage(BaseModel):

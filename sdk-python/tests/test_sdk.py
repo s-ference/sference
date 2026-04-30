@@ -186,6 +186,72 @@ def test_list_responses_events_passes_query_params() -> None:
     assert page.data[0].completion_id == "019d58a7-2ece-7742-bc3e-69ba44168279"
 
 
+def test_get_response_parses_reasoning_output_item() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/v1/responses/resp_1":
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "id": "resp_1",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "status": "completed",
+                    "output": [
+                        {"type": "reasoning", "text": "internal reasoning", "format": "think_tag"},
+                        {"type": "output_text", "text": "The answer is 42."},
+                    ],
+                    "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.get_response("resp_1")
+        assert resp.status == "completed"
+        assert resp.output is not None
+        assert resp.output[0].type == "reasoning"
+        assert resp.output[0].text == "internal reasoning"
+        assert resp.output[1].type == "output_text"
+        assert resp.output[1].text == "The answer is 42."
+
+
+def test_create_response_sends_include_reasoning_and_parses_reasoning() -> None:
+    captured_json: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_json
+        if request.method == "POST" and request.url.path == "/v1/responses":
+            captured_json = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                status_code=201,
+                json={
+                    "id": "resp_2",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": captured_json.get("model", "m"),
+                    "status": "completed",
+                    "output": [
+                        {"type": "reasoning", "text": "r", "format": "provider_field"},
+                        {"type": "output_text", "text": "t"},
+                    ],
+                    "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.create_response(
+            model="m",
+            input=[{"role": "user", "content": "hi"}],
+            include_reasoning=False,
+        )
+
+    assert captured_json.get("include_reasoning") is False
+    assert resp.output is not None
+    assert resp.output[0].type == "reasoning"
+
+
 def test_checkpoint_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 

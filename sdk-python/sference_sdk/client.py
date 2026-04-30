@@ -166,6 +166,7 @@ class SferenceClient:
         max_output_tokens: int | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
+        include_reasoning: bool | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Response:
         """Create a standalone response or stream-associated response.
@@ -187,6 +188,8 @@ class SferenceClient:
             payload["temperature"] = temperature
         if top_p is not None:
             payload["top_p"] = top_p
+        if include_reasoning is not None:
+            payload["include_reasoning"] = include_reasoning
         if metadata is not None:
             payload["metadata"] = metadata
 

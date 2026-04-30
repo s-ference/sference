@@ -1395,6 +1395,76 @@
         "deprecated": false
       }
     },
+    "/control/v1/activity/{request_id}": {
+      "get": {
+        "summary": "GetActivityDetail",
+        "operationId": "ControlV1ActivityRequestIdGetActivityDetail",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityItemDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/activity": {
       "get": {
         "summary": "ListActivity",
@@ -2561,6 +2631,142 @@
         ],
         "title": "ActivityItem"
       },
+      "ActivityItemDetail": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "custom_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "standalone",
+              "batch",
+              "stream"
+            ]
+          },
+          "batch_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stream_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "completion_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body_json": {
+            "type": "object"
+          },
+          "result_json": {
+            "oneOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_json": {
+            "oneOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "body_json",
+          "created_at",
+          "id",
+          "model",
+          "status",
+          "type"
+        ],
+        "title": "ActivityItemDetail"
+      },
       "ActivityListResponse": {
         "properties": {
           "items": {
@@ -3367,6 +3573,11 @@
             "maximum": 1.0,
             "description": "Nucleus sampling parameter."
           },
+          "include_reasoning": {
+            "type": "boolean",
+            "description": "If true, extracted reasoning is returned as a `reasoning` item in `output[]`. Set false to suppress reasoning while keeping the final text.",
+            "default": true
+          },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
           }
@@ -3447,7 +3658,14 @@
             "oneOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/ResponseOutputContent"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ResponseOutputText"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseOutputReasoning"
+                    }
+                  ]
                 },
                 "type": "array"
               },
@@ -3584,7 +3802,36 @@
         "title": "ResponseMetadata",
         "description": "Extra metadata including \"completion_window\" (\"1h\" or \"24h\") and optional \"stream_id\" for grouping."
       },
-      "ResponseOutputContent": {
+      "ResponseOutputReasoning": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "reasoning",
+            "default": "reasoning"
+          },
+          "text": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "think_tag",
+              "qwen_preamble",
+              "provider_field",
+              "anthropic_thinking",
+              "openai_summary",
+              "unknown"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "format",
+          "text"
+        ],
+        "title": "ResponseOutputReasoning"
+      },
+      "ResponseOutputText": {
         "properties": {
           "type": {
             "type": "string",
@@ -3599,7 +3846,7 @@
         "required": [
           "text"
         ],
-        "title": "ResponseOutputContent"
+        "title": "ResponseOutputText"
       },
       "ResponseUsage": {
         "properties": {
@@ -3648,6 +3895,16 @@
         "properties": {
           "message": {
             "type": "string"
+          },
+          "verification_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

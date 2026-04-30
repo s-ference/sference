@@ -485,6 +485,25 @@ def test_responses_create_returns_json_with_id(monkeypatch):
     assert payload["id"].startswith("resp_")
 
 
+def test_responses_create_passes_include_reasoning_flag(monkeypatch):
+    _with_fake_credential(monkeypatch)
+
+    captured: dict = {}
+
+    class CapturingClient(FakeClient):
+        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
+            captured.update(kwargs)
+            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
+    r = runner.invoke(
+        cli_main.app,
+        ["responses", "create", "--model", "m", "--content", "hello", "--no-include-reasoning"],
+    )
+    assert r.exit_code == 0
+    assert captured.get("include_reasoning") is False
+
+
 def test_responses_result_returns_json(monkeypatch):
     _with_fake_credential(monkeypatch)
     class CompletedClient(FakeClient):

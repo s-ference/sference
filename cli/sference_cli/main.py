@@ -295,6 +295,11 @@ def auth_me(
 def responses_create(
     model: str = typer.Option(..., "--model"),
     content: str = typer.Option(..., "--content"),
+    include_reasoning: bool = typer.Option(
+        True,
+        "--include-reasoning/--no-include-reasoning",
+        help="Include extracted reasoning in the response output (default: true).",
+    ),
     wait: bool = typer.Option(False, "--wait/--no-wait"),
     poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval when --wait is enabled."),
     timeout_s: int = typer.Option(60, "--timeout-s", help="Timeout in seconds when --wait is enabled."),
@@ -303,7 +308,11 @@ def responses_create(
     _ensure_api_credential()
     client = _client(base_url)
     resp = _call_api(
-        lambda: client.create_response(model=model, input=[{"role": "user", "content": content}])
+        lambda: client.create_response(
+            model=model,
+            input=[{"role": "user", "content": content}],
+            include_reasoning=include_reasoning,
+        )
     )
     if wait:
         final = _wait_for_response(client, resp.id, poll_ms=poll_ms, timeout_s=timeout_s)
