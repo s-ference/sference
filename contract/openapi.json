@@ -712,9 +712,7 @@
             "headers": {},
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -3451,6 +3449,16 @@
                 "type": "null"
               }
             ]
+          },
+          "invite_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3882,6 +3890,16 @@
           "captcha_token": {
             "type": "string",
             "default": ""
+          },
+          "invite_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3904,6 +3922,17 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "kind": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "waitlist",
+              "invited",
+              null
             ]
           }
         },
