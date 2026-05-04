@@ -167,6 +167,7 @@ class SferenceClient:
         temperature: float | None = None,
         top_p: float | None = None,
         include_reasoning: bool | None = None,
+        enable_thinking: bool | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Response:
         """Create a standalone response or stream-associated response.
@@ -174,7 +175,7 @@ class SferenceClient:
         For stream-associated, include stream_id in metadata:
             metadata={"stream_id": "uuid", "completion_window": "24h"}
         """
-        from sference_sdk.models import Response, ResponseCreatePayload
+        from sference_sdk.models import Response
 
         payload: dict[str, Any] = {
             "model": model,
@@ -190,6 +191,8 @@ class SferenceClient:
             payload["top_p"] = top_p
         if include_reasoning is not None:
             payload["include_reasoning"] = include_reasoning
+        if enable_thinking is not None:
+            payload["enable_thinking"] = enable_thinking
         if metadata is not None:
             payload["metadata"] = metadata
 

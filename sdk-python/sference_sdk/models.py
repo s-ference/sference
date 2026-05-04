@@ -131,12 +131,12 @@ class ResponseCreatePayload(BaseModel):
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     include_reasoning: bool = True
+    enable_thinking: bool | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 ReasoningFormat = Literal[
     "think_tag",
-    "qwen_preamble",
     "provider_field",
     "anthropic_thinking",
     "openai_summary",

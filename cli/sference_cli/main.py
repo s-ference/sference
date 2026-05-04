@@ -300,6 +300,11 @@ def responses_create(
         "--include-reasoning/--no-include-reasoning",
         help="Include extracted reasoning in the response output (default: true).",
     ),
+    enable_thinking: bool | None = typer.Option(
+        None,
+        "--enable-thinking/--disable-thinking",
+        help="Qwen3: forward to tokenizer apply_chat_template. Omit for tokenizer default.",
+    ),
     wait: bool = typer.Option(False, "--wait/--no-wait"),
     poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval when --wait is enabled."),
     timeout_s: int = typer.Option(60, "--timeout-s", help="Timeout in seconds when --wait is enabled."),
@@ -312,6 +317,7 @@ def responses_create(
             model=model,
             input=[{"role": "user", "content": content}],
             include_reasoning=include_reasoning,
+            enable_thinking=enable_thinking,
         )
     )
     if wait:

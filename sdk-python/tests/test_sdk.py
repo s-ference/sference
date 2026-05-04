@@ -252,6 +252,38 @@ def test_create_response_sends_include_reasoning_and_parses_reasoning() -> None:
     assert resp.output[0].type == "reasoning"
 
 
+def test_create_response_sends_enable_thinking_when_set() -> None:
+    captured_json: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_json
+        if request.method == "POST" and request.url.path == "/v1/responses":
+            captured_json = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                status_code=201,
+                json={
+                    "id": "resp_et",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": "q",
+                    "status": "in_progress",
+                    "output": None,
+                    "error": None,
+                    "usage": None,
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        client.create_response(
+            model="q",
+            input=[{"role": "user", "content": "hi"}],
+            enable_thinking=True,
+        )
+
+    assert captured_json.get("enable_thinking") is True
+
+
 def test_checkpoint_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 

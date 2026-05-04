@@ -3586,6 +3586,17 @@
             "description": "If true, extracted reasoning is returned as a `reasoning` item in `output[]`. Set false to suppress reasoning while keeping the final text.",
             "default": true
           },
+          "enable_thinking": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When set, forwarded to the tokenizer `apply_chat_template(..., enable_thinking=...)`. Standard Qwen3 chat templates use this for thinking/reasoning mode (see SGLang reasoning-parser docs). Omit to use the tokenizer default."
+          },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
           }
@@ -3824,7 +3835,6 @@
             "type": "string",
             "enum": [
               "think_tag",
-              "qwen_preamble",
               "provider_field",
               "anthropic_thinking",
               "openai_summary",
