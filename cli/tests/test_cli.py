@@ -15,6 +15,17 @@ runner = CliRunner()
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
+def test_cli_version_flag() -> None:
+    from importlib.metadata import version
+
+    r = runner.invoke(cli_main.app, ["--version"])
+    assert r.exit_code == 0
+    assert "sference-cli" in r.stdout
+    assert version("sference-cli") in r.stdout
+    assert "sference-sdk" in r.stdout
+    assert version("sference-sdk") in r.stdout
+
+
 def _with_fake_credential(monkeypatch) -> None:
     """auth me / batch commands require a stored credential before calling the API."""
     monkeypatch.setattr(cli_main, "_read_token", lambda: "sk_fake_for_tests")

@@ -12,7 +12,10 @@ from typing import Any, Optional, TypeVar
 
 import typer
 
+import sference_sdk
 from sference_sdk import ApiError, SferenceClient
+
+from sference_cli import __version__ as _CLI_VERSION
 from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 
 from . import stream_cache as stream_cache_mod
@@ -165,8 +168,20 @@ def _stream_window_only(value: str) -> str:
 
 
 @app.callback()
-def _root(ctx: typer.Context) -> None:
+def _root(
+    ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Print version (from package metadata; same as the release tag on PyPI).",
+        is_eager=True,
+    ),
+) -> None:
     """Print help when invoked without a command."""
+    if version:
+        typer.echo(f"sference-cli {_CLI_VERSION} (sference-sdk {sference_sdk.__version__})")
+        raise typer.Exit(code=0)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit(code=0)

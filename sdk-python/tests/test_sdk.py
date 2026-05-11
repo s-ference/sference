@@ -5,9 +5,17 @@ from pathlib import Path
 import httpx
 import pytest
 
+import sference_sdk
 from sference_sdk.client import ApiError, SferenceClient
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def test_sdk_version_matches_metadata() -> None:
+    from importlib.metadata import version
+
+    assert sference_sdk.__version__ == version("sference-sdk")
+    assert len(sference_sdk.__version__.split(".")) >= 2
 
 
 def test_parse_openai_jsonl_format(tmp_path: Path) -> None:
