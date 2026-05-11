@@ -1,12 +1,12 @@
 [project]
 name = "sference-cli"
-version = "0.0.6"
+version = "0.0.5"
 description = "sference command-line interface"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "typer>=0.24.1",
-    "sference-sdk>=0.0.6",
+    "sference-sdk>=0.0.5",
 ]
 
 [project.scripts]
