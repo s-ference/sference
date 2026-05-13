@@ -1663,6 +1663,200 @@
         "deprecated": false
       }
     },
+    "/control/v1/models/catalog": {
+      "get": {
+        "summary": "GetCatalog",
+        "operationId": "ControlV1ModelsCatalogGetCatalog",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/models/request-deployment": {
+      "post": {
+        "summary": "RequestModelDeployment",
+        "operationId": "ControlV1ModelsRequestDeploymentRequestModelDeployment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelDeploymentRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelDeploymentRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/models/search": {
+      "get": {
+        "summary": "SearchModels",
+        "operationId": "ControlV1ModelsSearchSearchModels",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by model id, display name, or provider"
+            },
+            "description": "Filter by model id, display name, or provider",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "modality",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "text_generation"
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "One of: \"available\", \"coming_soon\", \"all\"",
+              "default": "all"
+            },
+            "description": "One of: \"available\", \"coming_soon\", \"all\"",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/v1/responses/{response_id}": {
       "get": {
         "summary": "GetResponse",
@@ -3138,6 +3332,103 @@
         ],
         "title": "BillingSummaryResponse"
       },
+      "CatalogListResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModelResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "title": "CatalogListResponse"
+      },
+      "CatalogModelResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "provider": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform_status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "coming_soon"
+            ]
+          },
+          "modality": {
+            "type": "string"
+          },
+          "context_tokens": {
+            "type": "integer"
+          },
+          "released": {
+            "type": "string"
+          },
+          "input_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tpm_limit": {
+            "type": "string",
+            "default": "unlimited"
+          },
+          "rpm_limit": {
+            "type": "string",
+            "default": "unlimited"
+          },
+          "requests_per_hour": {
+            "type": "string",
+            "default": "\u2014"
+          },
+          "deployed_on_platform": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "context_tokens",
+          "deployed_on_platform",
+          "display_name",
+          "id",
+          "modality",
+          "platform_status",
+          "released"
+        ],
+        "title": "CatalogModelResponse"
+      },
       "DailyUsage": {
         "properties": {
           "date": {
@@ -3392,6 +3683,163 @@
           "user"
         ],
         "title": "LoginResponse"
+      },
+      "ModelDeploymentRequestBody": {
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1
+          },
+          "display_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 512
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_id"
+        ],
+        "title": "ModelDeploymentRequestBody"
+      },
+      "ModelDeploymentRequestResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true,
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ModelDeploymentRequestResponse"
+      },
+      "ModelSearchItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "provider": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "modality": {
+            "type": "string",
+            "default": "text_generation"
+          },
+          "context_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "released": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "input_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tpm_limit": {
+            "type": "string",
+            "default": "unlimited"
+          },
+          "rpm_limit": {
+            "type": "string",
+            "default": "unlimited"
+          },
+          "requests_per_hour": {
+            "type": "string",
+            "default": "\u2014"
+          },
+          "catalog_status": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "available",
+              "coming_soon",
+              null
+            ]
+          },
+          "deployed_on_platform": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "catalog",
+              "huggingface"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "deployed_on_platform",
+          "display_name",
+          "id",
+          "source"
+        ],
+        "title": "ModelSearchItem"
+      },
+      "ModelSearchResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ModelSearchItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ModelSearchResponse"
       },
       "ModelUsageSummary": {
         "properties": {
