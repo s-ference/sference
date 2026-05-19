@@ -33,6 +33,29 @@
         "deprecated": false
       }
     },
+    "/v1/health/ready": {
+      "get": {
+        "summary": "Ready",
+        "operationId": "V1HealthReadyReady",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/auth/api-keys": {
       "get": {
         "summary": "ListApiKeys",
@@ -2098,8 +2121,8 @@
           "required": true
         },
         "responses": {
-          "201": {
-            "description": "Document created, URL follows",
+          "200": {
+            "description": "Request fulfilled, document follows",
             "headers": {},
             "content": {
               "application/json": {
@@ -2281,6 +2304,175 @@
                       "extra": {}
                     }
                   ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "CreateChatCompletion",
+        "operationId": "V1ChatCompletionsCreateChatCompletion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    {}
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "summary": "CreateMessage",
+        "operationId": "V1MessagesCreateMessage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnthropicMessagesCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": {},
+                      "type": "object"
+                    },
+                    {}
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "ListModels",
+        "operationId": "V1ModelsListModels",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
                 }
               }
             }
@@ -2986,6 +3178,110 @@
         ],
         "title": "ActivityListResponse"
       },
+      "AnthropicMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnthropicTextBlock"
+                },
+                "type": "array"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "role"
+        ],
+        "title": "AnthropicMessage"
+      },
+      "AnthropicMessagesCreateRequest": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AnthropicMessage"
+            },
+            "type": "array"
+          },
+          "system": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "temperature": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_p": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_tokens",
+          "messages",
+          "model"
+        ],
+        "title": "AnthropicMessagesCreateRequest"
+      },
+      "AnthropicTextBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "text"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "type"
+        ],
+        "title": "AnthropicTextBlock"
+      },
       "ApiKeyCreateRequest": {
         "properties": {
           "name": {
@@ -3428,6 +3724,85 @@
           "released"
         ],
         "title": "CatalogModelResponse"
+      },
+      "ChatCompletionCreateRequest": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array"
+          },
+          "temperature": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_p": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages",
+          "model"
+        ],
+        "title": "ChatCompletionCreateRequest"
+      },
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "ChatMessage"
       },
       "DailyUsage": {
         "properties": {
@@ -4044,6 +4419,11 @@
               }
             ],
             "description": "When set, forwarded to the tokenizer `apply_chat_template(..., enable_thinking=...)`. Standard Qwen3 chat templates use this for thinking/reasoning mode (see SGLang reasoning-parser docs). Omit to use the tokenizer default."
+          },
+          "background": {
+            "type": "boolean",
+            "description": "If true, return immediately with status=in_progress and let the caller poll (async; does not require realtime_enabled). If false (default), block until completion or inference_sync_timeout_s (sync/realtime; requires realtime_enabled).",
+            "default": false
           },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
