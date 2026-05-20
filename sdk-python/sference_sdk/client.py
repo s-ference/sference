@@ -168,6 +168,7 @@ class SferenceClient:
         top_p: float | None = None,
         include_reasoning: bool | None = None,
         enable_thinking: bool | None = None,
+        background: bool = False,
         metadata: dict[str, Any] | None = None,
     ) -> Response:
         """Create a standalone response or stream-associated response.
@@ -193,11 +194,29 @@ class SferenceClient:
             payload["include_reasoning"] = include_reasoning
         if enable_thinking is not None:
             payload["enable_thinking"] = enable_thinking
+        if background:
+            payload["background"] = True
         if metadata is not None:
             payload["metadata"] = metadata
 
         response = self._request("POST", "/v1/responses", payload)
         return Response.model_validate(response)
+
+    def wait_for_response(
+        self,
+        response_id: str,
+        poll_interval: float = 2.0,
+        timeout: float = 3600.0,
+    ) -> Response:
+        """Poll GET /v1/responses/{id} until status is terminal (async create + wait)."""
+        deadline = time.time() + timeout
+        while True:
+            item = self.get_response(response_id)
+            if item.status in ("completed", "failed", "cancelled"):
+                return item
+            if time.time() >= deadline:
+                raise TimeoutError(f"Timed out waiting for response {response_id}")
+            time.sleep(poll_interval)
 
     def get_response(self, response_id: str) -> Response:
         """Get a response by ID."""

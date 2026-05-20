@@ -132,6 +132,7 @@ class ResponseCreatePayload(BaseModel):
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     include_reasoning: bool = True
     enable_thinking: bool | None = None
+    background: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
