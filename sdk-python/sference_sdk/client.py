@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import contextvars
 import json
 import os
 import time
 import warnings
+from contextlib import contextmanager
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator
+from typing import Any, BinaryIO
 
 import httpx
 
@@ -30,6 +33,12 @@ class ApiError(Exception):
     pass
 
 
+_request_extra_headers: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
+    "sference_request_extra_headers",
+    default=None,
+)
+
+
 class SferenceClient:
     def __init__(
         self,
@@ -50,14 +59,50 @@ class SferenceClient:
     def __exit__(self, *_: Any) -> None:
         self.close()
 
-    def _headers(self) -> dict[str, str]:
+    @contextmanager
+    def extra_headers(self, headers: Mapping[str, str]) -> Iterator[None]:
+        """Attach headers to every HTTP call in this block (e.g. one batch workflow).
+
+        Prefer OpenTelemetry: if the host app has an active span, ``inject()`` adds
+        W3C trace context automatically per request.
+        """
+        merged = {**(_request_extra_headers.get() or {}), **dict(headers)}
+        token = _request_extra_headers.set(merged)
+        try:
+            yield
+        finally:
+            _request_extra_headers.reset(token)
+
+    def _headers(self, extra: Mapping[str, str] | None = None) -> dict[str, str]:
         headers = {"content-type": "application/json"}
         if self._token:
             headers["authorization"] = f"Bearer {self._token}"
+        try:
+            from opentelemetry.propagate import inject
+
+            carrier: dict[str, str] = {}
+            inject(carrier)
+            headers.update(carrier)
+        except Exception:
+            pass
+        scoped = _request_extra_headers.get()
+        if scoped:
+            headers.update(scoped)
+        if extra:
+            headers.update(extra)
         return headers
 
-    def _request(self, method: str, path: str, json_body: dict[str, Any] | None = None) -> Any:
-        response = self._client.request(method, path, headers=self._headers(), json=json_body)
+    def _request(
+        self,
+        method: str,
+        path: str,
+        json_body: dict[str, Any] | None = None,
+        *,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> Any:
+        response = self._client.request(
+            method, path, headers=self._headers(extra_headers), json=json_body
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()
@@ -66,8 +111,17 @@ class SferenceClient:
             raise ApiError(f"{response.status_code}: {payload}")
         return response.json()
 
-    def _request_response(self, method: str, path: str, json_body: dict[str, Any] | None = None) -> httpx.Response:
-        response = self._client.request(method, path, headers=self._headers(), json=json_body)
+    def _request_response(
+        self,
+        method: str,
+        path: str,
+        json_body: dict[str, Any] | None = None,
+        *,
+        extra_headers: Mapping[str, str] | None = None,
+    ) -> httpx.Response:
+        response = self._client.request(
+            method, path, headers=self._headers(extra_headers), json=json_body
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()
