@@ -30,10 +30,12 @@ auth_app = typer.Typer(help="Auth commands", invoke_without_command=True)
 batch_app = typer.Typer(help="Batch commands", invoke_without_command=True)
 stream_app = typer.Typer(help="Stream commands", invoke_without_command=True)
 responses_app = typer.Typer(help="Responses commands", invoke_without_command=True)
+models_app = typer.Typer(help="List models (GET /v1/models)", invoke_without_command=True)
 app.add_typer(auth_app, name="auth")
 app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
 app.add_typer(responses_app, name="responses")
+app.add_typer(models_app, name="models")
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
 
@@ -135,6 +137,11 @@ def _print(value: object, as_json: bool) -> None:
         typer.echo(value)
 
 
+def _list_models(*, client: SferenceClient, as_json: bool) -> None:
+    payload = _call_api(client.list_models)
+    typer.echo(json.dumps(payload, indent=None if as_json else 2))
+
+
 def _wait_for_response(
     client: SferenceClient, response_id: str, *, poll_ms: int, timeout_s: int
 ) -> Any:
@@ -217,6 +224,31 @@ def _responses_root(ctx: typer.Context) -> None:
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
         raise typer.Exit(code=0)
+
+
+@models_app.callback()
+def _models_root(
+    ctx: typer.Context,
+    as_json: bool = typer.Option(False, "--json", help="Print GET /v1/models JSON."),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    """List models (OpenAI-compatible GET /v1/models)."""
+    if ctx.invoked_subcommand is not None:
+        return
+    _ensure_api_credential()
+    client = _client(base_url)
+    _list_models(client=client, as_json=as_json)
+
+
+@models_app.command("list")
+def models_list(
+    as_json: bool = typer.Option(False, "--json", help="Print GET /v1/models JSON."),
+    base_url: str = typer.Option("https://api.sference.com"),
+) -> None:
+    """List models (OpenAI-compatible GET /v1/models)."""
+    _ensure_api_credential()
+    client = _client(base_url)
+    _list_models(client=client, as_json=as_json)
 
 
 @auth_app.command("login")

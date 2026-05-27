@@ -6,6 +6,7 @@ import os
 import time
 import warnings
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any, AsyncIterator, BinaryIO
 
 import httpx
@@ -56,8 +57,17 @@ class AsyncSferenceClient:
             headers["authorization"] = f"Bearer {self._token}"
         return headers
 
-    async def _request(self, method: str, path: str, json_body: dict[str, Any] | None = None) -> Any:
-        response = await self._client.request(method, path, headers=self._headers(), json=json_body)
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        json_body: dict[str, Any] | None = None,
+        *,
+        params: Mapping[str, Any] | None = None,
+    ) -> Any:
+        response = await self._client.request(
+            method, path, headers=self._headers(), json=json_body, params=params
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()
@@ -80,6 +90,13 @@ class AsyncSferenceClient:
 
     async def get_me(self) -> dict[str, Any]:
         return await self._request("GET", "/v1/auth/me")
+
+    async def list_models(self) -> dict[str, Any]:
+        """OpenAI-compatible model list (GET /v1/models)."""
+        response = await self._request("GET", "/v1/models")
+        if not isinstance(response, dict):
+            raise ApiError("GET /v1/models returned unexpected payload")
+        return response
 
     async def submit_batch(
         self,

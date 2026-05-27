@@ -98,10 +98,15 @@ class SferenceClient:
         path: str,
         json_body: dict[str, Any] | None = None,
         *,
+        params: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
     ) -> Any:
         response = self._client.request(
-            method, path, headers=self._headers(extra_headers), json=json_body
+            method,
+            path,
+            headers=self._headers(extra_headers),
+            json=json_body,
+            params=params,
         )
         if response.status_code >= 400:
             try:
@@ -132,6 +137,13 @@ class SferenceClient:
 
     def get_me(self) -> dict[str, Any]:
         return self._request("GET", "/v1/auth/me")
+
+    def list_models(self) -> dict[str, Any]:
+        """OpenAI-compatible model list (GET /v1/models)."""
+        response = self._request("GET", "/v1/models")
+        if not isinstance(response, dict):
+            raise ApiError("GET /v1/models returned unexpected payload")
+        return response
 
     def submit_batch(
         self,

@@ -31,6 +31,17 @@
           }
         },
         "deprecated": false
+      },
+      "head": {
+        "summary": "HealthHead",
+        "operationId": "V1HealthHealthHead",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "deprecated": false
       }
     },
     "/v1/health/ready": {
@@ -51,6 +62,17 @@
                 }
               }
             }
+          }
+        },
+        "deprecated": false
+      },
+      "head": {
+        "summary": "ReadyHead",
+        "operationId": "V1HealthReadyReadyHead",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {}
           }
         },
         "deprecated": false
@@ -2390,6 +2412,26 @@
       "post": {
         "summary": "CreateMessage",
         "operationId": "V1MessagesCreateMessage",
+        "parameters": [
+          {
+            "name": "beta",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3197,6 +3239,13 @@
                   "$ref": "#/components/schemas/AnthropicTextBlock"
                 },
                 "type": "array"
+              },
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "type": "array"
               }
             ]
           }
@@ -3226,6 +3275,19 @@
             "oneOf": [
               {
                 "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnthropicTextBlock"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "type": "array"
               },
               {
                 "type": "null"

@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "Qwen/Qwen3.6-35B-A3B",
+      "object": "model",
+      "created": 1712345678,
+      "owned_by": "sference"
+    },
+    {
+      "id": "moonshotai/Kimi-K2.6",
+      "object": "model",
+      "created": 1712345678,
+      "owned_by": "sference"
+    }
+  ]
+}

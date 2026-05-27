@@ -140,6 +140,9 @@ class FakeClient:
         raw = json.loads((FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8"))
         return StreamEventList.model_validate(raw)
 
+    def list_models(self):
+        return json.loads((FIXTURES / "V1ModelsListModels" / "200.json").read_text(encoding="utf-8"))
+
 
 class FakeTrackingClient(FakeClient):
     def __init__(self) -> None:
@@ -203,6 +206,27 @@ def test_auth_login_no_browser(monkeypatch, tmp_path: Path):
     mock_open.assert_not_called()
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
     assert data["token"] == "sk_no_browser"
+
+
+def test_models_list_json(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
+    result = runner.invoke(cli_main.app, ["models", "--json"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["object"] == "list"
+    ids = {m["id"] for m in payload["data"]}
+    assert "Qwen/Qwen3.6-35B-A3B" in ids
+    assert "moonshotai/Kimi-K2.6" in ids
+
+
+def test_models_list_default(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
+    result = runner.invoke(cli_main.app, ["models", "list"])
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["object"] == "list"
 
 
 def test_batch_list_json(monkeypatch):
