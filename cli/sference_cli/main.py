@@ -39,7 +39,7 @@ app.add_typer(models_app, name="models")
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
 
-DEFAULT_CONSOLE_URL = "https://console.sference.com"
+DEFAULT_CONSOLE_URL = "https://app.sference.com"
 
 
 def _write_token(token: str) -> None:
@@ -268,7 +268,7 @@ def auth_login(
         None,
         "--console-url",
         envvar="SFERENCE_CONSOLE_URL",
-        help="Console base URL for the browser step (default: https://console.sference.com).",
+        help="Console base URL for the browser step (default: https://app.sference.com).",
     ),
     no_browser: bool = typer.Option(False, "--no-browser", help="Do not open a browser; print the URL and prompt only."),
 ) -> None:

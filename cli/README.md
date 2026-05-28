@@ -85,7 +85,7 @@ curl -sS "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses/${RID}" \
 |----------|---------|
 | `SFERENCE_API_KEY` | API key (or JWT); overrides `~/.sference/credentials.json` |
 | `SFERENCE_BASE_URL` | API base URL (default `https://api.sference.com`) |
-| `SFERENCE_CONSOLE_URL` | Console URL for `auth login` browser step (default `https://console.sference.com`) |
+| `SFERENCE_CONSOLE_URL` | Console URL for `auth login` browser step (default `https://app.sference.com`) |
 | `SFERENCE_STREAM_CACHE` | Optional path to the stream resumable-cache file (default `~/.sference/stream_cache.json`) |
 | `SFERENCE_STREAM_CHECKPOINTS` | Optional path for **`responses tail`** event checkpoints (default `~/.sference/stream_checkpoints.json`) |
 
