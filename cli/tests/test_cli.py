@@ -558,6 +558,44 @@ def test_responses_create_passes_enable_thinking_flag(monkeypatch):
     assert captured.get("enable_thinking") is True
 
 
+def test_responses_create_defaults_to_foreground(monkeypatch):
+    _with_fake_credential(monkeypatch)
+
+    captured: dict = {}
+
+    class CapturingClient(FakeClient):
+        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
+            captured.update(kwargs)
+            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
+    r = runner.invoke(
+        cli_main.app,
+        ["responses", "create", "--model", "m", "--content", "hello"],
+    )
+    assert r.exit_code == 0
+    assert captured.get("background") is False
+
+
+def test_responses_create_background_flag_returns_immediately(monkeypatch):
+    _with_fake_credential(monkeypatch)
+
+    captured: dict = {}
+
+    class CapturingClient(FakeClient):
+        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
+            captured.update(kwargs)
+            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
+    r = runner.invoke(
+        cli_main.app,
+        ["responses", "create", "--model", "m", "--content", "hello", "--background"],
+    )
+    assert r.exit_code == 0
+    assert captured.get("background") is True
+
+
 def test_responses_result_returns_json(monkeypatch):
     _with_fake_credential(monkeypatch)
     class CompletedClient(FakeClient):

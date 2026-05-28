@@ -142,26 +142,6 @@ def _list_models(*, client: SferenceClient, as_json: bool) -> None:
     typer.echo(json.dumps(payload, indent=None if as_json else 2))
 
 
-def _wait_for_response(
-    client: SferenceClient, response_id: str, *, poll_ms: int, timeout_s: int
-) -> Any:
-    """Poll GET /v1/responses/{id} until terminal status or timeout."""
-    deadline = time.time() + max(1, timeout_s)
-    last: Any = None
-    while True:
-        last = _call_api(lambda: client.get_response(response_id))
-        if hasattr(last, "model_dump"):
-            d = last.model_dump()
-            status = d.get("status") if isinstance(d, dict) else None
-        else:
-            status = getattr(last, "status", None)
-        if status in ("completed", "failed", "cancelled"):
-            return last
-        if time.time() >= deadline:
-            return last
-        time.sleep(max(10, poll_ms) / 1000.0)
-
-
 def _mvp_batch_window_only(value: str) -> str:
     if value != "24h":
         raise typer.BadParameter('Only "24h" is supported in MVP.', param_hint="--window")
@@ -352,9 +332,11 @@ def responses_create(
         "--enable-thinking/--disable-thinking",
         help="Qwen3: forward to tokenizer apply_chat_template. Omit for tokenizer default.",
     ),
-    wait: bool = typer.Option(False, "--wait/--no-wait"),
-    poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval when --wait is enabled."),
-    timeout_s: int = typer.Option(60, "--timeout-s", help="Timeout in seconds when --wait is enabled."),
+    background: bool = typer.Option(
+        False,
+        "--background/--no-background",
+        help="Submit asynchronously and return immediately. Default blocks until the response is terminal (matches POST /v1/responses).",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
 ) -> None:
     _ensure_api_credential()
@@ -365,14 +347,9 @@ def responses_create(
             input=[{"role": "user", "content": content}],
             include_reasoning=include_reasoning,
             enable_thinking=enable_thinking,
+            background=background,
         )
     )
-    if wait:
-        final = _wait_for_response(client, resp.id, poll_ms=poll_ms, timeout_s=timeout_s)
-        if getattr(final, "status", None) not in ("completed", "failed", "cancelled"):
-            _print(final.model_dump(), True)
-            raise typer.Exit(code=1)
-        resp = final
     _print(resp.model_dump(), True)
 
 
