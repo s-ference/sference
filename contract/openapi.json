@@ -4484,7 +4484,7 @@
           },
           "background": {
             "type": "boolean",
-            "description": "If true, return immediately with status=in_progress and let the caller poll (async; does not require realtime_enabled). If false (default), block until completion or inference_sync_timeout_s (sync/realtime; requires realtime_enabled).",
+            "description": "If true, return immediately with status=in_progress and let the caller poll (async; does not require realtime_enabled). If false (default), block until completion or the server sync-timeout ceiling (sync/realtime; requires realtime_enabled).",
             "default": false
           },
           "metadata": {
