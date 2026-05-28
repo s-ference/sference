@@ -626,7 +626,7 @@ def test_responses_result_returns_json(monkeypatch):
             return FakeResult(d)
 
     monkeypatch.setattr(cli_main, "SferenceClient", CompletedClient)
-    r = runner.invoke(cli_main.app, ["responses", "result", "--id", "resp_any", "--poll-ms", "10"])
+    r = runner.invoke(cli_main.app, ["responses", "result", "--id", "resp_any", "--poll-interval", "0.01"])
     assert r.exit_code == 0
     payload = json.loads(r.stdout)
     assert payload["object"] == "response"
@@ -654,8 +654,8 @@ def test_responses_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path)
             "tail",
             "--stream-id",
             "123e4567-e89b-12d3-a456-426614174000",
-            "--poll-ms",
-            "1",
+            "--poll-interval",
+            "0.001",
             "--no-checkpoint",
         ],
     )
@@ -680,7 +680,7 @@ def test_responses_tail_without_stream_id_prints_event_then_interrupt(monkeypatc
     monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
     result = runner.invoke(
         cli_main.app,
-        ["responses", "tail", "--poll-ms", "1", "--no-checkpoint"],
+        ["responses", "tail", "--poll-interval", "0.001", "--no-checkpoint"],
     )
     assert result.exit_code == 130
     assert "019d58a7" in result.stdout
@@ -730,7 +730,7 @@ def test_responses_tail_passes_saved_checkpoint_as_starting_after_then_cursor(
     monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
     result = runner.invoke(
         cli_main.app,
-        ["responses", "tail", "--poll-ms", "1", "--consumer", "tail-cursor"],
+        ["responses", "tail", "--poll-interval", "0.001", "--consumer", "tail-cursor"],
     )
     assert result.exit_code == 130
     assert "019d58a7" in result.stdout

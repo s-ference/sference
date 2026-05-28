@@ -340,7 +340,7 @@ def responses_create(
     timeout: float = typer.Option(
         600.0,
         "--timeout",
-        help="HTTP read timeout in seconds. Defaults to the server's INFERENCE_SYNC_TIMEOUT_S ceiling.",
+        help="HTTP read timeout in seconds.",
     ),
     base_url: str = typer.Option("https://api.sference.com"),
 ) -> None:
@@ -361,7 +361,11 @@ def responses_create(
 @responses_app.command("result")
 def responses_result(
     id: str = typer.Option(..., "--id"),
-    poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval while waiting for completion."),
+    poll_interval: float = typer.Option(
+        0.5,
+        "--poll-interval",
+        help="Seconds between status polls while waiting for completion.",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
 ) -> None:
     """Wait for a response to reach a terminal status and print the final JSON.
@@ -378,7 +382,7 @@ def responses_result(
             if status in ("completed", "failed", "cancelled"):
                 _print(d, True)
                 return
-            time.sleep(max(10, poll_ms) / 1000.0)
+            time.sleep(max(0.01, poll_interval))
     except KeyboardInterrupt:
         raise typer.Exit(code=130) from None
 
@@ -397,7 +401,11 @@ def responses_tail(
         help="Ignore saved checkpoint and start from the latest events page.",
     ),
     no_checkpoint: bool = typer.Option(False, "--no-checkpoint", help="Do not read or write checkpoints."),
-    poll_ms: int = typer.Option(5000, "--poll-ms", help="Long-poll wait_ms when catching up (max 30000)."),
+    poll_interval: float = typer.Option(
+        5.0,
+        "--poll-interval",
+        help="Seconds to long-poll while catching up (capped at 30s server-side).",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -418,6 +426,7 @@ def responses_tail(
     if not no_checkpoint and not from_latest:
         last = load_checkpoint(bu, ck, consumer)
 
+    wait_ms = int(min(poll_interval, 30.0) * 1000)
     try:
         while True:
 
@@ -426,12 +435,12 @@ def responses_tail(
                     stream_id=stream_id,
                     limit=50,
                     starting_after=last,
-                    wait_ms=min(poll_ms, 30000),
+                    wait_ms=wait_ms,
                 )
 
             page = _call_api(fetch)
             if not page.data:
-                time.sleep(max(1, poll_ms) / 1000.0)
+                time.sleep(max(0.001, poll_interval))
                 continue
             for ev in page.data:
                 typer.echo(json.dumps(ev.model_dump(), default=str))
