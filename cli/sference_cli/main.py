@@ -61,14 +61,14 @@ def _read_token() -> str | None:
         return None
 
 
-def _client(base_url: Optional[str] = None) -> SferenceClient:
+def _client(base_url: Optional[str] = None, *, timeout: float | None = None) -> SferenceClient:
     # If the caller didn't explicitly pass --base-url, allow SFERENCE_BASE_URL
     # to override the default.
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
         _logger.info(f"Using SFERENCE_BASE_URL: {env_base_url}")
         base_url = env_base_url
-    return SferenceClient(base_url=base_url, api_key=_read_token())
+    return SferenceClient(base_url=base_url, api_key=_read_token(), timeout=timeout)
 
 
 def _ensure_api_credential() -> None:
@@ -337,10 +337,15 @@ def responses_create(
         "--background/--no-background",
         help="Submit asynchronously and return immediately. Default blocks until the response is terminal (matches POST /v1/responses).",
     ),
+    timeout: float = typer.Option(
+        600.0,
+        "--timeout",
+        help="HTTP read timeout in seconds. Defaults to the server's INFERENCE_SYNC_TIMEOUT_S ceiling.",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
 ) -> None:
     _ensure_api_credential()
-    client = _client(base_url)
+    client = _client(base_url, timeout=timeout)
     resp = _call_api(
         lambda: client.create_response(
             model=model,

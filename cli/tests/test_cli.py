@@ -596,6 +596,25 @@ def test_responses_create_background_flag_returns_immediately(monkeypatch):
     assert captured.get("background") is True
 
 
+def test_responses_create_passes_timeout_to_client(monkeypatch):
+    _with_fake_credential(monkeypatch)
+
+    captured: dict = {}
+
+    class CapturingClient(FakeClient):
+        def __init__(self, *args, **kwargs):
+            captured.update(kwargs)
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
+    r = runner.invoke(
+        cli_main.app,
+        ["responses", "create", "--model", "m", "--content", "hello", "--timeout", "120"],
+    )
+    assert r.exit_code == 0
+    assert captured.get("timeout") == 120.0
+
+
 def test_responses_result_returns_json(monkeypatch):
     _with_fake_credential(monkeypatch)
     class CompletedClient(FakeClient):

@@ -69,6 +69,14 @@ def test_parse_content_only_requires_model(tmp_path: Path) -> None:
         SferenceClient._parse_jsonl(p, model=None)
 
 
+def test_client_timeout_defaults_to_30s_and_can_be_overridden() -> None:
+    with SferenceClient(api_key="tok") as default_client:
+        assert default_client._client.timeout.read == 30.0
+
+    with SferenceClient(api_key="tok", timeout=600.0) as long_client:
+        assert long_client._client.timeout.read == 600.0
+
+
 def test_get_me_via_httpx_mock_transport() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/auth/me":
