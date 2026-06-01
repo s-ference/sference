@@ -61,14 +61,14 @@ def _read_token() -> str | None:
         return None
 
 
-def _client(base_url: Optional[str] = None) -> SferenceClient:
+def _client(base_url: Optional[str] = None, *, timeout: float | None = None) -> SferenceClient:
     # If the caller didn't explicitly pass --base-url, allow SFERENCE_BASE_URL
     # to override the default.
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
         _logger.info(f"Using SFERENCE_BASE_URL: {env_base_url}")
         base_url = env_base_url
-    return SferenceClient(base_url=base_url, api_key=_read_token())
+    return SferenceClient(base_url=base_url, api_key=_read_token(), timeout=timeout)
 
 
 def _ensure_api_credential() -> None:
@@ -140,26 +140,6 @@ def _print(value: object, as_json: bool) -> None:
 def _list_models(*, client: SferenceClient, as_json: bool) -> None:
     payload = _call_api(client.list_models)
     typer.echo(json.dumps(payload, indent=None if as_json else 2))
-
-
-def _wait_for_response(
-    client: SferenceClient, response_id: str, *, poll_ms: int, timeout_s: int
-) -> Any:
-    """Poll GET /v1/responses/{id} until terminal status or timeout."""
-    deadline = time.time() + max(1, timeout_s)
-    last: Any = None
-    while True:
-        last = _call_api(lambda: client.get_response(response_id))
-        if hasattr(last, "model_dump"):
-            d = last.model_dump()
-            status = d.get("status") if isinstance(d, dict) else None
-        else:
-            status = getattr(last, "status", None)
-        if status in ("completed", "failed", "cancelled"):
-            return last
-        if time.time() >= deadline:
-            return last
-        time.sleep(max(10, poll_ms) / 1000.0)
 
 
 def _mvp_batch_window_only(value: str) -> str:
@@ -352,34 +332,40 @@ def responses_create(
         "--enable-thinking/--disable-thinking",
         help="Qwen3: forward to tokenizer apply_chat_template. Omit for tokenizer default.",
     ),
-    wait: bool = typer.Option(False, "--wait/--no-wait"),
-    poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval when --wait is enabled."),
-    timeout_s: int = typer.Option(60, "--timeout-s", help="Timeout in seconds when --wait is enabled."),
+    background: bool = typer.Option(
+        False,
+        "--background/--no-background",
+        help="Submit asynchronously and return immediately. Default blocks until the response is terminal (matches POST /v1/responses).",
+    ),
+    timeout: float = typer.Option(
+        600.0,
+        "--timeout",
+        help="HTTP read timeout in seconds.",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
 ) -> None:
     _ensure_api_credential()
-    client = _client(base_url)
+    client = _client(base_url, timeout=timeout)
     resp = _call_api(
         lambda: client.create_response(
             model=model,
             input=[{"role": "user", "content": content}],
             include_reasoning=include_reasoning,
             enable_thinking=enable_thinking,
+            background=background,
         )
     )
-    if wait:
-        final = _wait_for_response(client, resp.id, poll_ms=poll_ms, timeout_s=timeout_s)
-        if getattr(final, "status", None) not in ("completed", "failed", "cancelled"):
-            _print(final.model_dump(), True)
-            raise typer.Exit(code=1)
-        resp = final
     _print(resp.model_dump(), True)
 
 
 @responses_app.command("result")
 def responses_result(
     id: str = typer.Option(..., "--id"),
-    poll_ms: int = typer.Option(500, "--poll-ms", help="Polling interval while waiting for completion."),
+    poll_interval: float = typer.Option(
+        0.5,
+        "--poll-interval",
+        help="Seconds between status polls while waiting for completion.",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
 ) -> None:
     """Wait for a response to reach a terminal status and print the final JSON.
@@ -396,7 +382,7 @@ def responses_result(
             if status in ("completed", "failed", "cancelled"):
                 _print(d, True)
                 return
-            time.sleep(max(10, poll_ms) / 1000.0)
+            time.sleep(max(0.01, poll_interval))
     except KeyboardInterrupt:
         raise typer.Exit(code=130) from None
 
@@ -415,7 +401,11 @@ def responses_tail(
         help="Ignore saved checkpoint and start from the latest events page.",
     ),
     no_checkpoint: bool = typer.Option(False, "--no-checkpoint", help="Do not read or write checkpoints."),
-    poll_ms: int = typer.Option(5000, "--poll-ms", help="Long-poll wait_ms when catching up (max 30000)."),
+    poll_interval: float = typer.Option(
+        5.0,
+        "--poll-interval",
+        help="Seconds to long-poll while catching up (capped at 30s server-side).",
+    ),
     base_url: str = typer.Option("https://api.sference.com"),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -436,6 +426,7 @@ def responses_tail(
     if not no_checkpoint and not from_latest:
         last = load_checkpoint(bu, ck, consumer)
 
+    wait_ms = int(min(poll_interval, 30.0) * 1000)
     try:
         while True:
 
@@ -444,12 +435,12 @@ def responses_tail(
                     stream_id=stream_id,
                     limit=50,
                     starting_after=last,
-                    wait_ms=min(poll_ms, 30000),
+                    wait_ms=wait_ms,
                 )
 
             page = _call_api(fetch)
             if not page.data:
-                time.sleep(max(1, poll_ms) / 1000.0)
+                time.sleep(max(0.001, poll_interval))
                 continue
             for ev in page.data:
                 typer.echo(json.dumps(ev.model_dump(), default=str))

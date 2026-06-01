@@ -37,10 +37,15 @@ class AsyncSferenceClient:
         base_url: str | None = None,
         api_key: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
+        timeout: float | None = None,
     ) -> None:
         self.base_url = base_url or os.getenv("SFERENCE_BASE_URL", "https://api.sference.com")
         self._token = api_key or os.getenv("SFERENCE_API_KEY")
-        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=30.0, transport=transport)
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=30.0 if timeout is None else timeout,
+            transport=transport,
+        )
 
     async def aclose(self) -> None:
         await self._client.aclose()
