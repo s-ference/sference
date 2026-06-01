@@ -4413,12 +4413,18 @@
             "description": "Model identifier, e.g. \"zai-org/GLM-5\""
           },
           "input": {
-            "items": {
-              "$ref": "#/components/schemas/ResponseInputMessage"
-            },
-            "type": "array",
-            "minItems": 1,
-            "description": "Input messages for the completion."
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ResponseInputMessage"
+                },
+                "type": "array"
+              }
+            ],
+            "description": "Input for the completion. Either a plain string (shorthand for a single user message) or an array of input messages, matching the OpenAI Responses API."
           },
           "instructions": {
             "oneOf": [
@@ -4569,7 +4575,7 @@
                 "items": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/ResponseOutputText"
+                      "$ref": "#/components/schemas/ResponseOutputMessage"
                     },
                     {
                       "$ref": "#/components/schemas/ResponseOutputReasoning"
@@ -4711,6 +4717,40 @@
         "title": "ResponseMetadata",
         "description": "Extra metadata including \"completion_window\" (\"1h\" or \"24h\") and optional \"stream_id\" for grouping."
       },
+      "ResponseOutputMessage": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "message",
+            "default": "message"
+          },
+          "role": {
+            "type": "string",
+            "const": "assistant",
+            "default": "assistant"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "in_progress",
+              "incomplete"
+            ],
+            "default": "completed"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseOutputText"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "ResponseOutputMessage"
+      },
       "ResponseOutputReasoning": {
         "properties": {
           "type": {
@@ -4748,6 +4788,10 @@
           },
           "text": {
             "type": "string"
+          },
+          "annotations": {
+            "items": {},
+            "type": "array"
           }
         },
         "type": "object",

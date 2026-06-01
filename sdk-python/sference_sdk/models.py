@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 BatchStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
@@ -125,7 +125,7 @@ class ResponseCreatePayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     model: str = Field(description='Model identifier, e.g. "zai-org/GLM-5"')
-    input: list[ResponseInputMessage] = Field(min_length=1)
+    input: str | list[ResponseInputMessage]
     instructions: str | None = None
     max_output_tokens: int | None = None
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
@@ -134,6 +134,13 @@ class ResponseCreatePayload(BaseModel):
     enable_thinking: bool | None = None
     background: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("input")
+    @classmethod
+    def _reject_empty_input(cls, v: str | list[ResponseInputMessage]) -> str | list[ResponseInputMessage]:
+        if isinstance(v, list) and len(v) == 0:
+            raise ValueError("input must not be empty")
+        return v
 
 
 ReasoningFormat = Literal[
@@ -146,8 +153,25 @@ ReasoningFormat = Literal[
 
 
 class ResponseOutputText(BaseModel):
+    """An ``output_text`` content part nested inside a message item."""
+
     type: Literal["output_text"] = "output_text"
     text: str
+    annotations: list[Any] = Field(default_factory=list)
+
+
+class ResponseOutputMessage(BaseModel):
+    """Assistant message output item wrapping ``output_text`` content parts.
+
+    Mirrors the OpenAI Responses API, where final text lives in a ``message`` item
+    with a nested ``content[]`` of ``output_text`` parts rather than a top-level
+    ``output_text`` item.
+    """
+
+    type: Literal["message"] = "message"
+    role: Literal["assistant"] = "assistant"
+    status: Literal["completed", "in_progress", "incomplete"] = "completed"
+    content: list[ResponseOutputText]
 
 
 class ResponseOutputReasoning(BaseModel):
@@ -157,7 +181,7 @@ class ResponseOutputReasoning(BaseModel):
 
 
 ResponseOutputContent = Annotated[
-    ResponseOutputText | ResponseOutputReasoning,
+    ResponseOutputMessage | ResponseOutputReasoning,
     Field(discriminator="type"),
 ]
 

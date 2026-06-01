@@ -184,7 +184,7 @@ class AsyncSferenceClient:
         self,
         *,
         model: str,
-        input: list[dict[str, str]],  # [{"role": "user", "content": "..."}]
+        input: str | list[dict[str, str]],  # bare string, or [{"role": "user", "content": "..."}]
         instructions: str | None = None,
         max_output_tokens: int | None = None,
         temperature: float | None = None,
