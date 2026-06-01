@@ -117,7 +117,14 @@ class FakeClient:
             "status": "in_progress",
             "metadata": metadata or {},
             "input": input,
-            "output": [{"type": "output_text", "text": "Mock response"}],
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": "Mock response", "annotations": []}],
+                }
+            ],
             "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
         })
 
