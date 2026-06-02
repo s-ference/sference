@@ -50,13 +50,13 @@ Use a `model` string supported by your sference deployment (for self-hosted stac
 **Batches**
 
 ```bash
-sference batch submit --input-file ./workload.jsonl --model Qwen/Qwen2.5-7B-Instruct --window 24h
+sference batch submit --input-file ./workload.jsonl --model Qwen/Qwen3.6-35B-A3B --window 24h
 sference batch status --batch-id <batch_id>
 sference batch wait --batch-id <batch_id>
 sference batch results --batch-id <batch_id>
 sference batch download-results --batch-id <batch_id> --out ./out.jsonl
 # Submit, wait, print JSONL results on stdout (stderr: progress; resumable cache)
-sference batch stream --input-file ./workload.jsonl --model Qwen/Qwen2.5-7B-Instruct --window 24h
+sference batch stream --input-file ./workload.jsonl --model Qwen/Qwen3.6-35B-A3B --window 24h
 ```
 
 **Streams**
@@ -64,7 +64,7 @@ sference batch stream --input-file ./workload.jsonl --model Qwen/Qwen2.5-7B-Inst
 ```bash
 sference stream create --name "my-stream" --window 24h
 sference stream list
-sference stream submit --stream-id <stream_id> --input-file ./lines.jsonl --model Qwen/Qwen2.5-7B-Instruct
+sference stream submit --stream-id <stream_id> --input-file ./lines.jsonl --model Qwen/Qwen3.6-35B-A3B
 sference stream status --stream-id <stream_id>
 sference responses tail --stream-id <stream_id>
 ```
@@ -80,7 +80,7 @@ RID=$(curl -sS -X POST "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/respon
   -H "X-API-Key: $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "model": "Qwen/Qwen3.6-35B-A3B",
     "input": [{"role": "user", "content": "Hello"}],
     "metadata": {"completion_window": "24h"}
   }' | jq -r '.id')
@@ -147,7 +147,7 @@ Long-lived **streams** are separate from **batches**: you create a stream, submi
 Example JSONL lines for `stream submit` (both accepted):
 
 ```json
-{"custom_id":"req-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.5-4B","messages":[{"role":"user","content":"hi"}]}}
+{"custom_id":"req-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"user","content":"hi"}]}}
 ```
 
 ```json
@@ -174,7 +174,7 @@ sference batch stream --input-file workload.jsonl > results.jsonl
 Content-only JSONL (model supplied globally):
 
 ```bash
-sference batch stream --input-file prompts.jsonl --model Qwen/Qwen2.5-7B-Instruct > results.jsonl
+sference batch stream --input-file prompts.jsonl --model Qwen/Qwen3.6-35B-A3B > results.jsonl
 ```
 
 ### Resumable cache

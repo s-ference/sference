@@ -718,7 +718,7 @@ def stream_submit(
         raise typer.Exit(code=1)
 
     if not model:
-        typer.echo("--model is required for stream submit (e.g., gpt-4o)", err=True)
+        typer.echo("--model is required for stream submit (e.g., Qwen/Qwen3.6-35B-A3B)", err=True)
         raise typer.Exit(code=1)
 
     client = _client(base_url)

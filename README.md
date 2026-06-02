@@ -27,14 +27,14 @@ uv tool install sference-cli     # isolated CLI on PATH
 from sference_sdk import SferenceClient
 
 client = SferenceClient(api_key="sk_...")
-batch = client.submit_batch(input_file="workload.jsonl", model="your-model", window="24h")
+batch = client.submit_batch(input_file="workload.jsonl", model="Qwen/Qwen3.6-35B-A3B", window="24h")
 done = client.wait_for_completion(batch.id)
 results = client.get_results(done.id)
 ```
 
 ```bash
 sference auth login --api-key 'sk_...'
-sference batch submit --input-file workload.jsonl --model your-model --window 24h
+sference batch submit --input-file workload.jsonl --model Qwen/Qwen3.6-35B-A3B --window 24h
 sference batch wait --batch-id <id>
 ```
 
