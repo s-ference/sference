@@ -5,6 +5,16 @@ Command-line interface for the sference batch API (`sference`). It uses the Pyth
 ## Installation
 
 ```bash
+# One-line install (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/s-ference/sference/main/install.ps1 | iex"
+```
+
+Or install from PyPI:
+
+```bash
 pip install sference-cli
 # or isolated install on PATH:
 uv tool install sference-cli
