@@ -2,7 +2,7 @@
 name = "sference-workspace"
 version = "0.1.0"
 description = "sference Python SDK and CLI (development workspace)"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "sference-sdk",
     "sference-cli",

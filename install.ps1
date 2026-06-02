@@ -74,7 +74,7 @@ function Install-WithPip {
             continue
         }
         try {
-            & $candidate -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)" 2>$null
+            & $candidate -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" 2>$null
             if ($LASTEXITCODE -eq 0) {
                 $python = $candidate
                 break
@@ -153,7 +153,7 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
     Install-WithUv
 } elseif (-not (Install-WithPipx)) {
     if (-not (Install-WithPip)) {
-        throw "Could not install $Package. Install uv (https://docs.astral.sh/uv/) or Python 3.12+, then retry."
+        throw "Could not install $Package. Install uv (https://docs.astral.sh/uv/) or Python 3.10+, then retry."
     }
 }
 

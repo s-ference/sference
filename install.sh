@@ -91,15 +91,15 @@ install_with_pipx() {
 	pipx install "${PACKAGE}${VERSION_SPEC}" --force
 }
 
-python312_or_newer() {
+python310_or_newer() {
 	PY="$1"
-	"$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)' 2>/dev/null
+	"$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null
 }
 
 install_with_pip() {
 	PY=""
 	for candidate in python3 python; do
-		if command -v "$candidate" >/dev/null 2>&1 && python312_or_newer "$candidate"; then
+		if command -v "$candidate" >/dev/null 2>&1 && python310_or_newer "$candidate"; then
 			PY="$candidate"
 			break
 		fi
@@ -190,7 +190,7 @@ main() {
 		return 0
 	fi
 
-	error "Could not install ${PACKAGE}. Install uv (https://docs.astral.sh/uv/) or Python 3.12+, then retry."
+	error "Could not install ${PACKAGE}. Install uv (https://docs.astral.sh/uv/) or Python 3.10+, then retry."
 }
 
 print_get_started() {
