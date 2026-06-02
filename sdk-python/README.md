@@ -24,7 +24,7 @@ client = SferenceClient(api_key="sk_...", base_url="https://api.sference.com")
 
 batch = client.submit_batch(
     input_file="./workload.jsonl",
-    model="Qwen/Qwen2.5-7B-Instruct",
+    model="Qwen/Qwen3.6-35B-A3B",
     window="24h",
 )
 done = client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
@@ -44,7 +44,7 @@ from sference_sdk import SferenceClient
 client = SferenceClient(api_key="sk_...", base_url="https://api.sference.com")
 
 created = client.create_response(
-    model="Qwen/Qwen2.5-7B-Instruct",
+    model="Qwen/Qwen3.6-35B-A3B",
     input=[{"role": "user", "content": "Hello"}],
     metadata={"completion_window": "24h"},
 )
@@ -75,7 +75,7 @@ async def main() -> None:
     )
 
     response = await client.responses.create(
-        model="zai-org/GLM-5",
+        model="Qwen/Qwen3.6-35B-A3B",
         input=[{"role": "user", "content": "Hello, world!"}],
         background=True,
     )
@@ -109,7 +109,7 @@ async def main() -> None:
     async with AsyncSferenceClient(api_key="sk_...", base_url="https://api.sference.com") as client:
         batch = await client.submit_batch(
             input_file="./workload.jsonl",
-            model="Qwen/Qwen2.5-7B-Instruct",
+            model="Qwen/Qwen3.6-35B-A3B",
             window="24h",
         )
         done = await client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
@@ -138,7 +138,7 @@ async def main() -> None:
     async with AsyncSferenceClient(api_key="sk_...", base_url="https://api.sference.com") as client:
         stream = await client.create_stream(name="sdk-demo", window="24h")
         await client.create_response(
-            model="Qwen/Qwen2.5-7B-Instruct",
+            model="Qwen/Qwen3.6-35B-A3B",
             input=[{"role": "user", "content": "Hello"}],
             metadata={"stream_id": stream.id, "completion_window": "24h"},
         )
@@ -161,7 +161,7 @@ RID=$(curl -sS -X POST "${BASE_URL}/v1/responses" \
   -H "X-API-Key: $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "model": "Qwen/Qwen3.6-35B-A3B",
     "input": [{"role": "user", "content": "Hello"}],
     "metadata": {"completion_window": "24h"}
   }' | jq -r '.id')
