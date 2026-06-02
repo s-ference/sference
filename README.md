@@ -45,6 +45,10 @@ sference batch wait --batch-id <id>
 | [sdk-python](sdk-python/) | `sference-sdk` | Sync and async Python clients |
 | [cli](cli/) | `sference-cli` | `sference` command-line interface |
 
+## Examples
+
+Orchestration recipes (Prefect, batch `/v1/responses`, etc.) live under [examples/](examples/).
+
 ## Development
 
 ```bash
