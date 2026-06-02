@@ -37,4 +37,4 @@ Then trigger **ai-data-analyst-batch-responses** from the Prefect UI or CLI.
 ## See also
 
 - [SDK README — OpenAI-compatible responses](../../sdk-python/README.md)
-- [Platform README — Responses (async / background)](https://github.com/s-ference/sference-platform#responses-openai-compatible) (monorepo)
+- [sference docs](https://sference.com) — Responses (async / background)

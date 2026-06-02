@@ -43,8 +43,18 @@ DEFAULT_CONSOLE_URL = "https://app.sference.com"
 
 
 def _write_token(token: str) -> None:
+    # The credential file holds an API key; keep it owner-only (0700 dir / 0600 file)
+    # so other local users cannot read it. chmod is a no-op on Windows.
     CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(CREDENTIALS_PATH.parent, 0o700)
+    except OSError:
+        pass
     CREDENTIALS_PATH.write_text(json.dumps({"token": token}), encoding="utf-8")
+    try:
+        os.chmod(CREDENTIALS_PATH, 0o600)
+    except OSError:
+        pass
 
 
 def _read_token() -> str | None:
