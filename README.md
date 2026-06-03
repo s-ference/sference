@@ -2,13 +2,14 @@
 
 Python SDK and CLI for the [sference](https://sference.com) batch inference API.
 
-## Using with Cursor, Claude Code, or other agents
+## Coding agents (Cursor, Claude Code, …)
 
-**[SKILL.md](SKILL.md)** is the copy-paste guide for coding agents that write `sference-sdk` Python (Responses API, streams, batches). You do not need to clone this repo — open that file on GitHub and copy it, or use the raw URL:
+1. **Paste [PROMPT.txt](PROMPT.txt)** into your project rules or `CLAUDE.md` — short rules for vibe coding with `sference-sdk`.
+2. Optionally install the full **[SKILL.md](SKILL.md)** as a Cursor skill (`.cursor/skills/sference-sdk/SKILL.md`).
 
-`https://raw.githubusercontent.com/s-ference/sference/main/SKILL.md`
+Raw URLs (no clone): [PROMPT.txt](https://raw.githubusercontent.com/s-ference/sference/main/PROMPT.txt) · [SKILL.md](https://raw.githubusercontent.com/s-ference/sference/main/SKILL.md)
 
-Paste into **Cursor** as `.cursor/skills/sference-sdk/SKILL.md` in your project, into **Claude Code** via `CLAUDE.md` or project skills, or into your agent’s custom rules. Step-by-step: **[AGENTS.md](AGENTS.md)**.
+Details: **[AGENTS.md](AGENTS.md)** · website: [sference.com/docs/sdk](https://sference.com/docs/sdk)
 
 ## Install
 

@@ -14,6 +14,8 @@ disable-model-invocation: false
 
 For coding agents writing application code that **uses** sference. Use the **`sference-sdk`** package only — do **not** read the SDK source, hit raw HTTP, or clone the platform monorepo.
 
+**Vibe coding?** Copy the short rules from **[PROMPT.txt](PROMPT.txt)** first ([raw](https://raw.githubusercontent.com/s-ference/sference/main/PROMPT.txt)). Use this file when you need examples, stream/batch detail, and a method map—or for a Cursor skill install (see **[AGENTS.md](AGENTS.md)**).
+
 **Default to the Responses API with `background=True`** and poll for completion. Reach for batches or streams only when the situation below calls for them.
 
 ## Install
