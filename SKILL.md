@@ -31,13 +31,14 @@ Import name is `sference_sdk`.
 | Variable | Meaning |
 |----------|---------|
 | `SFERENCE_API_KEY` | **Required** — secret key `sk_...` from Console → API keys (https://app.sference.com) |
+| `SFERENCE_BASE_URL` | API base; defaults to `https://api.sference.com`. Override only for self-hosted/local. |
 
-The client reads both from the environment, or pass them explicitly. Keep keys in env or a gitignored `.env` — never hardcode/commit them.
+Read from the environment or pass explicitly. Keep keys in env or a gitignored `.env` — never hardcode/commit them.
 
 ```python
 from sference_sdk import SferenceClient
 
-client = SferenceClient()                 # uses SFERENCE_API_KEY
+client = SferenceClient()                  # SFERENCE_API_KEY + SFERENCE_BASE_URL
 client = SferenceClient(api_key="sk_...")  # explicit
 ```
 
@@ -187,7 +188,5 @@ asyncio.run(main())
 
 ## Reference
 
-- SDK README and full guidance: [sdk-python/README.md](../../sdk-python/README.md)
-- API contract (field shapes): `contract/openapi.json`
-
-To reuse this skill in another project, copy this `sference-sdk/` folder into that project's `.cursor/skills/` (or your personal Cursor skills directory).
+- SDK README: [sdk-python/README.md](sdk-python/README.md)
+- API contract: [contract/openapi.json](contract/openapi.json)

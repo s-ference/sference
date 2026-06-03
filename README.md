@@ -2,6 +2,14 @@
 
 Python SDK and CLI for the [sference](https://sference.com) batch inference API.
 
+## Using with Cursor, Claude Code, or other agents
+
+**[SKILL.md](SKILL.md)** is the copy-paste guide for coding agents that write `sference-sdk` Python (Responses API, streams, batches). You do not need to clone this repo — open that file on GitHub and copy it, or use the raw URL:
+
+`https://raw.githubusercontent.com/s-ference/sference/main/SKILL.md`
+
+Paste into **Cursor** as `.cursor/skills/sference-sdk/SKILL.md` in your project, into **Claude Code** via `CLAUDE.md` or project skills, or into your agent’s custom rules. Step-by-step: **[AGENTS.md](AGENTS.md)**.
+
 ## Install
 
 ```bash
@@ -49,10 +57,6 @@ sference batch wait --batch-id <id>
 |---------|------|-------------|
 | [sdk-python](sdk-python/) | `sference-sdk` | Sync and async Python clients |
 | [cli](cli/) | `sference-cli` | `sference` command-line interface |
-
-## AI agents (Cursor, etc.)
-
-A Cursor / Claude Code skill for writing **`sference-sdk`** Python without reading this repo lives in **[`.cursor/skills/sference-sdk/SKILL.md`](.cursor/skills/sference-sdk/SKILL.md)**. Copy that folder into your project’s `.cursor/skills/` (or personal agent skills) when coding against sference.
 
 ## Examples
 
