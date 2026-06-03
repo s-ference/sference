@@ -50,6 +50,10 @@ sference batch wait --batch-id <id>
 | [sdk-python](sdk-python/) | `sference-sdk` | Sync and async Python clients |
 | [cli](cli/) | `sference-cli` | `sference` command-line interface |
 
+## AI agents (Cursor, etc.)
+
+A Cursor / Claude Code skill for writing **`sference-sdk`** Python without reading this repo lives in **[`.cursor/skills/sference-sdk/SKILL.md`](.cursor/skills/sference-sdk/SKILL.md)**. Copy that folder into your project’s `.cursor/skills/` (or personal agent skills) when coding against sference.
+
 ## Examples
 
 Orchestration recipes (Prefect, batch `/v1/responses`, etc.) live under [examples/](examples/).
