@@ -186,8 +186,59 @@ asyncio.run(main())
 | `window="1h"` on a **batch** | Batches are `"24h"` only; `"1h"`/`"24h"` apply to streams + response `completion_window` |
 | Content-only JSONL without a model | Pass `model=` to `submit_batch` |
 | Guessing JSON field names | See `contract/openapi.json` |
+| Re-running `create_response` on Prefect retry after success | Split **submit** and **wait** tasks; retry wait only when you already have a `response_id` |
+
+## Framework integrations
+
+Runnable examples live under **[examples/](examples/)** (`uv sync --group dev --group examples` from this repo).
+
+### Prefect
+
+Use a **two-stage flow**: enqueue with `background=True`, then poll in a separate task. Prefect owns retries and UI observability; the SDK owns HTTP and `wait_for_response` polling.
+
+Pattern (see **[examples/prefect/ai_data_analyst_batch_responses.py](examples/prefect/ai_data_analyst_batch_responses.py)**):
+
+1. **Prepare** — build prompts locally (pandas, files, etc.); no inference in this stage.
+2. **Submit** (`@task`, `retries=…`) — `create_response(..., background=True, metadata={"completion_window": "1h"})` per item; return `response.id`.
+3. **Wait** (`@task`, `retries=…`) — `wait_for_response(response_id)`; parse `done.output` message / `output_text` parts.
+4. **Fan-out** — `create_response_request.map(prompts)` then `wait_for_response_completion.map(response_id_futures)` so each prompt is its own task in the Prefect UI.
+
+```python
+from prefect import flow, task
+from sference_sdk import SferenceClient
+
+client = SferenceClient()  # SFERENCE_API_KEY from env
+
+@task(name="create-response-request", retries=2)
+def create_response_request(prompt: AnalysisPrompt) -> str:
+    created = client.create_response(
+        model="...",
+        input=[{"role": "user", "content": prompt.user_content}],
+        background=True,
+        metadata={"completion_window": "1h"},  # or "24h"
+    )
+    return created.id
+
+@task(name="wait-for-response-completion", retries=2)
+def wait_for_response_completion(response_id: str) -> dict:
+    done = client.wait_for_response(response_id)
+    # extract text from done.output (message → output_text parts)
+    return {"id": done.id, "status": done.status, "text": "..."}
+
+@flow
+def my_flow() -> None:
+    prompts = build_analysis_prompts(prepare_sample_dataset())
+    ids = create_response_request.map(prompts)
+    results = wait_for_response_completion.map(ids)
+    ordered = [f.result() for f in results]
+```
+
+Run: `uv run python examples/prefect/ai_data_analyst_batch_responses.py` — add `--serve` for a Prefect deployment. Details: **[examples/prefect/README.md](examples/prefect/README.md)**.
+
+**Why not in-process LLMs in the flow?** Background responses decouple orchestration from GPU work: workers stay thin, failed **wait** tasks can retry without re-submitting, and `completion_window` matches batch SLA semantics.
 
 ## Reference
 
 - SDK README: [sdk-python/README.md](sdk-python/README.md)
 - API contract: [contract/openapi.json](contract/openapi.json)
+- Examples index: [examples/README.md](examples/README.md)
