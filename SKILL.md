@@ -31,14 +31,13 @@ Import name is `sference_sdk`.
 | Variable | Meaning |
 |----------|---------|
 | `SFERENCE_API_KEY` | **Required** — secret key `sk_...` from Console → API keys (https://app.sference.com) |
-| `SFERENCE_BASE_URL` | API base; defaults to `https://api.sference.com`. Override only for self-hosted/local. |
 
 Read from the environment or pass explicitly. Keep keys in env or a gitignored `.env` — never hardcode/commit them.
 
 ```python
 from sference_sdk import SferenceClient
 
-client = SferenceClient()                  # SFERENCE_API_KEY + SFERENCE_BASE_URL
+client = SferenceClient()                  # reads SFERENCE_API_KEY
 client = SferenceClient(api_key="sk_...")  # explicit
 ```
 
