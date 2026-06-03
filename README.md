@@ -5,20 +5,18 @@ Python SDK and CLI for the [sference](https://sference.com) batch inference API.
 ## Install
 
 ```bash
-# One-line install (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/s-ference/sference/main/install.ps1 | iex"
+uv tool install sference-cli     # CLI (includes SDK)
+# or library only:
+uv add sference-sdk
 ```
 
-Or install from PyPI directly:
+Fallback:
 
 ```bash
-pip install sference-sdk          # library only
-pip install sference-cli          # CLI (includes SDK)
-# or
-uv tool install sference-cli     # isolated CLI on PATH
+pip install sference-cli
+pip install sference-sdk
+# or:
+pipx install sference-cli
 ```
 
 ## Quick start

@@ -5,21 +5,22 @@ Command-line interface for the sference batch API (`sference`). It uses the Pyth
 ## Installation
 
 ```bash
-# One-line install (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/s-ference/sference/main/install.ps1 | iex"
+uv tool install sference-cli
 ```
 
-Or install from PyPI:
+Fallback:
 
 ```bash
 pip install sference-cli
-# or isolated install on PATH:
-uv tool install sference-cli
 # or:
 pipx install sference-cli
+```
+
+From a clone of this repo:
+
+```bash
+uv sync --package sference-cli
+uv run sference --help
 ```
 
 Then:
@@ -45,7 +46,7 @@ sference auth me --json
 
 ## Quick examples (batches and streams)
 
-Use a `model` string supported by your sference deployment (for self-hosted stacks, match the model your workers consume).
+Use a `model` string supported by your sference deployment.
 
 **Batches**
 
@@ -69,33 +70,11 @@ sference stream status --stream-id <stream_id>
 sference responses tail --stream-id <stream_id>
 ```
 
-### cURL: OpenAI-compatible `/v1/responses`
-
-The CLI uses this API for `stream submit` (via `POST /v1/responses`). You can call it directly with the same API key as `sference auth login` (or `SFERENCE_API_KEY`). For self-hosted APIs, set `SFERENCE_BASE_URL` to your API origin.
-
-```bash
-export TOKEN=sk_...   # or: export TOKEN="$SFERENCE_API_KEY"
-
-RID=$(curl -sS -X POST "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses" \
-  -H "X-API-Key: $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "Qwen/Qwen3.6-35B-A3B",
-    "input": [{"role": "user", "content": "Hello"}],
-    "metadata": {"completion_window": "24h"}
-  }' | jq -r '.id')
-
-curl -sS "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses/${RID}" \
-  -H "X-API-Key: $TOKEN"
-```
-
 ## Environment variables
 
 | Variable | Purpose |
 |----------|---------|
 | `SFERENCE_API_KEY` | API key (or JWT); overrides `~/.sference/credentials.json` |
-| `SFERENCE_BASE_URL` | API base URL (default `https://api.sference.com`) |
-| `SFERENCE_CONSOLE_URL` | Console URL for `auth login` browser step (default `https://app.sference.com`) |
 | `SFERENCE_STREAM_CACHE` | Optional path to the stream resumable-cache file (default `~/.sference/stream_cache.json`) |
 | `SFERENCE_STREAM_CHECKPOINTS` | Optional path for **`responses tail`** event checkpoints (default `~/.sference/stream_checkpoints.json`) |
 
@@ -105,7 +84,7 @@ curl -sS "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses/${RID}" \
 
 | Command | Description |
 |---------|-------------|
-| `sference auth login` | Store an API key (optional `--api-key`, `--console-url`, `--no-browser`) |
+| `sference auth login` | Store an API key (optional `--api-key`, `--no-browser`) |
 | `sference auth me` | Show current user (`--json` for machine-readable output) |
 
 ### Batch
@@ -120,8 +99,6 @@ curl -sS "${SFERENCE_BASE_URL:-https://api.sference.com}/v1/responses/${RID}" \
 | `sference batch results` | JSON results payload (`--batch-id`, `--json`) |
 | `sference batch cancel` | Cancel a batch (`--batch-id`, `--json`) |
 | `sference batch download-results` | Download results JSONL to a file (`--batch-id`, `--out`, `--format jsonl`) |
-
-Global options on most batch commands: `--base-url` (default `https://api.sference.com`).
 
 ### Responses (`/v1/responses`)
 
@@ -183,7 +160,7 @@ Batches can take a long time. If you **interrupt** the command (e.g. Ctrl+C) and
 
 - Cache file: **`~/.sference/stream_cache.json`** (override with **`SFERENCE_STREAM_CACHE`**).
 - Key: **SHA-256** of the raw input file bytes (same bytes ⇒ same key, regardless of path).
-- Stored fields: `batch_id`, `base_url` (must match current `--base-url`), `created_at`.
+- Stored fields: `batch_id`, `created_at`.
 - After results are written to stdout, the entry for that input is **removed** so the cache does not grow forever.
 - If the cached batch no longer exists on the server (404), the cache entry is dropped and a **new** batch is submitted.
 
@@ -230,4 +207,4 @@ For your own code, see **[`../sdk-python/README.md`](../sdk-python/README.md)** 
 - **`/v1/responses` (sync):** `create_response`, `get_response` (standalone or `metadata.stream_id` for streams)
 - **Async:** **`AsyncSferenceClient`** — same surface as sync with `await`, plus `iter_responses_events` / `list_responses_events` for completion tailing (`GET /v1/responses/events`)
 
-That README also documents when to prefer **batches** vs **streams** and includes cURL examples.
+That README also documents **`./workload.jsonl`** input and when to prefer **batches** vs **streams**.

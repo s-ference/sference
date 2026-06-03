@@ -5,13 +5,35 @@ Installable package: `sference-sdk` (import: `sference_sdk`). Used by the `sfere
 ## Install
 
 ```bash
+uv add sference-sdk
+```
+
+Fallback:
+
+```bash
 pip install sference-sdk
-# or: uv add sference-sdk
+```
+
+From a clone of this repo:
+
+```bash
+uv sync --package sference-sdk
 ```
 
 ## Usage
 
-Set `SFERENCE_API_KEY` and optional `SFERENCE_BASE_URL` (default `https://api.sference.com`), or pass `api_key=` / `base_url=` to the client.
+Set `SFERENCE_API_KEY`, or pass `api_key=` to the client.
+
+### `./workload.jsonl`
+
+Batch APIs take a JSONL file: one JSON object per line. OpenAI-compatible lines include `custom_id`, `method`, `url`, and `body`; content-only lines are `{"content": "..."}` (then pass `model=` on submit).
+
+Example `workload.jsonl`:
+
+```jsonl
+{"custom_id":"example-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"user","content":"Say hello in exactly one word."}]}}
+{"custom_id":"example-2","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"system","content":"You reply with one short sentence only."},{"role":"user","content":"What is 2+2?"}]}}
+```
 
 ### Batches (sync)
 
@@ -20,7 +42,7 @@ Best for a **fixed JSONL workload**: one submit, poll until terminal, then fetch
 ```python
 from sference_sdk import SferenceClient
 
-client = SferenceClient(api_key="sk_...", base_url="https://api.sference.com")
+client = SferenceClient(api_key="sk_...")
 
 batch = client.submit_batch(
     input_file="./workload.jsonl",
@@ -41,7 +63,7 @@ Standalone or stream-associated jobs via `POST /v1/responses`. Keys need `respon
 ```python
 from sference_sdk import SferenceClient
 
-client = SferenceClient(api_key="sk_...", base_url="https://api.sference.com")
+client = SferenceClient(api_key="sk_...")
 
 created = client.create_response(
     model="Qwen/Qwen3.6-35B-A3B",
@@ -55,7 +77,7 @@ For a stream, add `stream_id` inside `metadata` next to `completion_window`.
 
 ### OpenAI Python SDK (`openai` package)
 
-If you already use the official OpenAI client, point it at a sference-compatible **`/v1`** base URL and the same API key (with `responses:read` and `responses:write`).
+If you already use the official OpenAI client, point it at sference’s **`/v1`** endpoint and the same API key (with `responses:read` and `responses:write`).
 
 ```bash
 pip install openai
@@ -81,13 +103,11 @@ async def main() -> None:
     )
     # Poll GET /v1/responses/{id} until terminal; your openai version may expose
     # something like await client.responses.retrieve(response.id), or use
-    # AsyncSferenceClient.get_response(response.id) with the same host and key.
+    # AsyncSferenceClient.get_response(response.id) with the same API key.
 
 
 asyncio.run(main())
 ```
-
-**Self-hosted** (local API): use `base_url="http://127.0.0.1:8000/v1"` (or your `SFERENCE_BASE_URL` + `"/v1"`). **`model`** must match a model your inference workers consume.
 
 **Metadata:** to set `completion_window` or `stream_id` like the native SDK, pass them in the request body your `openai` version supports (for example `metadata=` on `create`, or `extra_body={"metadata": {...}}` if the helper does not list those fields yet).
 
@@ -106,7 +126,7 @@ from sference_sdk import AsyncSferenceClient
 
 
 async def main() -> None:
-    async with AsyncSferenceClient(api_key="sk_...", base_url="https://api.sference.com") as client:
+    async with AsyncSferenceClient(api_key="sk_...") as client:
         batch = await client.submit_batch(
             input_file="./workload.jsonl",
             model="Qwen/Qwen3.6-35B-A3B",
@@ -135,7 +155,7 @@ from sference_sdk import AsyncSferenceClient
 
 
 async def main() -> None:
-    async with AsyncSferenceClient(api_key="sk_...", base_url="https://api.sference.com") as client:
+    async with AsyncSferenceClient(api_key="sk_...") as client:
         stream = await client.create_stream(name="sdk-demo", window="24h")
         await client.create_response(
             model="Qwen/Qwen3.6-35B-A3B",
@@ -148,29 +168,6 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
-
-## cURL (same API the SDK calls)
-
-API keys need `responses:read` and `responses:write` (default on newly issued keys). `X-API-Key` or `Authorization: Bearer sk_...` are both accepted.
-
-```bash
-export TOKEN=sk_...
-BASE_URL=https://api.sference.com
-
-RID=$(curl -sS -X POST "${BASE_URL}/v1/responses" \
-  -H "X-API-Key: $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "Qwen/Qwen3.6-35B-A3B",
-    "input": [{"role": "user", "content": "Hello"}],
-    "metadata": {"completion_window": "24h"}
-  }' | jq -r '.id')
-
-curl -sS "${BASE_URL}/v1/responses/${RID}" \
-  -H "X-API-Key: $TOKEN"
-```
-
-For self-hosted APIs, set `BASE_URL` to your API origin (no `/v1` suffix on `BASE_URL` here—the paths already include `/v1`). Without `jq`, read `id` from the POST JSON and substitute it in the GET URL.
 
 ## CLI
 
