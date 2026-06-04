@@ -19,6 +19,7 @@ from sference_cli import __version__ as _CLI_VERSION
 from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 
 from . import stream_cache as stream_cache_mod
+from .launch import register_launch_commands
 
 _T = TypeVar("_T")
 
@@ -36,6 +37,7 @@ app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
 app.add_typer(responses_app, name="responses")
 app.add_typer(models_app, name="models")
+register_launch_commands(app)
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
 

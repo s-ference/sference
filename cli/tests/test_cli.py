@@ -757,3 +757,151 @@ def test_cli_exits_nonzero_on_client_error(monkeypatch):
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
 
+
+def test_launch_hidden_from_root_help() -> None:
+    result = runner.invoke(cli_main.app, ["--help"])
+    assert result.exit_code == 0
+    assert "launch" not in result.stdout
+
+
+def test_launch_still_invocable() -> None:
+    result = runner.invoke(cli_main.app, ["launch", "--help"])
+    assert result.exit_code == 0
+    assert "claude" in result.stdout
+    assert "pi" in result.stdout
+
+
+def test_launch_uses_sference_model_env(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setenv("SFERENCE_MODEL", "Qwen/Qwen3.6-35B-A3B")
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--dry-run"])
+    assert result.exit_code == 0
+    assert "ANTHROPIC_MODEL=Qwen/Qwen3.6-35B-A3B" in result.stdout
+
+
+def test_claude_dry_run_prints_env(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "claude", "--dry-run", "--model", "moonshotai/Kimi-K2.6", "--enable-tool-search"],
+    )
+    assert result.exit_code == 0
+    assert "ANTHROPIC_BASE_URL=https://api.sference.com" in result.stdout
+    assert "ANTHROPIC_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "ANTHROPIC_AUTH_TOKEN=<redacted>" in result.stdout
+    assert "ENABLE_TOOL_SEARCH=true" in result.stdout
+    assert "command: /usr/local/bin/claude" in result.stdout
+
+
+def test_claude_forwards_extra_args(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    captured: dict = {}
+
+    def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
+        captured["path"] = path
+        captured["args"] = args
+        captured["env"] = env
+        raise SystemExit(0)
+
+    monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--resume", "abc"])
+    assert result.exit_code == 0
+    assert captured["path"] == "/usr/local/bin/claude"
+    assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
+    assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K2.6"
+
+
+def test_claude_missing_binary_exits(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: None)
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "not found on PATH" in out
+
+
+def test_claude_requires_credential(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "no_credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "No API credential" in out
+
+
+def test_pi_dry_run_prints_config(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json")
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "pi", "--dry-run", "--model", "moonshotai/Kimi-K2.6"],
+    )
+    assert result.exit_code == 0
+    assert "Wrote provider 'sference' to" in result.stdout
+    assert "baseUrl: https://api.sference.com/v1" in result.stdout
+    assert "model: moonshotai/Kimi-K2.6" in result.stdout
+    assert "apiKey: <redacted>" in result.stdout
+    assert "command: /usr/local/bin/pi --provider sference --model moonshotai/Kimi-K2.6" in result.stdout
+
+
+def test_pi_writes_models_json(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    models_json = tmp_path / "models.json"
+    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
+    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    assert models_json.exists()
+    data = json.loads(models_json.read_text())
+    assert data["providers"]["sference"]["api"] == "openai-completions"
+    assert data["providers"]["sference"]["baseUrl"] == "https://api.sference.com/v1"
+    assert data["providers"]["sference"]["apiKey"] == "sk_fake_for_tests"
+    assert data["providers"]["sference"]["models"][0]["id"] == "moonshotai/Kimi-K2.6"
+
+
+def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json")
+    captured: dict = {}
+
+    def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
+        captured["path"] = path
+        captured["args"] = args
+        raise SystemExit(0)
+
+    monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
+    result = runner.invoke(cli_main.app, ["launch", "pi", "--", "/path/to/project"])
+    assert result.exit_code == 0
+    assert captured["path"] == "/usr/local/bin/pi"
+    assert captured["args"] == [
+        "/usr/local/bin/pi",
+        "--provider",
+        "sference",
+        "--model",
+        "moonshotai/Kimi-K2.6",
+        "/path/to/project",
+    ]
+
+
+def test_pi_missing_binary_exits(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: None)
+    result = runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "not found on PATH" in out
+
+
+def test_pi_requires_credential(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "no_credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    result = runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "No API credential" in out
+
