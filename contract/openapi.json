@@ -3226,7 +3226,8 @@
             "type": "string",
             "enum": [
               "user",
-              "assistant"
+              "assistant",
+              "system"
             ]
           },
           "content": {
@@ -3236,14 +3237,20 @@
               },
               {
                 "items": {
-                  "$ref": "#/components/schemas/AnthropicTextBlock"
-                },
-                "type": "array"
-              },
-              {
-                "items": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AnthropicTextBlock"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnthropicThinkingBlock"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnthropicToolUseBlock"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnthropicToolResultBlock"
+                    }
+                  ]
                 },
                 "type": "array"
               }
@@ -3283,13 +3290,6 @@
                 "type": "array"
               },
               {
-                "items": {
-                  "additionalProperties": {},
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
                 "type": "null"
               }
             ]
@@ -3312,6 +3312,55 @@
             "oneOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tools": {
+            "oneOf": [
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thinking": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enable_thinking": {
+            "oneOf": [
+              {
+                "type": "boolean"
               },
               {
                 "type": "null"
@@ -3343,6 +3392,107 @@
           "type"
         ],
         "title": "AnthropicTextBlock"
+      },
+      "AnthropicThinkingBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "thinking"
+          },
+          "thinking": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signature": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "AnthropicThinkingBlock"
+      },
+      "AnthropicToolResultBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_result"
+          },
+          "tool_use_id": {
+            "type": "string"
+          },
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AnthropicTextBlock"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool_use_id",
+          "type"
+        ],
+        "title": "AnthropicToolResultBlock"
+      },
+      "AnthropicToolUseBlock": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "tool_use"
+          },
+          "id": {
+            "type": "string",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "default": "tool"
+          },
+          "input": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "AnthropicToolUseBlock"
       },
       "ApiKeyCreateRequest": {
         "properties": {
@@ -3730,6 +3880,9 @@
               "coming_soon"
             ]
           },
+          "supports_tool_calling": {
+            "type": "boolean"
+          },
           "modality": {
             "type": "string"
           },
@@ -3783,7 +3936,8 @@
           "id",
           "modality",
           "platform_status",
-          "released"
+          "released",
+          "supports_tool_calling"
         ],
         "title": "CatalogModelResponse"
       },
@@ -3831,6 +3985,34 @@
           "stream": {
             "type": "boolean",
             "default": false
+          },
+          "tools": {
+            "oneOf": [
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3853,6 +4035,37 @@
               {
                 "items": {},
                 "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool_calls": {
+            "oneOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool_call_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -4243,6 +4456,9 @@
               null
             ]
           },
+          "supports_tool_calling": {
+            "type": "boolean"
+          },
           "deployed_on_platform": {
             "type": "boolean"
           },
@@ -4259,7 +4475,8 @@
           "deployed_on_platform",
           "display_name",
           "id",
-          "source"
+          "source",
+          "supports_tool_calling"
         ],
         "title": "ModelSearchItem"
       },
