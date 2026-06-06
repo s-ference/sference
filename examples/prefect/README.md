@@ -14,11 +14,8 @@ From the **oss** repository root:
 ```bash
 uv sync --group dev --group examples
 export SFERENCE_API_KEY=sk_...
-export SFERENCE_BASE_URL=https://api.sference.com   # optional
 export SFERENCE_MODEL=Qwen/Qwen3.6-35B-A3B            # must match your deployment
 ```
-
-For a local API: `export SFERENCE_BASE_URL=http://127.0.0.1:8000`.
 
 ## Run
 

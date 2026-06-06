@@ -74,11 +74,8 @@ def _read_token() -> str | None:
 
 
 def _client(base_url: Optional[str] = None, *, timeout: float | None = None) -> SferenceClient:
-    # If the caller didn't explicitly pass --base-url, allow SFERENCE_BASE_URL
-    # to override the default.
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
-        _logger.info(f"Using SFERENCE_BASE_URL: {env_base_url}")
         base_url = env_base_url
     return SferenceClient(base_url=base_url, api_key=_read_token(), timeout=timeout)
 

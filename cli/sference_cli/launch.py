@@ -211,7 +211,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
-            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL} or SFERENCE_BASE_URL).",
+            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
         ),
         enable_tool_search: bool = typer.Option(
             False,
@@ -267,7 +267,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
-            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL} or SFERENCE_BASE_URL).",
+            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
         ),
         dry_run: bool = typer.Option(
             False,

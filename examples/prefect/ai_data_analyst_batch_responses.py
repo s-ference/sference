@@ -50,7 +50,7 @@ from sference_sdk import SferenceClient
 COMPLETION_WINDOW = "1h"
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
 
-# One shared client for the whole example (reads SFERENCE_API_KEY / SFERENCE_BASE_URL).
+# One shared client for the whole example (reads SFERENCE_API_KEY).
 client = SferenceClient()
 
 
