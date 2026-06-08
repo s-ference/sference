@@ -3237,20 +3237,14 @@
               },
               {
                 "items": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/AnthropicTextBlock"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AnthropicThinkingBlock"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AnthropicToolUseBlock"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AnthropicToolResultBlock"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/AnthropicTextBlock"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
                 },
                 "type": "array"
               }
@@ -3286,6 +3280,13 @@
               {
                 "items": {
                   "$ref": "#/components/schemas/AnthropicTextBlock"
+                },
+                "type": "array"
+              },
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
                 },
                 "type": "array"
               },
@@ -3392,107 +3393,6 @@
           "type"
         ],
         "title": "AnthropicTextBlock"
-      },
-      "AnthropicThinkingBlock": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "thinking"
-          },
-          "thinking": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "text": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "signature": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "type"
-        ],
-        "title": "AnthropicThinkingBlock"
-      },
-      "AnthropicToolResultBlock": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "tool_result"
-          },
-          "tool_use_id": {
-            "type": "string"
-          },
-          "content": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "items": {
-                  "$ref": "#/components/schemas/AnthropicTextBlock"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "tool_use_id",
-          "type"
-        ],
-        "title": "AnthropicToolResultBlock"
-      },
-      "AnthropicToolUseBlock": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "tool_use"
-          },
-          "id": {
-            "type": "string",
-            "default": ""
-          },
-          "name": {
-            "type": "string",
-            "default": "tool"
-          },
-          "input": {
-            "additionalProperties": {},
-            "type": "object"
-          }
-        },
-        "type": "object",
-        "required": [
-          "type"
-        ],
-        "title": "AnthropicToolUseBlock"
       },
       "ApiKeyCreateRequest": {
         "properties": {
@@ -3880,9 +3780,6 @@
               "coming_soon"
             ]
           },
-          "supports_tool_calling": {
-            "type": "boolean"
-          },
           "modality": {
             "type": "string"
           },
@@ -3936,8 +3833,7 @@
           "id",
           "modality",
           "platform_status",
-          "released",
-          "supports_tool_calling"
+          "released"
         ],
         "title": "CatalogModelResponse"
       },
@@ -4456,9 +4352,6 @@
               null
             ]
           },
-          "supports_tool_calling": {
-            "type": "boolean"
-          },
           "deployed_on_platform": {
             "type": "boolean"
           },
@@ -4475,8 +4368,7 @@
           "deployed_on_platform",
           "display_name",
           "id",
-          "source",
-          "supports_tool_calling"
+          "source"
         ],
         "title": "ModelSearchItem"
       },
@@ -4983,6 +4875,7 @@
             "enum": [
               "think_tag",
               "provider_field",
+              "qwen_preamble_cot",
               "anthropic_thinking",
               "openai_summary",
               "unknown"
