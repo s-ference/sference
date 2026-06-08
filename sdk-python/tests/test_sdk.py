@@ -239,6 +239,40 @@ def test_get_response_parses_reasoning_output_item() -> None:
         assert resp.output[1].content[0].text == "The answer is 42."
 
 
+def test_get_response_parses_qwen_preamble_cot_reasoning_format() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/v1/responses/resp_qwen":
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "id": "resp_qwen",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "reasoning",
+                            "text": "chain",
+                            "format": "qwen_preamble_cot",
+                        },
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                        },
+                    ],
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.get_response("resp_qwen")
+        assert resp.output is not None
+        assert resp.output[0].format == "qwen_preamble_cot"
+
+
 def test_create_response_sends_include_reasoning_and_parses_reasoning() -> None:
     captured_json: dict[str, Any] = {}
 

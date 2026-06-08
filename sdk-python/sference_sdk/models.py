@@ -146,6 +146,7 @@ class ResponseCreatePayload(BaseModel):
 ReasoningFormat = Literal[
     "think_tag",
     "provider_field",
+    "qwen_preamble_cot",
     "anthropic_thinking",
     "openai_summary",
     "unknown",
