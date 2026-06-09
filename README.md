@@ -14,9 +14,11 @@ Details: **[AGENTS.md](AGENTS.md)** · website: [sference.com/docs/sdk](https://
 ## Install
 
 ```bash
-# One-line install (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
+# One-line install (macOS / Linux) — updates PATH in this Terminal window
+eval "$(curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh)"
 ```
+
+The installer also writes `~/.local/bin` into your shell profile for future sessions. Use `eval "$(curl …)"` (not plain `curl | sh`) so the script can export PATH into your **current** shell — a piped script runs in a subshell and cannot change the parent process otherwise.
 
 Or install from PyPI:
 

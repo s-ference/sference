@@ -6,7 +6,7 @@ Command-line interface for the sference batch API (`sference`). It uses the Pyth
 
 ```bash
 # One-line install (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
+eval "$(curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh)"
 ```
 
 Or install from PyPI:
