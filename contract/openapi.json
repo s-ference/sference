@@ -4988,6 +4988,14 @@
               "invited",
               null
             ]
+          },
+          "next_step": {
+            "type": "string",
+            "enum": [
+              "verify_email",
+              "login"
+            ],
+            "default": "verify_email"
           }
         },
         "type": "object",
