@@ -10,7 +10,7 @@
 # expensive inference unless you add your own idempotency.
 #
 # This example instead uses sference **batch responses** (`POST /v1/responses` with
-# `background=true` and `metadata.completion_window="1h"`):
+# `background=true` and `metadata.completion_window="24h"`):
 #
 # - **Submit then wait** — Stage 1 only enqueues work and records response IDs; Stage 2
 #   polls until terminal. Prefect owns orchestration, retries, and run history; the SDK
@@ -21,7 +21,7 @@
 # - **Durable stages** — If Stage 2 fails mid-poll, Prefect can retry waiting without
 #   re-submitting jobs that already have an ID. Map each prompt to its own tasks for
 #   per-item observability in the UI.
-# - **Same SLA semantics as production** — `1h` completion window matches how customers
+# - **Same SLA semantics as production** — `24h` completion window matches how customers
 #   run large, non-interactive analysis workloads on sference.
 #
 # Install (from the oss repo root):
@@ -47,7 +47,7 @@ from prefect import flow, task
 
 from sference_sdk import SferenceClient
 
-COMPLETION_WINDOW = "1h"
+COMPLETION_WINDOW = "24h"
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
 
 # One shared client for the whole example (reads SFERENCE_API_KEY).
@@ -153,7 +153,7 @@ def print_analysis_report(
     prompts: list[AnalysisPrompt],
 ) -> None:
     print("\n" + "=" * 80)
-    print("BATCH RESPONSE ANALYSIS (1h completion window)")
+    print("BATCH RESPONSE ANALYSIS (24h completion window)")
     print("=" * 80)
     for prompt, row in zip(prompts, results, strict=True):
         print(f"\n--- {prompt.custom_id} ({row['status']}) ---")
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     if "--serve" in sys.argv:
         analyze_dataset_with_batch_responses.serve(
             name="ai-data-analyst-batch-responses",
-            tags=["sference", "batch-responses", "1h", "prefect"],
+            tags=["sference", "batch-responses", "24h", "prefect"],
         )
     else:
         analyze_dataset_with_batch_responses()
