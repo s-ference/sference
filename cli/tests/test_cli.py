@@ -256,14 +256,30 @@ def test_batch_list_plain_table_includes_tokens(monkeypatch):
     assert "batch_1" in result.stdout
 
 
-def test_batch_submit_rejects_non_24h_window():
+def test_batch_submit_rejects_unknown_window():
     result = runner.invoke(
         cli_main.app,
-        ["batch", "submit", "--input-file", "/tmp/does-not-need-to-exist-for-cli-parse.jsonl", "--window", "1h"],
+        ["batch", "submit", "--input-file", "/tmp/does-not-need-to-exist-for-cli-parse.jsonl", "--window", "2h"],
     )
     assert result.exit_code != 0
     out = f"{result.stdout}\n{result.stderr or ''}"
-    assert "24h" in out
+    assert "15m" in out and "24h" in out
+
+
+def test_batch_submit_accepts_all_completion_windows(monkeypatch, tmp_path: Path):
+    input_file = tmp_path / "in.jsonl"
+    input_file.write_text(
+        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
+        encoding="utf-8",
+    )
+    for window in ("15m", "1h", "24h"):
+        _with_fake_credential(monkeypatch)
+        monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
+        result = runner.invoke(
+            cli_main.app,
+            ["batch", "submit", "--input-file", str(input_file), "--window", window, "--json"],
+        )
+        assert result.exit_code == 0, result.stdout
 
 
 def test_batch_stream_submits_and_outputs_jsonl(monkeypatch, tmp_path: Path):

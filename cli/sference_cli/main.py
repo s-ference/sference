@@ -13,7 +13,7 @@ from typing import Any, Optional, TypeVar
 import typer
 
 import sference_sdk
-from sference_sdk import ApiError, SferenceClient
+from sference_sdk import COMPLETION_WINDOWS, ApiError, SferenceClient
 
 from sference_cli import __version__ as _CLI_VERSION
 from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
@@ -151,15 +151,10 @@ def _list_models(*, client: SferenceClient, as_json: bool) -> None:
     typer.echo(json.dumps(payload, indent=None if as_json else 2))
 
 
-def _mvp_batch_window_only(value: str) -> str:
-    if value != "24h":
-        raise typer.BadParameter('Only "24h" is supported in MVP.', param_hint="--window")
-    return value
-
-
-def _stream_window_only(value: str) -> str:
-    if value not in ("1h", "24h"):
-        raise typer.BadParameter('Window must be "1h" or "24h".', param_hint="--window")
+def _window_choice(value: str) -> str:
+    if value not in COMPLETION_WINDOWS:
+        allowed = ", ".join(f'"{w}"' for w in COMPLETION_WINDOWS)
+        raise typer.BadParameter(f"Window must be one of {allowed}.", param_hint="--window")
     return value
 
 
@@ -506,8 +501,8 @@ def batch_submit(
     window: str = typer.Option(
         "24h",
         "--window",
-        help='Batch SLA window (MVP: only "24h").',
-        callback=_mvp_batch_window_only,
+        help='Batch SLA window: "15m", "1h", or "24h".',
+        callback=_window_choice,
     ),
     base_url: str = typer.Option("https://api.sference.com"),
     as_json: bool = typer.Option(False, "--json"),
@@ -537,8 +532,8 @@ def batch_stream(
     window: str = typer.Option(
         "24h",
         "--window",
-        help='Batch SLA window (MVP: only "24h").',
-        callback=_mvp_batch_window_only,
+        help='Batch SLA window: "15m", "1h", or "24h".',
+        callback=_window_choice,
     ),
     poll_interval: float = typer.Option(2.0, "--poll-interval", help="Seconds between status polls while the batch is running."),
     no_cache: bool = typer.Option(
@@ -653,8 +648,8 @@ def stream_create(
     window: str = typer.Option(
         "24h",
         "--window",
-        help='Per-item SLA window: "1h" or "24h" (recorded only in MVP).',
-        callback=_stream_window_only,
+        help='Per-item SLA window: "15m", "1h", or "24h" (default for items in this stream).',
+        callback=_window_choice,
     ),
     base_url: str = typer.Option("https://api.sference.com"),
     as_json: bool = typer.Option(False, "--json"),

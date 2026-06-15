@@ -3491,7 +3491,12 @@
         "properties": {
           "window": {
             "type": "string",
-            "const": "24h",
+            "enum": [
+              "15m",
+              "1h",
+              "24h"
+            ],
+            "description": "Completion window for every row in the batch (`\"15m\"`, `\"1h\"`, or `\"24h\"`).",
             "default": "24h"
           },
           "requests": {
@@ -3499,7 +3504,8 @@
               "$ref": "#/components/schemas/InferenceRequest"
             },
             "type": "array",
-            "minItems": 1
+            "minItems": 1,
+            "description": "One or more inference rows sharing the same `body.model`. Each `body` is normalized to chat-completions shape at create (Responses `input` \u2192 `messages`), validated, then enqueued. Invalid rows return HTTP 400 with `requests[i]` and optional `custom_id`."
           }
         },
         "type": "object",
@@ -3540,7 +3546,11 @@
           },
           "window": {
             "type": "string",
-            "const": "24h"
+            "enum": [
+              "15m",
+              "1h",
+              "24h"
+            ]
           },
           "request_count": {
             "type": "integer"
@@ -4051,7 +4061,7 @@
           "body": {
             "additionalProperties": {},
             "type": "object",
-            "description": "OpenAI-style request body. Must include `model`."
+            "description": "OpenAI-style request body. Must include `model`. Accepts chat completions shape (`messages`) or Responses shape (`input`); Responses fields are normalized to chat format at create, then validated before enqueue."
           }
         },
         "type": "object",
@@ -4824,7 +4834,7 @@
         "type": "object",
         "required": [],
         "title": "ResponseMetadata",
-        "description": "Extra metadata including \"completion_window\" (\"1h\" or \"24h\") and optional \"stream_id\" for grouping."
+        "description": "Extra metadata including \"completion_window\" (\"15m\", \"1h\", or \"24h\") and optional \"stream_id\" for grouping."
       },
       "ResponseOutputMessage": {
         "properties": {
@@ -5013,6 +5023,7 @@
           "window": {
             "type": "string",
             "enum": [
+              "15m",
               "1h",
               "24h"
             ],
@@ -5036,6 +5047,7 @@
           "window": {
             "type": "string",
             "enum": [
+              "15m",
               "1h",
               "24h"
             ]
@@ -5279,6 +5291,7 @@
           "window": {
             "type": "string",
             "enum": [
+              "15m",
               "1h",
               "24h"
             ]

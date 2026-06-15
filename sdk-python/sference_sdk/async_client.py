@@ -14,6 +14,7 @@ import httpx
 from .client import ApiError, SferenceClient
 from .checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 from .models import (
+    COMPLETION_WINDOWS,
     Batch,
     BatchCreatePayload,
     BatchList,
@@ -111,8 +112,9 @@ class AsyncSferenceClient:
         model: str | None = None,
         window: str = "24h",
     ) -> Batch:
-        if window != "24h":
-            raise ValueError('Only window "24h" is supported in MVP.')
+        if window not in COMPLETION_WINDOWS:
+            allowed = ", ".join(f'"{w}"' for w in COMPLETION_WINDOWS)
+            raise ValueError(f"window must be one of {allowed}.")
         resolved = requests or []
         if input_file:
             resolved = SferenceClient.parse_inference_requests_jsonl(Path(input_file), model=model)
@@ -129,7 +131,7 @@ class AsyncSferenceClient:
                 else:
                     reqs.append(InferenceRequest.model_validate(r))
             resolved = reqs
-        payload = BatchCreatePayload(window="24h", requests=resolved)  # type: ignore[arg-type]
+        payload = BatchCreatePayload(window=window, requests=resolved)  # type: ignore[arg-type]
         response = await self._request("POST", "/v1/batches", payload.model_dump())
         return Batch.model_validate(response)
 

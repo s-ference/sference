@@ -41,5 +41,7 @@ Do not duplicate rules in multiple places in the same project—pick **prompt on
 ## Human docs
 
 - [README.md](README.md) — install CLI / SDK
+- [docs/batches.md](docs/batches.md) — `POST /v1/batches` (body shapes, JSONL, errors)
 - [sdk-python/README.md](sdk-python/README.md) — library reference
+- [cli/README.md](cli/README.md) — CLI commands and JSONL formats
 - [https://sference.com/docs/sdk](https://sference.com/docs/sdk) — website quickstart for agents

@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 BatchStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
 
+# Completion-window SLA tiers accepted by batches, streams, and background responses.
+CompletionWindow = Literal["15m", "1h", "24h"]
+COMPLETION_WINDOWS: tuple[str, ...] = ("15m", "1h", "24h")
+
 
 class InferenceRequest(BaseModel):
     """Unified inference request schema for batches and streams.
@@ -29,7 +33,7 @@ class LoginResponse(BaseModel):
 class Batch(BaseModel):
     id: str
     status: BatchStatus
-    window: Literal["24h"]
+    window: CompletionWindow
     request_count: int
     created_at: str
     updated_at: str
@@ -52,12 +56,12 @@ class BatchResults(BaseModel):
 
 
 class BatchCreatePayload(BaseModel):
-    window: Literal["24h"] = "24h"
+    window: CompletionWindow = "24h"
     requests: list[InferenceRequest] = Field(min_length=1)
 
 
 StreamStatus = Literal["open", "cancelled", "archived"]
-StreamWindow = Literal["1h", "24h"]
+StreamWindow = CompletionWindow
 
 
 class Stream(BaseModel):

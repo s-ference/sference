@@ -128,6 +128,38 @@ def test_submit_batch_raises_api_error_on_http_failure() -> None:
             )
 
 
+def test_submit_batch_rejects_unknown_window() -> None:
+    with SferenceClient(transport=httpx.MockTransport(lambda r: httpx.Response(500)), api_key="tok") as client:
+        with pytest.raises(ValueError, match='"15m", "1h", "24h"'):
+            client.submit_batch(
+                requests=[{"custom_id": "r1", "body": {"model": "m", "messages": []}}],
+                window="2h",
+            )
+
+
+def test_submit_batch_sends_selected_window() -> None:
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/v1/batches":
+            body = json.loads(request.content.decode("utf-8"))
+            seen["window"] = body["window"]
+            payload = json.loads(
+                (FIXTURES / "V1BatchesCreateBatch" / "201.json").read_text(encoding="utf-8")
+            )
+            payload["window"] = body["window"]
+            return httpx.Response(status_code=201, json=payload)
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        batch = client.submit_batch(
+            requests=[{"custom_id": "r1", "body": {"model": "m", "messages": []}}],
+            window="1h",
+        )
+        assert seen["window"] == "1h"
+        assert batch.window == "1h"
+
+
 def test_cancel_batch_via_httpx_mock_transport() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST" and request.url.path == "/v1/batches/batch_abc/cancel":

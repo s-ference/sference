@@ -65,6 +65,8 @@ sference batch wait --batch-id <id>
 
 Orchestration recipes (Prefect, batch `/v1/responses`, etc.) live under [examples/](examples/).
 
+**Batch API reference:** [docs/batches.md](docs/batches.md) (HTTP, JSONL, chat vs Responses row bodies).
+
 ## Development
 
 ```bash

@@ -15,9 +15,11 @@ from .async_client import AsyncSferenceClient
 from .checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 from .client import ApiError, SferenceClient
 from .models import (
+    COMPLETION_WINDOWS,
     Batch,
     BatchList,
     BatchResults,
+    CompletionWindow,
     InferenceRequest,
     LoginResponse,
     Stream,
@@ -34,6 +36,8 @@ __all__ = [
     "Batch",
     "BatchList",
     "BatchResults",
+    "COMPLETION_WINDOWS",
+    "CompletionWindow",
     "LoginResponse",
     "InferenceRequest",
     "Stream",

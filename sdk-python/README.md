@@ -24,15 +24,20 @@ uv sync --package sference-sdk
 
 Set `SFERENCE_API_KEY`, or pass `api_key=` to the client.
 
+**Completion windows:** async workloads use `"15m"`, `"1h"`, or `"24h"` on background responses (`metadata.completion_window`), streams (`window=`), and batches (`window=`). Sync realtime endpoints (`/v1/chat/completions`, `/v1/messages`, blocking `/v1/responses`) do not take a window.
+
 ### `./workload.jsonl`
 
-Batch APIs take a JSONL file: one JSON object per line. OpenAI-compatible lines include `custom_id`, `method`, `url`, and `body`; content-only lines are `{"content": "..."}` (then pass `model=` on submit).
+Batch APIs take a JSONL file: one JSON object per line. OpenAI-compatible lines include `custom_id`, `method`, `url`, and `body` (only `custom_id` + inner `body` are sent to `POST /v1/batches`; `method`/`url` are ignored). Content-only lines are `{"content": "..."}` (then pass `model=` on submit).
+
+Inner `body` accepts **chat completions** (`messages`) or **Responses** (`input`, `max_output_tokens`, …). Responses fields are normalized to chat format at create and validated before enqueue. Invalid rows return HTTP 400 with `requests[i]` and optional `custom_id`.
 
 Example `workload.jsonl`:
 
 ```jsonl
 {"custom_id":"example-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"user","content":"Say hello in exactly one word."}]}}
 {"custom_id":"example-2","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"system","content":"You reply with one short sentence only."},{"role":"user","content":"What is 2+2?"}]}}
+{"custom_id":"example-3","method":"POST","url":"/v1/responses","body":{"model":"Qwen/Qwen3.6-35B-A3B","input":[{"role":"user","content":"Reply with one word."}],"max_output_tokens":32}}
 ```
 
 ### Batches (sync)

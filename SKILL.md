@@ -55,7 +55,9 @@ Use `api_key`/env, **not** `client.login()`, in agent-generated code.
 
 ### Completion window
 
-Prefer **`"24h"`**. Users may pick **`"1h"`** for faster-turnaround/shorter jobs. Set it via `metadata={"completion_window": "24h"}` on responses, and via `window=` when creating a stream. (Batches are fixed to `"24h"`.)
+**Async** workloads use **`"15m"`**, **`"1h"`**, or **`"24h"`** completion windows (default `"24h"`; shorter windows are prioritized to finish sooner). Set via `metadata={"completion_window": ...}` on background responses, and via `window=` on `create_stream` and `submit_batch`.
+
+**Realtime** sync endpoints (`POST /v1/chat/completions`, `POST /v1/messages`, blocking `POST /v1/responses` without `background: true`) do not take a completion window — they return when inference finishes.
 
 ## Default: Responses API (background)
 
@@ -71,7 +73,7 @@ resp = client.create_response(
     model="<model-id>",                       # a model deployed on the user's sference
     input="Summarize this incident report.",  # str, or [{"role": "user", "content": "..."}]
     background=True,
-    metadata={"completion_window": "24h"},     # "1h" also allowed
+    metadata={"completion_window": "24h"},     # "15m" / "1h" / "24h" (background only)
 )
 
 done = client.wait_for_response(resp.id, poll_interval=2.0, timeout=3600.0)
@@ -108,7 +110,7 @@ from sference_sdk import SferenceClient
 
 client = SferenceClient(api_key=os.environ["SFERENCE_API_KEY"])
 
-stream = client.create_stream(name="syslog-analysis", window="24h")  # "1h" also allowed
+stream = client.create_stream(name="syslog-analysis", window="24h")  # "15m" / "1h" / "24h"
 
 for line in log_lines:
     client.create_response(
@@ -137,10 +139,13 @@ client.download_results_jsonl(done.id, out="./out.jsonl")   # arg is `out`
 
 `wait_for_completion` defaults to **`timeout=30.0`s** — always pass an explicit `timeout` for real batches.
 
-JSONL line shapes (both accepted):
+**Row bodies:** each `requests[].body` may use chat completions (`messages`) or Responses API shape (`input`, `max_output_tokens`, …). The API normalizes Responses fields to chat format at create, validates, then enqueues — invalid rows return **400** with `requests[i]` and `custom_id` (no late worker failures). Do not set `background: true` on batch row bodies.
+
+JSONL line shapes (both accepted; OpenAI envelope sends only `custom_id` + inner `body`):
 
 ```jsonl
 {"custom_id":"req-1","method":"POST","url":"/v1/chat/completions","body":{"model":"<model-id>","messages":[{"role":"user","content":"hi"}]}}
+{"custom_id":"req-2","method":"POST","url":"/v1/responses","body":{"model":"<model-id>","input":[{"role":"user","content":"hi"}]}}
 {"content":"content-only line — requires model= on submit_batch"}
 ```
 
@@ -183,8 +188,9 @@ asyncio.run(main())
 | Submitting stream responses before the stream exists | `create_stream(...)` first, then pass `metadata={"stream_id": ...}` |
 | `download_results_jsonl(..., path=...)` | Argument is **`out`** |
 | `wait_for_completion(batch.id)` with default timeout | Default is 30s — pass an explicit `timeout` |
-| `window="1h"` on a **batch** | Batches are `"24h"` only; `"1h"`/`"24h"` apply to streams + response `completion_window` |
+| Inventing window values (`"2h"`, `"30m"`) | Async windows are `"15m"` / `"1h"` / `"24h"` only (responses, streams, batches) |
 | Content-only JSONL without a model | Pass `model=` to `submit_batch` |
+| Responses-shaped batch row without `messages` | Use `input` in `body` (normalized at create) or chat `messages` — not `background: true` |
 | Guessing JSON field names | See `contract/openapi.json` |
 | Re-running `create_response` on Prefect retry after success | Split **submit** and **wait** tasks; retry wait only when you already have a `response_id` |
 
@@ -215,7 +221,7 @@ def create_response_request(prompt: AnalysisPrompt) -> str:
         model="...",
         input=[{"role": "user", "content": prompt.user_content}],
         background=True,
-        metadata={"completion_window": "1h"},  # or "24h"
+        metadata={"completion_window": "1h"},  # "15m" / "1h" / "24h"
     )
     return created.id
 
