@@ -5519,10 +5519,14 @@
           },
           "role": {
             "type": "string"
+          },
+          "realtime_enabled": {
+            "type": "boolean"
           }
         },
         "type": "object",
         "required": [
+          "realtime_enabled",
           "role",
           "username"
         ],
