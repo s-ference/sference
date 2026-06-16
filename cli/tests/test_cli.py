@@ -774,10 +774,10 @@ def test_cli_exits_nonzero_on_client_error(monkeypatch):
     assert isinstance(result.exception, RuntimeError)
 
 
-def test_launch_hidden_from_root_help() -> None:
+def test_launch_visible_in_root_help() -> None:
     result = runner.invoke(cli_main.app, ["--help"])
     assert result.exit_code == 0
-    assert "launch" not in result.stdout
+    assert "launch" in result.stdout
 
 
 def test_launch_still_invocable() -> None:
@@ -828,7 +828,7 @@ def test_claude_forwards_extra_args(monkeypatch):
     assert captured["path"] == "/usr/local/bin/claude"
     assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
-    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K2.6"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K2.7-Code"
 
 
 def test_claude_missing_binary_exits(monkeypatch):
@@ -876,7 +876,7 @@ def test_pi_writes_models_json(monkeypatch, tmp_path: Path):
     assert data["providers"]["sference"]["api"] == "openai-completions"
     assert data["providers"]["sference"]["baseUrl"] == "https://api.sference.com/v1"
     assert data["providers"]["sference"]["apiKey"] == "sk_fake_for_tests"
-    assert data["providers"]["sference"]["models"][0]["id"] == "moonshotai/Kimi-K2.6"
+    assert data["providers"]["sference"]["models"][0]["id"] == "moonshotai/Kimi-K2.7-Code"
 
 
 def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
@@ -899,7 +899,7 @@ def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
         "--provider",
         "sference",
         "--model",
-        "moonshotai/Kimi-K2.6",
+        "moonshotai/Kimi-K2.7-Code",
         "/path/to/project",
     ]
 

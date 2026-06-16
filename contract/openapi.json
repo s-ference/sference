@@ -2149,7 +2149,12 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ResponseItem"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ResponseItem"
+                    },
+                    {}
+                  ]
                 }
               }
             }
@@ -4538,12 +4543,13 @@
               },
               {
                 "items": {
-                  "$ref": "#/components/schemas/ResponseInputMessage"
+                  "additionalProperties": {},
+                  "type": "object"
                 },
                 "type": "array"
               }
             ],
-            "description": "Input for the completion. Either a plain string (shorthand for a single user message) or an array of input messages, matching the OpenAI Responses API."
+            "description": "Input for the completion. Either a plain string (shorthand for a single user message) or an array of OpenAI Responses input items. Supported items: `message` (role + string/`input_text`/`output_text` content), `function_call`, and `function_call_output`. Other echoed output items (e.g. `reasoning`) are accepted and ignored. Items are normalized to chat messages server-side."
           },
           "instructions": {
             "oneOf": [
@@ -4555,6 +4561,36 @@
               }
             ],
             "description": "Developer instructions (system prompt)."
+          },
+          "tools": {
+            "oneOf": [
+              {
+                "items": {
+                  "additionalProperties": {},
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tool definitions. Accepts flat Responses API shape (`{type, name, description, parameters}`) or wrapped chat shape (`{type, function}`)."
+          },
+          "tool_choice": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tool choice policy (`auto`, `none`, `required`, or `{type: \"function\", name: \"...\"}`)."
           },
           "max_output_tokens": {
             "oneOf": [
@@ -4612,6 +4648,11 @@
             "description": "If true, return immediately with status=in_progress and let the caller poll (async; does not require realtime_enabled). If false (default), block until completion or the server sync-timeout ceiling (sync/realtime; requires realtime_enabled).",
             "default": false
           },
+          "stream": {
+            "type": "boolean",
+            "description": "If true, stream the sync result as OpenAI Responses API server-sent events (`response.created`, `response.output_text.delta`, `response.completed`, ...). Only valid when `background` is false.",
+            "default": false
+          },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
           }
@@ -4639,27 +4680,43 @@
         ],
         "title": "ResponseError"
       },
-      "ResponseInputMessage": {
+      "ResponseFunctionToolCall": {
         "properties": {
-          "role": {
+          "type": {
+            "type": "string",
+            "const": "function_call",
+            "default": "function_call"
+          },
+          "id": {
+            "type": "string"
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "string",
+            "default": "{}"
+          },
+          "status": {
             "type": "string",
             "enum": [
-              "user",
-              "assistant",
-              "system",
-              "developer"
-            ]
-          },
-          "content": {
-            "type": "string"
+              "completed",
+              "in_progress",
+              "incomplete"
+            ],
+            "default": "completed"
           }
         },
         "type": "object",
         "required": [
-          "content",
-          "role"
+          "call_id",
+          "id",
+          "name"
         ],
-        "title": "ResponseInputMessage"
+        "title": "ResponseFunctionToolCall"
       },
       "ResponseItem": {
         "properties": {
@@ -4698,6 +4755,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/ResponseOutputReasoning"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ResponseFunctionToolCall"
                     }
                   ]
                 },

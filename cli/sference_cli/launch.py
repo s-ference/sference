@@ -12,7 +12,7 @@ from typing import Optional
 
 import typer
 
-DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K2.6"
+DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K2.7-Code"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
 
@@ -301,5 +301,4 @@ def register_launch_commands(app: typer.Typer) -> None:
             dry_run=dry_run,
         )
 
-    # Hidden from `sference --help`; documented for Claude Code / Pi setup only.
-    app.add_typer(launch_app, name="launch", hidden=True)
+    app.add_typer(launch_app, name="launch")

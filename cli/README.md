@@ -95,28 +95,26 @@ sference responses tail --stream-id <stream_id>
 | `sference auth login` | Store an API key (optional `--api-key`, `--no-browser`) |
 | `sference auth me` | Show current user (`--json` for machine-readable output) |
 
-### Launch (hidden from `sference --help`)
-
-These commands are intentionally omitted from the top-level CLI help; see this section for usage.
+### Launch
 
 | Command | Description |
 |---------|-------------|
 | `sference launch claude` | Launch Claude Code with Sference API routing (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_MODEL`) |
 | `sference launch claude --dry-run` | Print env + command without starting Claude Code |
-| `sference launch claude --model moonshotai/Kimi-K2.6` | Override catalog model |
+| `sference launch claude --model moonshotai/Kimi-K2.7-Code` | Override catalog model |
 | `sference launch claude --enable-tool-search` | Set `ENABLE_TOOL_SEARCH=true` on custom hosts |
 | `sference launch claude --resume` | Forward Claude Code flags/args after `sference launch claude` |
 
-Requires the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) on `PATH`. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.6` (override with `--model` or `SFERENCE_MODEL`).
+Requires the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) on `PATH`. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.7-Code` (override with `--model` or `SFERENCE_MODEL`).
 
 | Command | Description |
 |---------|-------------|
 | `sference launch pi` | Launch Pi with Sference API routing (writes `~/.pi/agent/models.json`) |
 | `sference launch pi --dry-run` | Print provider config and command without launching Pi |
-| `sference launch pi --model moonshotai/Kimi-K2.6` | Override catalog model |
+| `sference launch pi --model moonshotai/Kimi-K2.7-Code` | Override catalog model |
 | `sference launch pi -- /path/to/project` | Forward Pi args after `sference launch pi` |
 
-Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provider block to `~/.pi/agent/models.json` with `baseUrl`, `apiKey`, and the chosen `model`, then execs `pi --provider sference --model <id>`. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.6` (override with `--model` or `SFERENCE_MODEL`).
+Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provider block to `~/.pi/agent/models.json` with `baseUrl`, `apiKey`, and the chosen `model`, then execs `pi --provider sference --model <id>`. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.7-Code` (override with `--model` or `SFERENCE_MODEL`).
 
 ### Batch
 
