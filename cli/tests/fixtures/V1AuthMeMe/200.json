@@ -1,5 +1,6 @@
 {
   "username": "admin",
-  "role": "admin"
+  "role": "admin",
+  "realtime_enabled": true
 }
 
