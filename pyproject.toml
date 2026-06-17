@@ -27,6 +27,12 @@ dev = [
 examples = [
     "prefect>=3.0",
     "pandas>=2.2",
+    "dagster>=1.9",
+    "ray[data]>=2.40",
+    "datasets>=3.0",
+    "langchain-core>=0.3",
+    "langchain-text-splitters>=0.3",
+    "llama-index-core>=0.12",
 ]
 
 [tool.pytest.ini_options]
