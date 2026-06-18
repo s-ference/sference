@@ -23,6 +23,26 @@ class InferenceRequest(BaseModel):
     custom_id: str | None = Field(default=None, description="User-provided identifier for correlation.")
     body: dict[str, Any] = Field(description="OpenAI-style request body. Must include `model`.")
 
+    @classmethod
+    def chat(
+        cls,
+        *,
+        custom_id: str,
+        user_content: str,
+        model: str,
+        system_content: str | None = None,
+        temperature: float | None = None,
+    ) -> InferenceRequest:
+        """Build a chat-completions batch row (``body.messages``)."""
+        messages: list[dict[str, str]] = []
+        if system_content:
+            messages.append({"role": "system", "content": system_content})
+        messages.append({"role": "user", "content": user_content})
+        body: dict[str, Any] = {"model": model, "messages": messages}
+        if temperature is not None:
+            body["temperature"] = temperature
+        return cls(custom_id=custom_id, body=body)
+
 
 class LoginResponse(BaseModel):
     access_token: str
@@ -47,12 +67,48 @@ class BatchList(BaseModel):
     items: list[Batch]
 
 
+class BatchResultRow(BaseModel):
+    """One row from ``GET /v1/batches/{id}/results`` (sference ``result_json`` / ``error_json`` shape)."""
+
+    model_config = ConfigDict(extra="allow")
+
+    custom_id: str | None = None
+    status: str | None = None
+    result_json: dict[str, Any] | None = None
+    error_json: dict[str, Any] | None = None
+
+    @property
+    def completion_text(self) -> str:
+        """Assistant text for a completed row, or a bracketed status/error summary."""
+        if self.status != "completed":
+            if self.error_json:
+                return f"[{self.status}] {self.error_json}"
+            return f"[{self.status}]"
+        result = self.result_json or {}
+        choices = result.get("choices") or []
+        if not choices:
+            return ""
+        message = choices[0].get("message") or {}
+        content = message.get("content")
+        return content if isinstance(content, str) else str(content or "")
+
+
 class BatchResults(BaseModel):
     batch_id: str
     status: BatchStatus
     output_url: str | None = None
     completed_at: str | None = None
     results: list[dict[str, Any]] | None = None
+
+    def rows(self) -> list[BatchResultRow]:
+        return [BatchResultRow.model_validate(row) for row in self.results or []]
+
+    def index_by_custom_id(self) -> dict[str, BatchResultRow]:
+        indexed: dict[str, BatchResultRow] = {}
+        for row in self.rows():
+            if row.custom_id is not None:
+                indexed[str(row.custom_id)] = row
+        return indexed
 
 
 class BatchCreatePayload(BaseModel):

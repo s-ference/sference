@@ -20,26 +20,29 @@ import os
 os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
 
 import sys
-from pathlib import Path
-
-_EXAMPLES_DIR = Path(__file__).resolve().parents[1]
-if str(_EXAMPLES_DIR) not in sys.path:
-    sys.path.insert(0, str(_EXAMPLES_DIR))
 
 import pandas as pd
 import ray
 from ray.data import from_pandas
 
-from _common import (
-    COMPLETION_WINDOW,
-    chat_batch_request,
-    completion_text_from_row,
-    index_results_by_custom_id,
-    model_id,
-    require_api_key,
-    wait_for_batch_terminal,
-)
 from sference_sdk import SferenceClient
+from sference_sdk.models import InferenceRequest
+
+DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
+COMPLETION_WINDOW = "24h"
+BATCH_POLL_INTERVAL_S = float(os.environ.get("SFERENCE_BATCH_POLL_INTERVAL_S", "5.0"))
+BATCH_WAIT_TIMEOUT_S = float(os.environ.get("SFERENCE_BATCH_WAIT_TIMEOUT_S", "86400.0"))
+
+
+def require_api_key() -> None:
+    if not os.getenv("SFERENCE_API_KEY"):
+        print("Error: SFERENCE_API_KEY is not set", file=sys.stderr)
+        sys.exit(1)
+
+
+def model_id() -> str:
+    return os.environ.get("SFERENCE_MODEL", DEFAULT_MODEL)
+
 
 client = SferenceClient()
 
@@ -71,10 +74,11 @@ def main() -> None:
     # Ray handles partitioning / scale-out preprocessing; inference is one batch job.
     rows = ds.take_all()
     requests = [
-        chat_batch_request(
+        InferenceRequest.chat(
             custom_id=str(row["review_id"]),
             user_content=f"Review:\n{row['text']}",
             system_content=SYSTEM,
+            model=model_id(),
             temperature=0,
         )
         for row in rows
@@ -82,23 +86,26 @@ def main() -> None:
 
     print(f"Submitting batch ({len(requests)} rows, window={COMPLETION_WINDOW!r})...")
     batch = client.submit_batch(requests=requests, window=COMPLETION_WINDOW)
-    terminal = wait_for_batch_terminal(client, batch.id)
+    terminal = client.wait_for_completion(
+        batch.id,
+        poll_interval=BATCH_POLL_INTERVAL_S,
+        timeout=BATCH_WAIT_TIMEOUT_S,
+    )
     print(f"Batch {batch.id} → {terminal.status}\n")
 
     if terminal.status != "completed":
         raise RuntimeError(f"Batch ended as {terminal.status}")
 
-    payload = client.get_results(batch.id)
-    by_id = index_results_by_custom_id(payload.results)
+    by_id = client.get_results_indexed(batch.id)
 
     enriched = []
     for row in rows:
-        result_row = by_id.get(str(row["review_id"]), {})
+        result_row = by_id.get(str(row["review_id"]))
         enriched.append(
             {
                 **row,
-                "sentiment": completion_text_from_row(result_row).strip().lower(),
-                "inference_status": result_row.get("status"),
+                "sentiment": (result_row.completion_text if result_row else "").strip().lower(),
+                "inference_status": result_row.status if result_row else None,
             }
         )
 

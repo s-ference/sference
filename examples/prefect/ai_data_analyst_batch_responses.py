@@ -47,8 +47,19 @@ from prefect import flow, task
 
 from sference_sdk import SferenceClient
 
-COMPLETION_WINDOW = "24h"
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
+COMPLETION_WINDOW = "24h"
+
+
+def require_api_key() -> None:
+    if not os.getenv("SFERENCE_API_KEY"):
+        print("Error: SFERENCE_API_KEY is not set", file=sys.stderr)
+        sys.exit(1)
+
+
+def model_id() -> str:
+    return os.environ.get("SFERENCE_MODEL", DEFAULT_MODEL)
+
 
 # One shared client for the whole example (reads SFERENCE_API_KEY).
 client = SferenceClient()
@@ -115,7 +126,7 @@ def build_analysis_prompts(df: pd.DataFrame) -> list[AnalysisPrompt]:
 def create_response_request(prompt: AnalysisPrompt) -> str:
     """Stage 1 — enqueue one background response; return its id."""
     created = client.create_response(
-        model=os.environ.get("SFERENCE_MODEL", DEFAULT_MODEL),
+        model=model_id(),
         input=[{"role": "user", "content": prompt.user_content}],
         background=True,
         metadata={
@@ -193,9 +204,7 @@ def analyze_dataset_with_batch_responses() -> list[dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    if not os.getenv("SFERENCE_API_KEY"):
-        print("Error: SFERENCE_API_KEY is not set", file=sys.stderr)
-        sys.exit(1)
+    require_api_key()
 
     if "--serve" in sys.argv:
         analyze_dataset_with_batch_responses.serve(

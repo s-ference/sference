@@ -27,7 +27,7 @@ Some examples need an extra package (documented in each README):
 - **Airflow:** `uv pip install "apache-airflow>=3.0"`
 - **Argilla (live push):** `uv pip install argilla`
 
-Shared helpers live in [`_common.py`](_common.py) (`chat_batch_request`, `wait_for_batch_terminal`, result parsing).
+Each example is self-contained: copy a script into your repo and set `SFERENCE_API_KEY` (and optional `SFERENCE_MODEL`, poll env vars). Batch workflow helpers (`InferenceRequest.chat`, `get_results_indexed`, `BatchResultRow.completion_text`) live in **sference-sdk**.
 
 Each subdirectory has its own README with environment variables and run commands.
 

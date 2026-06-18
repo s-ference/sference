@@ -11,26 +11,30 @@
 
 from __future__ import annotations
 
+import os
 import sys
-from pathlib import Path
 from typing import Any
-
-_EXAMPLES_DIR = Path(__file__).resolve().parents[1]
-if str(_EXAMPLES_DIR) not in sys.path:
-    sys.path.insert(0, str(_EXAMPLES_DIR))
 
 from dagster import Definitions, asset, materialize
 
-from _common import (
-    COMPLETION_WINDOW,
-    chat_batch_request,
-    completion_text_from_row,
-    index_results_by_custom_id,
-    model_id,
-    require_api_key,
-    wait_for_batch_terminal,
-)
 from sference_sdk import SferenceClient
+from sference_sdk.models import InferenceRequest
+
+DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
+COMPLETION_WINDOW = "24h"
+BATCH_POLL_INTERVAL_S = float(os.environ.get("SFERENCE_BATCH_POLL_INTERVAL_S", "5.0"))
+BATCH_WAIT_TIMEOUT_S = float(os.environ.get("SFERENCE_BATCH_WAIT_TIMEOUT_S", "86400.0"))
+
+
+def require_api_key() -> None:
+    if not os.getenv("SFERENCE_API_KEY"):
+        print("Error: SFERENCE_API_KEY is not set", file=sys.stderr)
+        sys.exit(1)
+
+
+def model_id() -> str:
+    return os.environ.get("SFERENCE_MODEL", DEFAULT_MODEL)
+
 
 client = SferenceClient()
 
@@ -63,10 +67,11 @@ def source_documents() -> list[dict[str, str]]:
 @asset
 def sference_batch_id(source_documents: list[dict[str, str]]) -> str:
     requests = [
-        chat_batch_request(
+        InferenceRequest.chat(
             custom_id=doc["id"],
             user_content=f"Document:\n{doc['text']}",
             system_content=SYSTEM,
+            model=model_id(),
         )
         for doc in source_documents
     ]
@@ -79,23 +84,26 @@ def enriched_documents(
     source_documents: list[dict[str, str]],
     sference_batch_id: str,
 ) -> list[dict[str, Any]]:
-    terminal = wait_for_batch_terminal(client, sference_batch_id)
+    terminal = client.wait_for_completion(
+        sference_batch_id,
+        poll_interval=BATCH_POLL_INTERVAL_S,
+        timeout=BATCH_WAIT_TIMEOUT_S,
+    )
     print(f"Batch {sference_batch_id} finished with status={terminal.status}")
     if terminal.status != "completed":
         raise RuntimeError(f"Batch {sference_batch_id} ended as {terminal.status}")
 
-    payload = client.get_results(sference_batch_id)
-    by_id = index_results_by_custom_id(payload.results)
+    by_id = client.get_results_indexed(sference_batch_id)
 
     enriched: list[dict[str, Any]] = []
     for doc in source_documents:
-        row = by_id.get(doc["id"], {})
+        row = by_id.get(doc["id"])
         enriched.append(
             {
                 "id": doc["id"],
                 "text": doc["text"],
-                "metadata_line": completion_text_from_row(row),
-                "status": row.get("status"),
+                "metadata_line": row.completion_text if row else "",
+                "status": row.status if row else None,
             }
         )
     return enriched

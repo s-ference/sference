@@ -11,28 +11,32 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-_EXAMPLES_DIR = Path(__file__).resolve().parents[1]
-if str(_EXAMPLES_DIR) not in sys.path:
-    sys.path.insert(0, str(_EXAMPLES_DIR))
-
 from airflow.sdk import dag, task
 
-from _common import (
-    COMPLETION_WINDOW,
-    chat_batch_request,
-    completion_text_from_row,
-    index_results_by_custom_id,
-    model_id,
-    require_api_key,
-    wait_for_batch_terminal,
-)
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
+
+DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
+COMPLETION_WINDOW = "24h"
+BATCH_POLL_INTERVAL_S = float(os.environ.get("SFERENCE_BATCH_POLL_INTERVAL_S", "5.0"))
+BATCH_WAIT_TIMEOUT_S = float(os.environ.get("SFERENCE_BATCH_WAIT_TIMEOUT_S", "86400.0"))
+
+
+def require_api_key() -> None:
+    if not os.getenv("SFERENCE_API_KEY"):
+        print("Error: SFERENCE_API_KEY is not set", file=sys.stderr)
+        sys.exit(1)
+
+
+def model_id() -> str:
+    return os.environ.get("SFERENCE_MODEL", DEFAULT_MODEL)
+
 
 client = SferenceClient()
 
@@ -48,10 +52,11 @@ ARTIFACT_PATH = Path("/tmp/sference_airflow_taglines.json")
 
 def build_request_dicts() -> list[dict[str, Any]]:
     return [
-        chat_batch_request(
+        InferenceRequest.chat(
             custom_id=item["sku"],
             user_content=f"Product:\n{item['description']}",
             system_content=SYSTEM,
+            model=model_id(),
         ).model_dump()
         for item in PRODUCT_BLURBS
     ]
@@ -64,15 +69,19 @@ def submit_batch_from_dicts(request_dicts: list[dict[str, Any]]) -> str:
 
 
 def enrich_taglines(batch_id: str) -> list[dict[str, str]]:
-    terminal = wait_for_batch_terminal(client, batch_id)
+    terminal = client.wait_for_completion(
+        batch_id,
+        poll_interval=BATCH_POLL_INTERVAL_S,
+        timeout=BATCH_WAIT_TIMEOUT_S,
+    )
     if terminal.status != "completed":
         raise RuntimeError(f"Batch {batch_id} ended as {terminal.status}")
 
-    by_id = index_results_by_custom_id(client.get_results(batch_id).results)
+    by_id = client.get_results_indexed(batch_id)
     return [
         {
             "sku": item["sku"],
-            "tagline": completion_text_from_row(by_id.get(item["sku"], {})),
+            "tagline": (by_id[item["sku"]].completion_text if item["sku"] in by_id else ""),
         }
         for item in PRODUCT_BLURBS
     ]
