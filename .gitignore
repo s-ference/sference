@@ -1,3 +1,6 @@
+# Local secrets / dev overrides (e.g. cli/.env)
+.env
+
 __pycache__/
 *.py[cod]
 *.egg-info/
