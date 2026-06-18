@@ -225,6 +225,7 @@ def test_models_list_json(monkeypatch):
     ids = {m["id"] for m in payload["data"]}
     assert "Qwen/Qwen3.6-35B-A3B" in ids
     assert "moonshotai/Kimi-K2.6" in ids
+    assert payload["data"][0]["capabilities"]["image_input"]["supported"] is False
 
 
 def test_models_list_default(monkeypatch):
@@ -232,8 +233,12 @@ def test_models_list_default(monkeypatch):
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
     result = runner.invoke(cli_main.app, ["models", "list"])
     assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["object"] == "list"
+    assert "display_name" in result.stdout
+    assert "context" in result.stdout
+    assert "vision" in result.stdout
+    assert "Qwen/Qwen3.6-35B-A3B" in result.stdout
+    assert "moonshotai/Kimi-K2.6" in result.stdout
+    assert "262144" in result.stdout
 
 
 def test_batch_list_json(monkeypatch):

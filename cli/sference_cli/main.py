@@ -148,7 +148,58 @@ def _print(value: object, as_json: bool) -> None:
 
 def _list_models(*, client: SferenceClient, as_json: bool) -> None:
     payload = _call_api(client.list_models)
-    typer.echo(json.dumps(payload, indent=None if as_json else 2))
+    if as_json:
+        typer.echo(json.dumps(payload, indent=2, default=str))
+        return
+    _print_models_table(payload)
+
+
+def _capability_flag(caps: object, key: str) -> str:
+    if not isinstance(caps, dict):
+        return "—"
+    entry = caps.get(key)
+    if isinstance(entry, dict) and "supported" in entry:
+        return "yes" if entry["supported"] else "no"
+    return "—"
+
+
+def _print_models_table(payload: object) -> None:
+    if not isinstance(payload, dict):
+        typer.echo(str(payload))
+        return
+    rows = payload.get("data")
+    if not isinstance(rows, list):
+        typer.echo(json.dumps(payload, indent=2, default=str))
+        return
+    if not rows:
+        typer.echo("No models.")
+        return
+
+    w_id, w_name, w_ctx, w_vis, w_pdf, w_think, w_tools = 34, 18, 8, 6, 4, 8, 5
+    typer.echo(
+        f"{'id':<{w_id}} {'display_name':<{w_name}} {'context':>{w_ctx}} "
+        f"{'vision':>{w_vis}} {'pdf':>{w_pdf}} {'thinking':>{w_think}} {'tools':>{w_tools}}"
+    )
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        model_id = str(row.get("id", ""))
+        if len(model_id) > w_id:
+            model_id = model_id[: w_id - 3] + "..."
+        display_name = str(row.get("display_name") or "")
+        if len(display_name) > w_name:
+            display_name = display_name[: w_name - 1] + "…"
+        ctx_raw = row.get("context_tokens")
+        context = str(ctx_raw) if isinstance(ctx_raw, int) else "—"
+        caps = row.get("capabilities")
+        vision = _capability_flag(caps, "image_input")
+        pdf = _capability_flag(caps, "pdf_input")
+        thinking = _capability_flag(caps, "thinking")
+        tools = _capability_flag(caps, "tools")
+        typer.echo(
+            f"{model_id:<{w_id}} {display_name:<{w_name}} {context:>{w_ctx}} "
+            f"{vision:>{w_vis}} {pdf:>{w_pdf}} {thinking:>{w_think}} {tools:>{w_tools}}"
+        )
 
 
 def _window_choice(value: str) -> str:

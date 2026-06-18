@@ -5,13 +5,43 @@
       "id": "Qwen/Qwen3.6-35B-A3B",
       "object": "model",
       "created": 1712345678,
-      "owned_by": "sference"
+      "owned_by": "sference",
+      "display_name": "Qwen3.6 35B",
+      "provider": "Qwen",
+      "context_tokens": 262144,
+      "capabilities": {
+        "image_input": { "supported": false },
+        "pdf_input": { "supported": false },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": true },
+            "adaptive": { "supported": false }
+          }
+        },
+        "tools": { "supported": true }
+      }
     },
     {
       "id": "moonshotai/Kimi-K2.6",
       "object": "model",
       "created": 1712345678,
-      "owned_by": "sference"
+      "owned_by": "sference",
+      "display_name": "Kimi K2.6",
+      "provider": "Moonshot",
+      "context_tokens": 262144,
+      "capabilities": {
+        "image_input": { "supported": false },
+        "pdf_input": { "supported": false },
+        "thinking": {
+          "supported": true,
+          "types": {
+            "enabled": { "supported": true },
+            "adaptive": { "supported": false }
+          }
+        },
+        "tools": { "supported": true }
+      }
     }
   ]
 }
