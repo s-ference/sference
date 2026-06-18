@@ -2,7 +2,7 @@
 
 [`ai_data_analyst_batch_responses.py`](ai_data_analyst_batch_responses.py) is a two-stage [Prefect](https://www.prefect.io/) flow inspired by Prefect’s [AI data analyst + pydantic-ai example](https://github.com/PrefectHQ/prefect/blob/main/examples/ai_data_analyst_with_pydantic_ai.py), rewritten for sference:
 
-1. **Submit** — `create_response(..., background=True, metadata={"completion_window": "1h"})` per analysis prompt (Prefect task map).
+1. **Submit** — `create_response(..., background=True, metadata={"completion_window": "24h"})` per analysis prompt (Prefect task map).
 2. **Wait** — `wait_for_response(id)` until each job is terminal (second task map).
 
 Prefect handles orchestration, retries, and run state; the SDK handles HTTP and polling.

@@ -1,0 +1,20 @@
+[
+  {
+    "id": 101,
+    "data": {
+      "text": "I was charged twice for my subscription renewal."
+    }
+  },
+  {
+    "id": 102,
+    "data": {
+      "text": "Package arrived two days late and the box was dented."
+    }
+  },
+  {
+    "id": 103,
+    "data": {
+      "text": "The laptop fan is loud after the latest BIOS update."
+    }
+  }
+]

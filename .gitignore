@@ -8,5 +8,5 @@ build/
 .venv/
 *.egg
 .pytest_cache/
-cli/.env
-
+examples/label_studio/sample_predictions.json
+examples/argilla/sample_suggestions.json

@@ -18,6 +18,7 @@ from .models import (
     Batch,
     BatchCreatePayload,
     BatchList,
+    BatchResultRow,
     BatchResults,
     InferenceRequest,
     Response,
@@ -146,6 +147,10 @@ class AsyncSferenceClient:
     async def get_results(self, batch_id: str) -> BatchResults:
         response = await self._request("GET", f"/v1/batches/{batch_id}/results")
         return BatchResults.model_validate(response)
+
+    async def get_results_indexed(self, batch_id: str) -> dict[str, BatchResultRow]:
+        """Fetch batch results keyed by ``custom_id``."""
+        return (await self.get_results(batch_id)).index_by_custom_id()
 
     async def cancel_batch(self, batch_id: str) -> Batch:
         response = await self._request("POST", f"/v1/batches/{batch_id}/cancel")

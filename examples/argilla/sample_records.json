@@ -1,0 +1,14 @@
+[
+  {
+    "id": "rec-1",
+    "fields": {
+      "message": "My refund still has not arrived after 10 business days."
+    }
+  },
+  {
+    "id": "rec-2",
+    "fields": {
+      "message": "The app crashes whenever I export a CSV larger than 50MB."
+    }
+  }
+]

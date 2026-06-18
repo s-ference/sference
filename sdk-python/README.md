@@ -56,7 +56,29 @@ batch = client.submit_batch(
 )
 done = client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
 results = client.get_results(done.id)
-print(results.status, results.output_url)
+by_id = results.index_by_custom_id()
+print(by_id["row-a"].completion_text)
+```
+
+Or in one call:
+
+```python
+by_id = client.get_results_indexed(done.id)
+```
+
+Build chat rows without hand-assembling `body.messages`:
+
+```python
+from sference_sdk.models import InferenceRequest
+
+req = InferenceRequest.chat(
+    custom_id="row-a",
+    user_content="Summarize this.",
+    system_content="One sentence only.",
+    model="Qwen/Qwen3.6-35B-A3B",
+    temperature=0,
+)
+batch = client.submit_batch(requests=[req], window="24h")
 ```
 
 Use a `model` supported by your sference deployment.

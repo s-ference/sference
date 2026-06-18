@@ -7,6 +7,7 @@ import pytest
 
 import sference_sdk
 from sference_sdk.client import ApiError, SferenceClient
+from sference_sdk.models import InferenceRequest
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -535,4 +536,80 @@ async def test_iter_responses_events_async_same_multipage_checkpoint(
     assert out == [c1, c2]
     assert starting_after_log == [c0, c1]
     assert load_checkpoint(base, "__responses_events__", "async-c") == c2
+
+
+def test_inference_request_chat_builds_messages_body() -> None:
+    req = InferenceRequest.chat(
+        custom_id="row-1",
+        user_content="hello",
+        system_content="be brief",
+        model="Qwen/Qwen3.6-35B-A3B",
+        temperature=0,
+    )
+    assert req.custom_id == "row-1"
+    assert req.body["model"] == "Qwen/Qwen3.6-35B-A3B"
+    assert req.body["temperature"] == 0
+    assert req.body["messages"] == [
+        {"role": "system", "content": "be brief"},
+        {"role": "user", "content": "hello"},
+    ]
+
+
+def test_batch_result_row_completion_text() -> None:
+    from sference_sdk.models import BatchResultRow
+
+    ok = BatchResultRow(
+        custom_id="a",
+        status="completed",
+        result_json={"choices": [{"message": {"content": "positive"}}]},
+    )
+    assert ok.completion_text == "positive"
+
+    failed = BatchResultRow(custom_id="b", status="failed", error_json={"code": "x"})
+    assert failed.completion_text == "[failed] {'code': 'x'}"
+
+
+def test_batch_results_index_by_custom_id() -> None:
+    from sference_sdk.models import BatchResults
+
+    payload = BatchResults(
+        batch_id="batch_1",
+        status="completed",
+        results=[
+            {"custom_id": "doc-1", "status": "completed", "result_json": {"choices": []}},
+            {"custom_id": "doc-2", "status": "completed", "result_json": {"choices": []}},
+        ],
+    )
+    by_id = payload.index_by_custom_id()
+    assert set(by_id) == {"doc-1", "doc-2"}
+    assert by_id["doc-1"].custom_id == "doc-1"
+
+
+def test_get_results_indexed_via_mock_transport() -> None:
+    from sference_sdk.models import BatchResultRow
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/v1/batches/batch_1/results":
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "batch_id": "batch_1",
+                    "status": "completed",
+                    "output_url": None,
+                    "completed_at": "2025-01-01T00:00:01+00:00",
+                    "results": [
+                        {
+                            "custom_id": "r1",
+                            "status": "completed",
+                            "result_json": {"choices": [{"message": {"content": "ok"}}]},
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        by_id = client.get_results_indexed("batch_1")
+    assert isinstance(by_id["r1"], BatchResultRow)
+    assert by_id["r1"].completion_text == "ok"
 
