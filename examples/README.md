@@ -24,9 +24,23 @@ uv sync --group dev --group examples
 Some examples need an extra package (documented in each README):
 
 - **Spark:** `uv pip install pyspark` (+ Java for local mode)
-- **Airflow:** `uv pip install "apache-airflow>=2.9"`
+- **Airflow:** `uv pip install "apache-airflow>=3.0"`
 - **Argilla (live push):** `uv pip install argilla`
 
 Shared helpers live in [`_common.py`](_common.py) (`chat_batch_request`, `wait_for_batch_terminal`, result parsing).
 
 Each subdirectory has its own README with environment variables and run commands.
+
+Run example script tests (mock API, no live inference):
+
+```bash
+uv sync --group dev --group examples-test
+uv run pytest examples/tests -q
+```
+
+Spark is local-only (needs Java + PySpark; skipped in CI):
+
+```bash
+uv sync --group dev --group examples-test --group examples-spark
+uv run pytest examples/tests -q
+```

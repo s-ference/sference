@@ -11,6 +11,14 @@
 
 from __future__ import annotations
 
+import os
+
+# Ray reads this at import time, so it must be set before `import ray` below.
+# It disables uv-run worker env propagation, which otherwise makes
+# `uv run python examples/ray_data/classify_reviews_batch.py` hang while Ray
+# tries to replicate the driver's uv environment to workers for this demo.
+os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
+
 import sys
 from pathlib import Path
 
@@ -55,7 +63,7 @@ SYSTEM = (
 
 def main() -> None:
     require_api_key()
-    ray.init(ignore_reinit_error=True)
+    ray.init(ignore_reinit_error=True, include_dashboard=False, logging_level="error")
 
     ds = from_pandas(REVIEWS)
     print(f"Ray dataset: {ds.count()} rows\n")
@@ -67,6 +75,7 @@ def main() -> None:
             custom_id=str(row["review_id"]),
             user_content=f"Review:\n{row['text']}",
             system_content=SYSTEM,
+            temperature=0,
         )
         for row in rows
     ]

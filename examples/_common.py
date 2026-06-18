@@ -12,9 +12,9 @@ from sference_sdk.models import InferenceRequest
 
 DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
 COMPLETION_WINDOW = "24h"
-BATCH_POLL_INTERVAL_S = 5.0
+BATCH_POLL_INTERVAL_S = float(os.environ.get("SFERENCE_BATCH_POLL_INTERVAL_S", "5.0"))
 # Demo scripts poll until terminal; raise for real 24h windows in production.
-BATCH_WAIT_TIMEOUT_S = 86_400.0
+BATCH_WAIT_TIMEOUT_S = float(os.environ.get("SFERENCE_BATCH_WAIT_TIMEOUT_S", "86400.0"))
 
 
 def require_api_key() -> None:
@@ -33,14 +33,18 @@ def chat_batch_request(
     user_content: str,
     model: str | None = None,
     system_content: str | None = None,
+    temperature: float | None = None,
 ) -> InferenceRequest:
     messages: list[dict[str, str]] = []
     if system_content:
         messages.append({"role": "system", "content": system_content})
     messages.append({"role": "user", "content": user_content})
+    body: dict[str, Any] = {"model": model or model_id(), "messages": messages}
+    if temperature is not None:
+        body["temperature"] = temperature
     return InferenceRequest(
         custom_id=custom_id,
-        body={"model": model or model_id(), "messages": messages},
+        body=body,
     )
 
 

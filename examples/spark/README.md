@@ -23,3 +23,12 @@ uv run python examples/spark/enrich_dataframe_batch.py
 ```
 
 Requires Java 8+ on `PATH` for Spark local mode.
+
+## Test (local only)
+
+Not run in CI. From the repo root:
+
+```bash
+uv sync --group dev --group examples-test --group examples-spark
+uv run pytest examples/tests -k spark -q
+```

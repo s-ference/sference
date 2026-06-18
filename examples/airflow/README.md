@@ -1,6 +1,6 @@
 # Airflow + sference batch
 
-[`sference_batch_dag.py`](sference_batch_dag.py) is a small [Airflow 2.x](https://airflow.apache.org/) TaskFlow DAG:
+[`sference_batch_dag.py`](sference_batch_dag.py) is a small [Airflow 3.x](https://airflow.apache.org/) TaskFlow DAG (imports from `airflow.sdk`):
 
 | Task | Responsibility |
 |------|----------------|
@@ -15,7 +15,7 @@ Airflow retries and SLA alerts apply to orchestration; sference owns GPU schedul
 
 ```bash
 uv sync --group dev --group examples
-uv pip install "apache-airflow>=2.9"
+uv pip install "apache-airflow>=3.0"
 export SFERENCE_API_KEY=sk_...
 export AIRFLOW_HOME=/tmp/airflow-sference-example
 airflow db migrate   # once
@@ -27,4 +27,4 @@ airflow db migrate   # once
 uv run python examples/airflow/sference_batch_dag.py
 ```
 
-Uses `dag.test()` for a single local run. Deploy with `airflow dags test sference_product_taglines_batch` after copying the module into your `dags/` folder.
+Uses shared pipeline functions for a single local run (Airflow 3 `dag.test()` requires a serialized DAG bundle). Deploy by copying the module into your `dags/` folder and running tasks on a scheduler.

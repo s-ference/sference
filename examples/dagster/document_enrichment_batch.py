@@ -19,7 +19,7 @@ _EXAMPLES_DIR = Path(__file__).resolve().parents[1]
 if str(_EXAMPLES_DIR) not in sys.path:
     sys.path.insert(0, str(_EXAMPLES_DIR))
 
-from dagster import AssetExecutionContext, Definitions, asset, materialize
+from dagster import Definitions, asset, materialize
 
 from _common import (
     COMPLETION_WINDOW,
@@ -76,12 +76,11 @@ def sference_batch_id(source_documents: list[dict[str, str]]) -> str:
 
 @asset
 def enriched_documents(
-    context: AssetExecutionContext,
     source_documents: list[dict[str, str]],
     sference_batch_id: str,
 ) -> list[dict[str, Any]]:
     terminal = wait_for_batch_terminal(client, sference_batch_id)
-    context.log.info("Batch %s finished with status=%s", sference_batch_id, terminal.status)
+    print(f"Batch {sference_batch_id} finished with status={terminal.status}")
     if terminal.status != "completed":
         raise RuntimeError(f"Batch {sference_batch_id} ended as {terminal.status}")
 
@@ -108,7 +107,7 @@ defs = Definitions(assets=[source_documents, sference_batch_id, enriched_documen
 if __name__ == "__main__":
     require_api_key()
     print(f"Model: {model_id()}  window: {COMPLETION_WINDOW}")
-    result = materialize([enriched_documents])
+    result = materialize([source_documents, sference_batch_id, enriched_documents])
     enriched = result.output_for_node("enriched_documents")
     print("\nEnriched documents:")
     for row in enriched:

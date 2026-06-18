@@ -77,6 +77,7 @@ def main() -> None:
             custom_id=str(task["id"]),
             user_content=f"Message:\n{task['data']['text']}",
             system_content=SYSTEM,
+            temperature=0,
         )
         for task in tasks
     ]

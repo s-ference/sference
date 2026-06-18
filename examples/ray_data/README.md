@@ -8,6 +8,8 @@
 
 At scale, Ray partitions preprocessing (`map_batches`, writes to object storage); each partition can emit JSONL chunks that you submit as separate batches or merge on the driver. This demo keeps the join on the driver for clarity.
 
+When running via `uv run`, the script sets `RAY_ENABLE_UV_RUN_RUNTIME_ENV=0` so Ray does not try to replicate the uv environment to workers for this small driver-side demo.
+
 ## Setup
 
 ```bash

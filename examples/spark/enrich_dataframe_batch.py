@@ -10,9 +10,7 @@
 
 from __future__ import annotations
 
-import json
 import sys
-import tempfile
 from pathlib import Path
 
 _EXAMPLES_DIR = Path(__file__).resolve().parents[1]
@@ -96,22 +94,6 @@ def main() -> None:
 
     print("Enriched tickets:")
     enriched.show(truncate=False)
-
-    # Optional: write JSONL batch input for very large tables (driver submits file path).
-    with tempfile.TemporaryDirectory() as tmp:
-        jsonl_path = Path(tmp) / "requests.jsonl"
-        with jsonl_path.open("w", encoding="utf-8") as fh:
-            for req in requests:
-                fh.write(
-                    json.dumps(
-                        {
-                            "custom_id": req.custom_id,
-                            "content": req.body["messages"][-1]["content"],
-                        }
-                    )
-                    + "\n"
-                )
-        print(f"\n(Content-only JSONL example written to temp file; use submit_batch(input_file=..., model=...))")
 
     spark.stop()
 

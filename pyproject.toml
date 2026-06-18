@@ -34,6 +34,13 @@ examples = [
     "langchain-text-splitters>=0.3",
     "llama-index-core>=0.12",
 ]
+examples-test = [
+    { include-group = "examples" },
+    "apache-airflow>=3.0",
+]
+examples-spark = [
+    "pyspark>=3.5",
+]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
@@ -42,6 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = [
     "sdk-python/tests",
     "cli/tests",
+    "examples/tests",
 ]
 
 [build-system]
