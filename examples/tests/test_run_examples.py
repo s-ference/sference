@@ -80,6 +80,19 @@ EXAMPLE_CASES: tuple[ExampleScriptCase, ...] = (
         output_json=EXAMPLES_ROOT / "argilla" / "sample_suggestions.json",
     ),
     ExampleScriptCase(
+        "promptfoo/provider.py",
+        stdout_contains=(
+            "Sference promptfoo provider",
+            "Self-check complete: 3/3 produced output",
+        ),
+        expected_rows=3,
+        row_id_pattern=r"\[\w+-review\]",
+    ),
+    ExampleScriptCase(
+        "promptfoo/batch_generate.py",
+        stdout_contains=("Submitted batch", "Wrote 3 precomputed rows"),
+    ),
+    ExampleScriptCase(
         "prefect/ai_data_analyst_batch_responses.py",
         stdout_contains=(
             "BATCH RESPONSE ANALYSIS",
@@ -165,6 +178,8 @@ def test_example_script(case: ExampleScriptCase, mock_sference_server, tmp_path:
     env["SFERENCE_BASE_URL"] = mock_sference_server.base_url
     env["SFERENCE_BATCH_POLL_INTERVAL_S"] = "0.1"
     env["SFERENCE_BATCH_WAIT_TIMEOUT_S"] = "30"
+    # Keep the promptfoo offline-batch script's generated tests file out of the repo tree.
+    env["BATCH_TESTS_OUT"] = str(tmp_path / "batch_tests.json")
     env["PYTHONUNBUFFERED"] = "1"
     # Intentionally NOT setting RAY_ENABLE_UV_RUN_RUNTIME_ENV here: the Ray example
     # must disable it itself (before `import ray`) for `uv run` to work.
