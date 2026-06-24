@@ -3755,6 +3755,17 @@
         ],
         "title": "BillingSummaryResponse"
       },
+      "CapabilityFlag": {
+        "properties": {
+          "supported": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "CapabilityFlag"
+      },
       "CatalogListResponse": {
         "properties": {
           "models": {
@@ -3838,6 +3849,9 @@
           },
           "deployed_on_platform": {
             "type": "boolean"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
           }
         },
         "type": "object",
@@ -3884,6 +3898,16 @@
             ]
           },
           "max_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_completion_tokens": {
             "oneOf": [
               {
                 "type": "integer"
@@ -4244,6 +4268,25 @@
           "user"
         ],
         "title": "LoginResponse"
+      },
+      "ModelCapabilities": {
+        "properties": {
+          "image_input": {
+            "$ref": "#/components/schemas/CapabilityFlag"
+          },
+          "pdf_input": {
+            "$ref": "#/components/schemas/CapabilityFlag"
+          },
+          "thinking": {
+            "$ref": "#/components/schemas/ThinkingCapability"
+          },
+          "tools": {
+            "$ref": "#/components/schemas/CapabilityFlag"
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ModelCapabilities"
       },
       "ModelDeploymentRequestBody": {
         "properties": {
@@ -5425,6 +5468,33 @@
         "type": "object",
         "required": [],
         "title": "StreamPatchRequest"
+      },
+      "ThinkingCapability": {
+        "properties": {
+          "supported": {
+            "type": "boolean",
+            "default": false
+          },
+          "types": {
+            "$ref": "#/components/schemas/ThinkingCapabilityTypes"
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ThinkingCapability"
+      },
+      "ThinkingCapabilityTypes": {
+        "properties": {
+          "enabled": {
+            "$ref": "#/components/schemas/CapabilityFlag"
+          },
+          "adaptive": {
+            "$ref": "#/components/schemas/CapabilityFlag"
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ThinkingCapabilityTypes"
       },
       "TopupCreateRequest": {
         "properties": {
