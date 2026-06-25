@@ -3041,6 +3041,16 @@
               }
             ]
           },
+          "cached_prompt_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error": {
             "oneOf": [
               {
@@ -3154,6 +3164,16 @@
             ]
           },
           "total_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cached_prompt_tokens": {
             "oneOf": [
               {
                 "type": "integer"
@@ -3672,6 +3692,10 @@
           "total_tokens": {
             "type": "integer"
           },
+          "cached_prompt_tokens": {
+            "type": "integer",
+            "default": 0
+          },
           "total_requests": {
             "type": "integer"
           },
@@ -3713,6 +3737,10 @@
           },
           "total_tokens": {
             "type": "integer"
+          },
+          "total_cached_prompt_tokens": {
+            "type": "integer",
+            "default": 0
           },
           "total_requests": {
             "type": "integer"
@@ -3826,6 +3854,16 @@
             ]
           },
           "output_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cached_input_per_million_usd": {
             "oneOf": [
               {
                 "type": "number"
@@ -4030,6 +4068,10 @@
           },
           "total_tokens": {
             "type": "integer"
+          },
+          "cached_prompt_tokens": {
+            "type": "integer",
+            "default": 0
           },
           "request_count": {
             "type": "integer"
@@ -4387,6 +4429,16 @@
               }
             ]
           },
+          "cached_input_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tpm_limit": {
             "type": "string",
             "default": "unlimited"
@@ -4458,6 +4510,10 @@
           },
           "total_tokens": {
             "type": "integer"
+          },
+          "total_cached_prompt_tokens": {
+            "type": "integer",
+            "default": 0
           },
           "total_requests": {
             "type": "integer"
@@ -4761,6 +4817,18 @@
         ],
         "title": "ResponseFunctionToolCall"
       },
+      "ResponseInputTokensDetails": {
+        "properties": {
+          "cached_tokens": {
+            "type": "integer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cached_tokens"
+        ],
+        "title": "ResponseInputTokensDetails"
+      },
       "ResponseItem": {
         "properties": {
           "id": {
@@ -5033,6 +5101,16 @@
           },
           "total_tokens": {
             "type": "integer"
+          },
+          "input_tokens_details": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResponseInputTokensDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5549,6 +5627,10 @@
           },
           "total_tokens": {
             "type": "integer"
+          },
+          "total_cached_prompt_tokens": {
+            "type": "integer",
+            "default": 0
           },
           "total_requests": {
             "type": "integer"
