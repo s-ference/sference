@@ -3986,6 +3986,17 @@
                 "type": "null"
               }
             ]
+          },
+          "response_format": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4752,6 +4763,17 @@
             "description": "If true, stream the sync result as OpenAI Responses API server-sent events (`response.created`, `response.output_text.delta`, `response.completed`, ...). Only valid when `background` is false.",
             "default": false
           },
+          "text": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResponseTextConfig"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Output format controls. ``text.format.type`` of ``json_schema`` or ``json_object`` maps to worker guided JSON decoding."
+          },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
           }
@@ -5090,6 +5112,24 @@
           "text"
         ],
         "title": "ResponseOutputText"
+      },
+      "ResponseTextConfig": {
+        "properties": {
+          "format": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ResponseTextConfig"
       },
       "ResponseUsage": {
         "properties": {
