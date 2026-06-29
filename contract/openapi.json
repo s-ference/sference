@@ -3959,6 +3959,16 @@
             "type": "boolean",
             "default": false
           },
+          "stream_options": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StreamOptions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tools": {
             "oneOf": [
               {
@@ -3992,6 +4002,16 @@
               {
                 "additionalProperties": {},
                 "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enable_thinking": {
+            "oneOf": [
+              {
+                "type": "boolean"
               },
               {
                 "type": "null"
@@ -4659,7 +4679,7 @@
                 "type": "array"
               }
             ],
-            "description": "Input for the completion. Either a plain string (shorthand for a single user message) or an array of OpenAI Responses input items. Supported items: `message` (role + string/`input_text`/`output_text` content), `function_call`, and `function_call_output`. Other echoed output items (e.g. `reasoning`) are accepted and ignored. Items are normalized to chat messages server-side."
+            "description": "Input for the completion. Either a plain string (shorthand for a single user message) or an array of OpenAI Responses input items."
           },
           "instructions": {
             "oneOf": [
@@ -4684,8 +4704,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Tool definitions. Accepts flat Responses API shape (`{type, name, description, parameters}`) or wrapped chat shape (`{type, function}`)."
+            ]
           },
           "tool_choice": {
             "oneOf": [
@@ -4699,8 +4718,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Tool choice policy (`auto`, `none`, `required`, or `{type: \"function\", name: \"...\"}`)."
+            ]
           },
           "max_output_tokens": {
             "oneOf": [
@@ -4710,8 +4728,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Maximum tokens to generate."
+            ]
           },
           "temperature": {
             "oneOf": [
@@ -4722,8 +4739,7 @@
                 "type": "null"
               }
             ],
-            "maximum": 2.0,
-            "description": "Sampling temperature (0-2)."
+            "maximum": 2.0
           },
           "top_p": {
             "oneOf": [
@@ -4734,12 +4750,10 @@
                 "type": "null"
               }
             ],
-            "maximum": 1.0,
-            "description": "Nucleus sampling parameter."
+            "maximum": 1.0
           },
           "include_reasoning": {
             "type": "boolean",
-            "description": "If true, extracted reasoning is returned as a `reasoning` item in `output[]`. Set false to suppress reasoning while keeping the final text.",
             "default": true
           },
           "enable_thinking": {
@@ -4750,17 +4764,14 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "When set, forwarded to the tokenizer `apply_chat_template(..., enable_thinking=...)`. Standard Qwen3 chat templates use this for thinking/reasoning mode (see SGLang reasoning-parser docs). Omit to use the tokenizer default."
+            ]
           },
           "background": {
             "type": "boolean",
-            "description": "If true, return immediately with status=in_progress and let the caller poll (async; does not require realtime_enabled). If false (default), block until completion or the server sync-timeout ceiling (sync/realtime; requires realtime_enabled).",
             "default": false
           },
           "stream": {
             "type": "boolean",
-            "description": "If true, stream the sync result as OpenAI Responses API server-sent events (`response.created`, `response.output_text.delta`, `response.completed`, ...). Only valid when `background` is false.",
             "default": false
           },
           "text": {
@@ -4771,8 +4782,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Output format controls. ``text.format.type`` of ``json_schema`` or ``json_object`` maps to worker guided JSON decoding."
+            ]
           },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
@@ -5027,7 +5037,7 @@
         "type": "object",
         "required": [],
         "title": "ResponseMetadata",
-        "description": "Extra metadata including \"completion_window\" (\"15m\", \"1h\", or \"24h\") and optional \"stream_id\" for grouping."
+        "description": "Extra metadata including \"completion_window\" and optional \"stream_id\"."
       },
       "ResponseOutputMessage": {
         "properties": {
@@ -5557,6 +5567,17 @@
           "items"
         ],
         "title": "StreamListResponse"
+      },
+      "StreamOptions": {
+        "properties": {
+          "include_usage": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "StreamOptions"
       },
       "StreamPatchRequest": {
         "properties": {
