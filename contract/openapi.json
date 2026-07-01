@@ -4852,13 +4852,12 @@
       "ResponseInputTokensDetails": {
         "properties": {
           "cached_tokens": {
-            "type": "integer"
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
-        "required": [
-          "cached_tokens"
-        ],
+        "required": [],
         "title": "ResponseInputTokensDetails"
       },
       "ResponseItem": {
@@ -5046,6 +5045,9 @@
             "const": "message",
             "default": "message"
           },
+          "id": {
+            "type": "string"
+          },
           "role": {
             "type": "string",
             "const": "assistant",
@@ -5069,7 +5071,8 @@
         },
         "type": "object",
         "required": [
-          "content"
+          "content",
+          "id"
         ],
         "title": "ResponseOutputMessage"
       },
@@ -5080,25 +5083,19 @@
             "const": "reasoning",
             "default": "reasoning"
           },
-          "text": {
+          "id": {
             "type": "string"
           },
-          "format": {
-            "type": "string",
-            "enum": [
-              "think_tag",
-              "provider_field",
-              "qwen_preamble_cot",
-              "anthropic_thinking",
-              "openai_summary",
-              "unknown"
-            ]
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseReasoningSummaryPart"
+            },
+            "type": "array"
           }
         },
         "type": "object",
         "required": [
-          "format",
-          "text"
+          "id"
         ],
         "title": "ResponseOutputReasoning"
       },
@@ -5122,6 +5119,34 @@
           "text"
         ],
         "title": "ResponseOutputText"
+      },
+      "ResponseOutputTokensDetails": {
+        "properties": {
+          "reasoning_tokens": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ResponseOutputTokensDetails"
+      },
+      "ResponseReasoningSummaryPart": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "summary_text",
+            "default": "summary_text"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ResponseReasoningSummaryPart"
       },
       "ResponseTextConfig": {
         "properties": {
@@ -5153,14 +5178,10 @@
             "type": "integer"
           },
           "input_tokens_details": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ResponseInputTokensDetails"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/ResponseInputTokensDetails"
+          },
+          "output_tokens_details": {
+            "$ref": "#/components/schemas/ResponseOutputTokensDetails"
           }
         },
         "type": "object",
