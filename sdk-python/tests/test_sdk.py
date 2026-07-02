@@ -277,6 +277,41 @@ def test_get_response_parses_reasoning_output_item() -> None:
         assert resp.output[1].content[0].text == "The answer is 42."
 
 
+def test_get_response_parses_message_without_id() -> None:
+    """Platform responses may omit per-item message ids."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/v1/responses/resp_no_msg_id":
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "id": "resp_no_msg_id",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                            "content": [
+                                {"type": "output_text", "text": "hello", "annotations": []}
+                            ],
+                        }
+                    ],
+                    "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.get_response("resp_no_msg_id")
+        assert resp.output is not None
+        assert resp.output[0].type == "message"
+        assert resp.output[0].id is None
+        assert resp.output[0].content[0].text == "hello"
+
+
 def test_get_response_parses_reasoning_summary_parts() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/responses/resp_qwen":

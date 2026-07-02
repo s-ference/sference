@@ -225,7 +225,7 @@ class ResponseOutputMessage(BaseModel):
     """
 
     type: Literal["message"] = "message"
-    id: str
+    id: str | None = None
     role: Literal["assistant"] = "assistant"
     status: Literal["completed", "in_progress", "incomplete"] = "completed"
     content: list[ResponseOutputText]
