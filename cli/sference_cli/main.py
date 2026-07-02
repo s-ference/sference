@@ -32,11 +32,13 @@ batch_app = typer.Typer(help="Batch commands", invoke_without_command=True)
 stream_app = typer.Typer(help="Stream commands", invoke_without_command=True)
 responses_app = typer.Typer(help="Responses commands", invoke_without_command=True)
 models_app = typer.Typer(help="List models (GET /v1/models)", invoke_without_command=True)
+embeddings_app = typer.Typer(help="Embeddings commands", invoke_without_command=True)
 app.add_typer(auth_app, name="auth")
 app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
 app.add_typer(responses_app, name="responses")
 app.add_typer(models_app, name="models")
+app.add_typer(embeddings_app, name="embeddings")
 register_launch_commands(app)
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
@@ -284,6 +286,34 @@ def models_list(
     _ensure_api_credential()
     client = _client(base_url)
     _list_models(client=client, as_json=as_json)
+
+
+@embeddings_app.command("create")
+def embeddings_create(
+    model: str = typer.Option(..., "--model"),
+    input_text: list[str] = typer.Option(..., "--input", help="Text to embed (repeat for multiple strings)."),
+    encoding_format: str = typer.Option("float", "--encoding-format", help='"float" or "base64".'),
+    dimensions: int | None = typer.Option(None, "--dimensions"),
+    timeout: float = typer.Option(600.0, "--timeout", help="HTTP read timeout in seconds."),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Create embeddings (POST /v1/embeddings)."""
+    _ensure_api_credential()
+    if encoding_format not in ("float", "base64"):
+        typer.echo('encoding_format must be "float" or "base64".', err=True)
+        raise typer.Exit(code=1)
+    inp: str | list[str] = input_text[0] if len(input_text) == 1 else input_text
+    client = _client(base_url, timeout=timeout)
+    resp = _call_api(
+        lambda: client.create_embeddings(
+            model=model,
+            input=inp,
+            encoding_format=encoding_format,  # type: ignore[arg-type]
+            dimensions=dimensions,
+        )
+    )
+    _print(resp.model_dump(), as_json or True)
 
 
 @auth_app.command("login")

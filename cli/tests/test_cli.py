@@ -150,6 +150,17 @@ class FakeClient:
     def list_models(self):
         return json.loads((FIXTURES / "V1ModelsListModels" / "200.json").read_text(encoding="utf-8"))
 
+    def create_embeddings(self, **kwargs):
+        _ = kwargs
+        return FakeResult(
+            {
+                "object": "list",
+                "data": [{"object": "embedding", "index": 0, "embedding": [0.1]}],
+                "model": kwargs.get("model", "m"),
+                "usage": {"prompt_tokens": 1, "total_tokens": 1},
+            }
+        )
+
 
 class FakeTrackingClient(FakeClient):
     def __init__(self) -> None:
@@ -239,6 +250,19 @@ def test_models_list_default(monkeypatch):
     assert "Qwen/Qwen3.6-35B-A3B" in result.stdout
     assert "moonshotai/Kimi-K2.6" in result.stdout
     assert "262144" in result.stdout
+
+
+def test_embeddings_create_json(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
+    result = runner.invoke(
+        cli_main.app,
+        ["embeddings", "create", "--model", "Ettin/Ettin-Encoder-7B", "--input", "hello"],
+    )
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["object"] == "list"
+    assert payload["data"][0]["embedding"] == [0.1]
 
 
 def test_batch_list_json(monkeypatch):
