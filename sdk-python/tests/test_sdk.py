@@ -7,7 +7,7 @@ import pytest
 
 import sference_sdk
 from sference_sdk.client import ApiError, SferenceClient
-from sference_sdk.models import InferenceRequest
+from sference_sdk.models import InferenceRequest, reasoning_summary_plaintext
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -247,9 +247,14 @@ def test_get_response_parses_reasoning_output_item() -> None:
                     "model": "Qwen/Qwen3.6-35B-A3B",
                     "status": "completed",
                     "output": [
-                        {"type": "reasoning", "text": "internal reasoning", "format": "think_tag"},
+                        {
+                            "type": "reasoning",
+                            "id": "rs_reasoning_0",
+                            "summary": [{"type": "summary_text", "text": "internal reasoning"}],
+                        },
                         {
                             "type": "message",
+                            "id": "msg_0",
                             "role": "assistant",
                             "status": "completed",
                             "content": [
@@ -267,12 +272,12 @@ def test_get_response_parses_reasoning_output_item() -> None:
         assert resp.status == "completed"
         assert resp.output is not None
         assert resp.output[0].type == "reasoning"
-        assert resp.output[0].text == "internal reasoning"
+        assert reasoning_summary_plaintext(resp.output[0]) == "internal reasoning"
         assert resp.output[1].type == "message"
         assert resp.output[1].content[0].text == "The answer is 42."
 
 
-def test_get_response_parses_qwen_preamble_cot_reasoning_format() -> None:
+def test_get_response_parses_reasoning_summary_parts() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/responses/resp_qwen":
             return httpx.Response(
@@ -286,11 +291,12 @@ def test_get_response_parses_qwen_preamble_cot_reasoning_format() -> None:
                     "output": [
                         {
                             "type": "reasoning",
-                            "text": "chain",
-                            "format": "qwen_preamble_cot",
+                            "id": "rs_reasoning_0",
+                            "summary": [{"type": "summary_text", "text": "chain"}],
                         },
                         {
                             "type": "message",
+                            "id": "msg_0",
                             "role": "assistant",
                             "status": "completed",
                             "content": [{"type": "output_text", "text": "ok", "annotations": []}],
@@ -303,7 +309,7 @@ def test_get_response_parses_qwen_preamble_cot_reasoning_format() -> None:
     with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
         resp = client.get_response("resp_qwen")
         assert resp.output is not None
-        assert resp.output[0].format == "qwen_preamble_cot"
+        assert reasoning_summary_plaintext(resp.output[0]) == "chain"
 
 
 def test_create_response_sends_include_reasoning_and_parses_reasoning() -> None:
@@ -322,9 +328,14 @@ def test_create_response_sends_include_reasoning_and_parses_reasoning() -> None:
                     "model": captured_json.get("model", "m"),
                     "status": "completed",
                     "output": [
-                        {"type": "reasoning", "text": "r", "format": "provider_field"},
+                        {
+                            "type": "reasoning",
+                            "id": "rs_reasoning_0",
+                            "summary": [{"type": "summary_text", "text": "r"}],
+                        },
                         {
                             "type": "message",
+                            "id": "msg_0",
                             "role": "assistant",
                             "status": "completed",
                             "content": [{"type": "output_text", "text": "t", "annotations": []}],
@@ -404,6 +415,39 @@ def test_create_response_sends_string_input_verbatim() -> None:
         client.create_response(model="m", input="grade this answer")
 
     assert captured_json["input"] == "grade this answer"
+
+
+def test_create_embeddings_single_string_input() -> None:
+    captured_json: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_json
+        if request.method == "POST" and request.url.path == "/v1/embeddings":
+            captured_json = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [0.1, 0.2, 0.3],
+                        }
+                    ],
+                    "model": captured_json.get("model", "m"),
+                    "usage": {"prompt_tokens": 4, "total_tokens": 4},
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.create_embeddings(model="Ettin/Ettin-Encoder-7B", input="hello")
+
+    assert captured_json == {"model": "Ettin/Ettin-Encoder-7B", "input": "hello", "encoding_format": "float"}
+    assert resp.data[0].embedding == [0.1, 0.2, 0.3]
+    assert resp.usage is not None
+    assert resp.usage.prompt_tokens == 4
 
 
 def test_checkpoint_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

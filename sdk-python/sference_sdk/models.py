@@ -203,14 +203,9 @@ class ResponseCreatePayload(BaseModel):
         return v
 
 
-ReasoningFormat = Literal[
-    "think_tag",
-    "provider_field",
-    "qwen_preamble_cot",
-    "anthropic_thinking",
-    "openai_summary",
-    "unknown",
-]
+class ResponseReasoningSummaryPart(BaseModel):
+    type: Literal["summary_text"] = "summary_text"
+    text: str
 
 
 class ResponseOutputText(BaseModel):
@@ -230,21 +225,45 @@ class ResponseOutputMessage(BaseModel):
     """
 
     type: Literal["message"] = "message"
+    id: str
     role: Literal["assistant"] = "assistant"
     status: Literal["completed", "in_progress", "incomplete"] = "completed"
     content: list[ResponseOutputText]
 
 
 class ResponseOutputReasoning(BaseModel):
+    """OpenAI Responses API reasoning output item (``summary``, not top-level ``text``)."""
+
     type: Literal["reasoning"] = "reasoning"
-    text: str
-    format: ReasoningFormat
+    id: str
+    summary: list[ResponseReasoningSummaryPart] = Field(default_factory=list)
+
+
+def reasoning_summary_plaintext(item: ResponseOutputReasoning) -> str:
+    return "".join(part.text for part in item.summary)
+
+
+class ResponseFunctionToolCall(BaseModel):
+    type: Literal["function_call"] = "function_call"
+    id: str
+    call_id: str
+    name: str
+    arguments: str = "{}"
+    status: Literal["completed", "in_progress", "incomplete"] = "completed"
 
 
 ResponseOutputContent = Annotated[
-    ResponseOutputMessage | ResponseOutputReasoning,
+    ResponseOutputMessage | ResponseOutputReasoning | ResponseFunctionToolCall,
     Field(discriminator="type"),
 ]
+
+
+class ResponseInputTokensDetails(BaseModel):
+    cached_tokens: int = 0
+
+
+class ResponseOutputTokensDetails(BaseModel):
+    reasoning_tokens: int = 0
 
 
 class ResponseUsage(BaseModel):
@@ -253,6 +272,8 @@ class ResponseUsage(BaseModel):
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    input_tokens_details: ResponseInputTokensDetails = Field(default_factory=ResponseInputTokensDetails)
+    output_tokens_details: ResponseOutputTokensDetails = Field(default_factory=ResponseOutputTokensDetails)
 
 
 class ResponseError(BaseModel):
@@ -291,3 +312,36 @@ class ResponseList(BaseModel):
     object: Literal["list"] = "list"
     data: list[ResponseListItem]
     has_more: bool = False
+
+
+# Embeddings (OpenAI-compatible)
+EmbeddingInput = str | list[str] | list[int] | list[list[int]]
+EmbeddingEncodingFormat = Literal["float", "base64"]
+
+
+class EmbeddingData(BaseModel):
+    index: int
+    object: Literal["embedding"] = "embedding"
+    embedding: list[float] | str
+
+
+class EmbeddingUsage(BaseModel):
+    prompt_tokens: int
+    total_tokens: int
+
+
+class EmbeddingResponse(BaseModel):
+    object: Literal["list"] = "list"
+    data: list[EmbeddingData]
+    model: str
+    usage: EmbeddingUsage | None = None
+
+
+class CreateEmbeddingPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model: str
+    input: EmbeddingInput
+    encoding_format: EmbeddingEncodingFormat = "float"
+    dimensions: int | None = None
+    user: str | None = None

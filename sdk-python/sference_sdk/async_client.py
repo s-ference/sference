@@ -20,6 +20,10 @@ from .models import (
     BatchList,
     BatchResultRow,
     BatchResults,
+    CreateEmbeddingPayload,
+    EmbeddingInput,
+    EmbeddingEncodingFormat,
+    EmbeddingResponse,
     InferenceRequest,
     Response,
     ResponseList,
@@ -104,6 +108,26 @@ class AsyncSferenceClient:
         if not isinstance(response, dict):
             raise ApiError("GET /v1/models returned unexpected payload")
         return response
+
+    async def create_embeddings(
+        self,
+        *,
+        model: str,
+        input: EmbeddingInput,
+        encoding_format: EmbeddingEncodingFormat = "float",
+        dimensions: int | None = None,
+        user: str | None = None,
+    ) -> EmbeddingResponse:
+        """Create embeddings (POST /v1/embeddings)."""
+        payload = CreateEmbeddingPayload(
+            model=model,
+            input=input,
+            encoding_format=encoding_format,
+            dimensions=dimensions,
+            user=user,
+        )
+        response = await self._request("POST", "/v1/embeddings", payload.model_dump(exclude_none=True))
+        return EmbeddingResponse.model_validate(response)
 
     async def submit_batch(
         self,
