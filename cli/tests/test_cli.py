@@ -120,6 +120,7 @@ class FakeClient:
             "output": [
                 {
                     "type": "message",
+                    "id": "msg_0",
                     "role": "assistant",
                     "status": "completed",
                     "content": [{"type": "output_text", "text": "Mock response", "annotations": []}],

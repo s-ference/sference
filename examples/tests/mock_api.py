@@ -44,6 +44,7 @@ def _response_payload(response_id: str, *, custom_id: str | None = None) -> dict
         "output": [
             {
                 "type": "message",
+                "id": "msg_0",
                 "role": "assistant",
                 "status": "completed",
                 "content": [{"type": "output_text", "text": text, "annotations": []}],
