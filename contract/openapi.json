@@ -2587,8 +2587,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {},
-                  "type": "object"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/V1ModelListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AnthropicModelListResponse"
+                    }
+                  ]
                 }
               }
             }
@@ -3471,6 +3477,69 @@
         ],
         "title": "AnthropicMessagesCreateRequest"
       },
+      "AnthropicModelItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "const": "model",
+            "default": "model"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "max_input_tokens": {
+            "type": "integer"
+          },
+          "max_tokens": {
+            "type": "integer"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "display_name",
+          "id",
+          "max_input_tokens",
+          "max_tokens"
+        ],
+        "title": "AnthropicModelItemResponse"
+      },
+      "AnthropicModelListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AnthropicModelItemResponse"
+            },
+            "type": "array"
+          },
+          "first_id": {
+            "type": "string"
+          },
+          "has_more": {
+            "type": "boolean",
+            "default": false
+          },
+          "last_id": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "first_id",
+          "last_id"
+        ],
+        "title": "AnthropicModelListResponse"
+      },
       "AnthropicTextBlock": {
         "properties": {
           "type": {
@@ -3751,6 +3820,10 @@
         "properties": {
           "model": {
             "type": "string"
+          },
+          "service_tier": {
+            "type": "string",
+            "default": "default"
           },
           "prompt_tokens": {
             "type": "integer"
@@ -4086,6 +4159,17 @@
                 "type": "null"
               }
             ]
+          },
+          "service_tier": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly. A flex request that cannot complete in time fails with 408 (OpenAI SDKs retry it automatically). All other accepted values (`auto`, `default`, `scale`, `priority`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
           }
         },
         "type": "object",
@@ -4681,6 +4765,10 @@
           "model": {
             "type": "string"
           },
+          "service_tier": {
+            "type": "string",
+            "default": "default"
+          },
           "total_prompt_tokens": {
             "type": "integer"
           },
@@ -4932,6 +5020,17 @@
               }
             ]
           },
+          "service_tier": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly, or use `background: true` and poll. All other accepted values (`auto`, `default`, `scale`, `priority`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
+          },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
           }
@@ -5077,6 +5176,15 @@
                 "type": "null"
               }
             ]
+          },
+          "service_tier": {
+            "type": "string",
+            "enum": [
+              "default",
+              "flex"
+            ],
+            "description": "Tier the request was served at.",
+            "default": "default"
           }
         },
         "type": "object",
@@ -5913,6 +6021,86 @@
           "username"
         ],
         "title": "UserResponse"
+      },
+      "V1ModelItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "const": "model",
+            "default": "model"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "owned_by": {
+            "type": "string",
+            "default": "sference"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "text_generation",
+              "text_embedding"
+            ],
+            "default": "text_generation"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "context_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "display_name",
+          "id"
+        ],
+        "title": "V1ModelItemResponse"
+      },
+      "V1ModelListResponse": {
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "list",
+            "default": "list"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/V1ModelItemResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "V1ModelListResponse"
       },
       "VerifyEmailRequest": {
         "properties": {
