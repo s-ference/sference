@@ -121,7 +121,7 @@ Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provid
 | Command | Description |
 |---------|-------------|
 | `sference batch list` | List batches (table; `--json` for raw payload) |
-| `sference batch submit` | Submit a JSONL file (`--input-file`, optional `--model` for content-only lines, `--window` `15m`/`1h`/`24h`) |
+| `sference batch submit` | Submit a JSONL file (`--input-file`, optional `--model` for content-only lines, `--window` `24h`) |
 | `sference batch stream` | Submit, wait, print **JSONL results on stdout** (see below) |
 | `sference batch status` | Get one batch (`--batch-id`, `--json`) |
 | `sference batch wait` | Poll until terminal state (`--batch-id`, `--poll-interval`, `--timeout`, `--json`) |
@@ -143,7 +143,7 @@ Long-lived **streams** are separate from **batches**: you create a stream, submi
 
 | Command | Description |
 |---------|-------------|
-| `sference stream create` | Create a stream (`--name`, `--window` `15m`/`1h`/`24h`, `--json`) |
+| `sference stream create` | Create a stream (`--name`, `--window` `24h`, `--json`) |
 | `sference stream list` | List streams (`--json`) |
 | `sference stream status` | Full detail + counters (`--stream-id`, `--json`) |
 | `sference stream submit` | Create responses from JSONL via `POST /v1/responses` per line (`metadata.stream_id` set automatically; `--stream-id`, `--input-file`, `--model` required for content-only lines) — per line: OpenAI batch-style `{custom_id?, method, url, body}` or content-only `{content}` |

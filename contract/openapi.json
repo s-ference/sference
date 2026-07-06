@@ -3654,12 +3654,8 @@
         "properties": {
           "window": {
             "type": "string",
-            "enum": [
-              "15m",
-              "1h",
-              "24h"
-            ],
-            "description": "Completion window for every row in the batch (`\"15m\"`, `\"1h\"`, or `\"24h\"`).",
+            "const": "24h",
+            "description": "Completion window for every row in the batch (`\"24h\"` is the only supported value).",
             "default": "24h"
           },
           "requests": {
@@ -3709,11 +3705,7 @@
           },
           "window": {
             "type": "string",
-            "enum": [
-              "15m",
-              "1h",
-              "24h"
-            ]
+            "const": "24h"
           },
           "request_count": {
             "type": "integer"
@@ -5292,7 +5284,7 @@
         "type": "object",
         "required": [],
         "title": "ResponseMetadata",
-        "description": "Extra metadata including \"completion_window\" and optional \"stream_id\"."
+        "description": "Extra metadata including \"completion_window\" (\"24h\" is the only supported value; requires background=true) and optional \"stream_id\" for grouping."
       },
       "ResponseOutputMessage": {
         "properties": {
@@ -5472,6 +5464,17 @@
                 "type": "null"
               }
             ]
+          },
+          "phone_number": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 32
           }
         },
         "type": "object",
@@ -5530,11 +5533,7 @@
           },
           "window": {
             "type": "string",
-            "enum": [
-              "15m",
-              "1h",
-              "24h"
-            ],
+            "const": "24h",
             "default": "24h"
           }
         },
@@ -5554,11 +5553,7 @@
           },
           "window": {
             "type": "string",
-            "enum": [
-              "15m",
-              "1h",
-              "24h"
-            ]
+            "const": "24h"
           },
           "status": {
             "type": "string",
@@ -5798,11 +5793,7 @@
           },
           "window": {
             "type": "string",
-            "enum": [
-              "15m",
-              "1h",
-              "24h"
-            ]
+            "const": "24h"
           },
           "status": {
             "type": "string",

@@ -246,6 +246,8 @@ def test_models_list_default(monkeypatch):
     result = runner.invoke(cli_main.app, ["models", "list"])
     assert result.exit_code == 0
     assert "display_name" in result.stdout
+    assert "modality" in result.stdout
+    assert "generation" in result.stdout
     assert "context" in result.stdout
     assert "vision" in result.stdout
     assert "Qwen/Qwen3.6-35B-A3B" in result.stdout
@@ -293,7 +295,7 @@ def test_batch_submit_rejects_unknown_window():
     )
     assert result.exit_code != 0
     out = f"{result.stdout}\n{result.stderr or ''}"
-    assert "15m" in out and "24h" in out
+    assert "24h" in out
 
 
 def test_batch_submit_accepts_all_completion_windows(monkeypatch, tmp_path: Path):
@@ -302,7 +304,7 @@ def test_batch_submit_accepts_all_completion_windows(monkeypatch, tmp_path: Path
         '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
         encoding="utf-8",
     )
-    for window in ("15m", "1h", "24h"):
+    for window in ("24h",):
         _with_fake_credential(monkeypatch)
         monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
         result = runner.invoke(

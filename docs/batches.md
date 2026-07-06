@@ -2,13 +2,13 @@
 
 Submit bulk inference with `POST /v1/batches`. Base URL: **`https://api.sference.com`** (Bearer API key).
 
-**Completion windows:** `"15m"`, `"1h"`, or `"24h"` on every batch (default `"24h"`). For sync realtime inference, use `/v1/chat/completions`, `/v1/messages`, or blocking `/v1/responses` instead.
+**Completion window:** `"24h"` on every batch (the only supported value). For sync realtime inference, use `/v1/chat/completions`, `/v1/messages`, or blocking `/v1/responses` instead.
 
 OpenAPI: [api.sference.com/openapi.json](https://api.sference.com/openapi.json)
 
 ## Quick flow
 
-1. `POST /v1/batches` — inline `requests[]` + `window: "15m"`, `"1h"`, or `"24h"`.
+1. `POST /v1/batches` — inline `requests[]` + `window: "24h"`.
 2. `GET /v1/batches/{id}` — poll status.
 3. `GET /v1/batches/{id}/results.jsonl` — download per-row outcomes (`application/x-ndjson`).
 

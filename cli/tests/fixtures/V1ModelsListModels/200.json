@@ -8,6 +8,7 @@
       "owned_by": "sference",
       "display_name": "Qwen3.6 35B",
       "provider": "Qwen",
+      "modality": "text_generation",
       "context_tokens": 262144,
       "capabilities": {
         "image_input": { "supported": false },
@@ -29,6 +30,7 @@
       "owned_by": "sference",
       "display_name": "Kimi K2.6",
       "provider": "Moonshot",
+      "modality": "text_generation",
       "context_tokens": 262144,
       "capabilities": {
         "image_input": { "supported": false },
