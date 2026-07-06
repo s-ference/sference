@@ -55,7 +55,7 @@ Use `api_key`/env, **not** `client.login()`, in agent-generated code.
 
 ### Completion window
 
-**Async** workloads use **`"15m"`**, **`"1h"`**, or **`"24h"`** completion windows (default `"24h"`; shorter windows are prioritized to finish sooner). Set via `metadata={"completion_window": ...}` on background responses, and via `window=` on `create_stream` and `submit_batch`.
+**Async** workloads use the **`"24h"`** completion window (the only supported value). Set via `metadata={"completion_window": ...}` on background responses, and via `window=` on `create_stream` and `submit_batch`.
 
 **Realtime** sync endpoints (`POST /v1/chat/completions`, `POST /v1/messages`, blocking `POST /v1/responses` without `background: true`) do not take a completion window — they return when inference finishes.
 
@@ -73,7 +73,7 @@ resp = client.create_response(
     model="<model-id>",                       # a model deployed on the user's sference
     input="Summarize this incident report.",  # str, or [{"role": "user", "content": "..."}]
     background=True,
-    metadata={"completion_window": "24h"},     # "15m" / "1h" / "24h" (background only)
+    metadata={"completion_window": "24h"},     # "24h" only (background only)
 )
 
 done = client.wait_for_response(resp.id, poll_interval=2.0, timeout=3600.0)
@@ -110,7 +110,7 @@ from sference_sdk import SferenceClient
 
 client = SferenceClient(api_key=os.environ["SFERENCE_API_KEY"])
 
-stream = client.create_stream(name="syslog-analysis", window="24h")  # "15m" / "1h" / "24h"
+stream = client.create_stream(name="syslog-analysis", window="24h")  # "24h" only
 
 for line in log_lines:
     client.create_response(
@@ -188,7 +188,7 @@ asyncio.run(main())
 | Submitting stream responses before the stream exists | `create_stream(...)` first, then pass `metadata={"stream_id": ...}` |
 | `download_results_jsonl(..., path=...)` | Argument is **`out`** |
 | `wait_for_completion(batch.id)` with default timeout | Default is 30s — pass an explicit `timeout` |
-| Inventing window values (`"2h"`, `"30m"`) | Async windows are `"15m"` / `"1h"` / `"24h"` only (responses, streams, batches) |
+| Inventing window values (`"2h"`, `"30m"`) | The async window is `"24h"` only (responses, streams, batches) |
 | Content-only JSONL without a model | Pass `model=` to `submit_batch` |
 | Responses-shaped batch row without `messages` | Use `input` in `body` (normalized at create) or chat `messages` — not `background: true` |
 | Guessing JSON field names | See `contract/openapi.json` |
@@ -205,7 +205,7 @@ Use a **two-stage flow**: enqueue with `background=True`, then poll in a separat
 Pattern (see **[examples/prefect/ai_data_analyst_batch_responses.py](examples/prefect/ai_data_analyst_batch_responses.py)**):
 
 1. **Prepare** — build prompts locally (pandas, files, etc.); no inference in this stage.
-2. **Submit** (`@task`, `retries=…`) — `create_response(..., background=True, metadata={"completion_window": "1h"})` per item; return `response.id`.
+2. **Submit** (`@task`, `retries=…`) — `create_response(..., background=True, metadata={"completion_window": "24h"})` per item; return `response.id`.
 3. **Wait** (`@task`, `retries=…`) — `wait_for_response(response_id)`; parse `done.output` message / `output_text` parts.
 4. **Fan-out** — `create_response_request.map(prompts)` then `wait_for_response_completion.map(response_id_futures)` so each prompt is its own task in the Prefect UI.
 
@@ -221,7 +221,7 @@ def create_response_request(prompt: AnalysisPrompt) -> str:
         model="...",
         input=[{"role": "user", "content": prompt.user_content}],
         background=True,
-        metadata={"completion_window": "1h"},  # "15m" / "1h" / "24h"
+        metadata={"completion_window": "24h"},  # "24h" only
     )
     return created.id
 

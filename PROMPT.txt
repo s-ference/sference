@@ -3,7 +3,7 @@ When writing Python against sference, use the sference-sdk package (import sfere
 Rules:
 - Default: create_response(..., background=True) then wait_for_response — not blocking create.
 - Auth: SFERENCE_API_KEY (or SferenceClient(api_key=...)); do not use login() in scripts.
-- Async completion windows: "15m", "1h", or "24h" (default "24h") on background responses (metadata.completion_window), streams (window=), and batches (window=). Realtime sync endpoints (/v1/chat/completions, /v1/messages, blocking /v1/responses) have no window.
+- Async completion window: "24h" (the only supported value) on background responses (metadata.completion_window), streams (window=), and batches (window=). Realtime sync endpoints (/v1/chat/completions, /v1/messages, blocking /v1/responses) have no window.
 - Streams are user-created presets: create_stream(name=..., window="24h") first, then metadata={"stream_id": ..., "completion_window": "24h"} on each response.
 - Batches only for a fixed JSONL file (submit_batch → wait_for_completion → download_results_jsonl). Row body: chat `messages` or Responses `input` (normalized at create); invalid rows 400 at create with requests[i]/custom_id.
 - Do not hand-roll HTTP unless the SDK cannot express the call.

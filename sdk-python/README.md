@@ -24,7 +24,7 @@ uv sync --package sference-sdk
 
 Set `SFERENCE_API_KEY`, or pass `api_key=` to the client.
 
-**Completion windows:** async workloads use `"15m"`, `"1h"`, or `"24h"` on background responses (`metadata.completion_window`), streams (`window=`), and batches (`window=`). Sync realtime endpoints (`/v1/chat/completions`, `/v1/messages`, blocking `/v1/responses`) do not take a window.
+**Completion window:** async workloads use `"24h"` (the only supported value) on background responses (`metadata.completion_window`), streams (`window=`), and batches (`window=`). Sync realtime endpoints (`/v1/chat/completions`, `/v1/messages`, blocking `/v1/responses`) do not take a window.
 
 ### `./workload.jsonl`
 

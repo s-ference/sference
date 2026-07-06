@@ -165,6 +165,14 @@ def _capability_flag(caps: object, key: str) -> str:
     return "—"
 
 
+def _modality_label(raw: object) -> str:
+    if not isinstance(raw, str) or not raw:
+        return "—"
+    if raw.startswith("text_"):
+        return raw.removeprefix("text_")
+    return raw
+
+
 def _print_models_table(payload: object) -> None:
     if not isinstance(payload, dict):
         typer.echo(str(payload))
@@ -177,9 +185,9 @@ def _print_models_table(payload: object) -> None:
         typer.echo("No models.")
         return
 
-    w_id, w_name, w_ctx, w_vis, w_pdf, w_think, w_tools = 34, 18, 8, 6, 4, 8, 5
+    w_id, w_name, w_mod, w_ctx, w_vis, w_pdf, w_think, w_tools = 34, 18, 10, 8, 6, 4, 8, 5
     typer.echo(
-        f"{'id':<{w_id}} {'display_name':<{w_name}} {'context':>{w_ctx}} "
+        f"{'id':<{w_id}} {'display_name':<{w_name}} {'modality':<{w_mod}} {'context':>{w_ctx}} "
         f"{'vision':>{w_vis}} {'pdf':>{w_pdf}} {'thinking':>{w_think}} {'tools':>{w_tools}}"
     )
     for row in rows:
@@ -191,6 +199,9 @@ def _print_models_table(payload: object) -> None:
         display_name = str(row.get("display_name") or "")
         if len(display_name) > w_name:
             display_name = display_name[: w_name - 1] + "…"
+        modality = _modality_label(row.get("modality"))
+        if len(modality) > w_mod:
+            modality = modality[: w_mod - 1] + "…"
         ctx_raw = row.get("context_tokens")
         context = str(ctx_raw) if isinstance(ctx_raw, int) else "—"
         caps = row.get("capabilities")
@@ -199,7 +210,7 @@ def _print_models_table(payload: object) -> None:
         thinking = _capability_flag(caps, "thinking")
         tools = _capability_flag(caps, "tools")
         typer.echo(
-            f"{model_id:<{w_id}} {display_name:<{w_name}} {context:>{w_ctx}} "
+            f"{model_id:<{w_id}} {display_name:<{w_name}} {modality:<{w_mod}} {context:>{w_ctx}} "
             f"{vision:>{w_vis}} {pdf:>{w_pdf}} {thinking:>{w_think}} {tools:>{w_tools}}"
         )
 
@@ -582,7 +593,7 @@ def batch_submit(
     window: str = typer.Option(
         "24h",
         "--window",
-        help='Batch SLA window: "15m", "1h", or "24h".',
+        help='Batch SLA window: "24h" is the only supported value.',
         callback=_window_choice,
     ),
     base_url: str = typer.Option("https://api.sference.com"),
@@ -613,7 +624,7 @@ def batch_stream(
     window: str = typer.Option(
         "24h",
         "--window",
-        help='Batch SLA window: "15m", "1h", or "24h".',
+        help='Batch SLA window: "24h" is the only supported value.',
         callback=_window_choice,
     ),
     poll_interval: float = typer.Option(2.0, "--poll-interval", help="Seconds between status polls while the batch is running."),
@@ -729,7 +740,7 @@ def stream_create(
     window: str = typer.Option(
         "24h",
         "--window",
-        help='Per-item SLA window: "15m", "1h", or "24h" (default for items in this stream).',
+        help='Per-item SLA window: "24h" is the only supported value.',
         callback=_window_choice,
     ),
     base_url: str = typer.Option("https://api.sference.com"),

@@ -7,9 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 BatchStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
 
-# Completion-window SLA tiers accepted by batches, streams, and background responses.
-CompletionWindow = Literal["15m", "1h", "24h"]
-COMPLETION_WINDOWS: tuple[str, ...] = ("15m", "1h", "24h")
+# Completion window accepted by batches, streams, and background responses.
+CompletionWindow = Literal["24h"]
+COMPLETION_WINDOWS: tuple[str, ...] = ("24h",)
 
 
 class InferenceRequest(BaseModel):

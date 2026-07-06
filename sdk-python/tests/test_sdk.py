@@ -131,7 +131,7 @@ def test_submit_batch_raises_api_error_on_http_failure() -> None:
 
 def test_submit_batch_rejects_unknown_window() -> None:
     with SferenceClient(transport=httpx.MockTransport(lambda r: httpx.Response(500)), api_key="tok") as client:
-        with pytest.raises(ValueError, match='"15m", "1h", "24h"'):
+        with pytest.raises(ValueError, match='"24h"'):
             client.submit_batch(
                 requests=[{"custom_id": "r1", "body": {"model": "m", "messages": []}}],
                 window="2h",
@@ -155,10 +155,10 @@ def test_submit_batch_sends_selected_window() -> None:
     with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
         batch = client.submit_batch(
             requests=[{"custom_id": "r1", "body": {"model": "m", "messages": []}}],
-            window="1h",
+            window="24h",
         )
-        assert seen["window"] == "1h"
-        assert batch.window == "1h"
+        assert seen["window"] == "24h"
+        assert batch.window == "24h"
 
 
 def test_cancel_batch_via_httpx_mock_transport() -> None:
