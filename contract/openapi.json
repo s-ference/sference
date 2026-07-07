@@ -1838,10 +1838,10 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "description": "One of: \"available\", \"coming_soon\", \"all\"",
+              "description": "One of: \"available\", \"coming_soon\", \"deprecated\", \"all\"",
               "default": "all"
             },
-            "description": "One of: \"available\", \"coming_soon\", \"all\"",
+            "description": "One of: \"available\", \"coming_soon\", \"deprecated\", \"all\"",
             "required": false,
             "deprecated": false,
             "allowEmptyValue": false,
@@ -3965,7 +3965,8 @@
             "type": "string",
             "enum": [
               "available",
-              "coming_soon"
+              "coming_soon",
+              "deprecated"
             ]
           },
           "modality": {
@@ -3976,6 +3977,16 @@
           },
           "released": {
             "type": "string"
+          },
+          "deprecated": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "input_per_million_usd": {
             "oneOf": [
@@ -4714,6 +4725,7 @@
             "enum": [
               "available",
               "coming_soon",
+              "deprecated",
               null
             ]
           },
