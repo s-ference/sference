@@ -5100,6 +5100,22 @@
         ],
         "title": "ResponseFunctionToolCall"
       },
+      "ResponseIncompleteDetails": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "max_output_tokens",
+              "content_filter"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ResponseIncompleteDetails"
+      },
       "ResponseInputTokensDetails": {
         "properties": {
           "cached_tokens": {
@@ -5135,7 +5151,18 @@
               "in_progress",
               "completed",
               "failed",
-              "cancelled"
+              "cancelled",
+              "incomplete"
+            ]
+          },
+          "incomplete_details": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResponseIncompleteDetails"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "output": {
@@ -5246,7 +5273,8 @@
               "in_progress",
               "completed",
               "failed",
-              "cancelled"
+              "cancelled",
+              "incomplete"
             ]
           }
         },

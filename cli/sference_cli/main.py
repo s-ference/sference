@@ -475,7 +475,7 @@ def responses_result(
             resp = _call_api(lambda: client.get_response(id))
             d = resp.model_dump()
             status = d.get("status") if isinstance(d, dict) else None
-            if status in ("completed", "failed", "cancelled"):
+            if status in ("completed", "failed", "cancelled", "incomplete"):
                 _print(d, True)
                 return
             time.sleep(max(0.01, poll_interval))

@@ -314,7 +314,7 @@ class SferenceClient:
         deadline = time.time() + timeout
         while True:
             item = self.get_response(response_id)
-            if item.status in ("completed", "failed", "cancelled"):
+            if item.status in ("completed", "failed", "cancelled", "incomplete"):
                 return item
             if time.time() >= deadline:
                 raise TimeoutError(f"Timed out waiting for response {response_id}")

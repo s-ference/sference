@@ -66,6 +66,22 @@ def _schema_for(openapi: dict[str, Any], operation_id: str, status_code: str) ->
     return resolved
 
 
+def test_response_status_literal_matches_contract_enum() -> None:
+    """SDK models are hand-written; keep ResponseStatus in sync with the contract enum
+    so a new API status can't crash Response.model_validate in released SDKs."""
+    import typing
+
+    from sference_sdk.models import ResponseStatus
+
+    openapi = _load_openapi()
+    schemas = (openapi.get("components") or {}).get("schemas", {})
+    for schema_name in ("ResponseItem", "ResponseListItem"):
+        enum = schemas[schema_name]["properties"]["status"]["enum"]
+        assert set(typing.get_args(ResponseStatus)) == set(enum), (
+            f"sference_sdk.models.ResponseStatus drifted from {schema_name}.status enum"
+        )
+
+
 def test_mock_fixtures_validate_against_openapi_contract() -> None:
     openapi = _load_openapi()
     fixtures_root = Path(__file__).resolve().parent / "fixtures"

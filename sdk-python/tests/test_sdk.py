@@ -277,6 +277,44 @@ def test_get_response_parses_reasoning_output_item() -> None:
         assert resp.output[1].content[0].text == "The answer is 42."
 
 
+def test_wait_for_response_treats_incomplete_as_terminal() -> None:
+    """max_output_tokens truncation surfaces as status="incomplete"; the poll loop
+    must parse it and stop instead of polling until timeout."""
+    calls = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/v1/responses/resp_trunc":
+            calls["count"] += 1
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "id": "resp_trunc",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "status": "incomplete",
+                    "incomplete_details": {"reason": "max_output_tokens"},
+                    "output": [
+                        {
+                            "type": "message",
+                            "id": "msg_0",
+                            "role": "assistant",
+                            "status": "incomplete",
+                            "content": [{"type": "output_text", "text": "partial", "annotations": []}],
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.wait_for_response("resp_trunc", poll_interval=0.01, timeout=1.0)
+        assert calls["count"] == 1
+        assert resp.status == "incomplete"
+        assert resp.incomplete_details is not None
+        assert resp.incomplete_details.reason == "max_output_tokens"
+
+
 def test_get_response_parses_reasoning_summary_parts() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/responses/resp_qwen":

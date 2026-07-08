@@ -132,6 +132,34 @@ async def test_async_wait_for_completion_via_mock_transport() -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_wait_for_response_treats_incomplete_as_terminal() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/v1/responses/resp_trunc":
+            calls.append("get")
+            return httpx.Response(
+                status_code=200,
+                json={
+                    "id": "resp_trunc",
+                    "object": "response",
+                    "created_at": 1712345678,
+                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "status": "incomplete",
+                    "incomplete_details": {"reason": "max_output_tokens"},
+                },
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = await client.wait_for_response("resp_trunc", poll_interval=0.01, timeout=1.0)
+    assert len(calls) == 1
+    assert resp.status == "incomplete"
+    assert resp.incomplete_details is not None
+    assert resp.incomplete_details.reason == "max_output_tokens"
+
+
+@pytest.mark.asyncio
 async def test_async_get_results_via_mock_transport() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/batches/batch_1/results":

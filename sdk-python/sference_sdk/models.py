@@ -169,7 +169,7 @@ class StreamList(BaseModel):
 
 
 # Response (OpenAI-compatible) models
-ResponseStatus = Literal["in_progress", "completed", "failed", "cancelled"]
+ResponseStatus = Literal["in_progress", "completed", "failed", "cancelled", "incomplete"]
 
 
 class ResponseInputMessage(BaseModel):
@@ -283,6 +283,12 @@ class ResponseError(BaseModel):
     message: str
 
 
+class ResponseIncompleteDetails(BaseModel):
+    """Why a response is ``incomplete`` (e.g. truncated at ``max_output_tokens``)."""
+
+    reason: Literal["max_output_tokens", "content_filter"]
+
+
 class Response(BaseModel):
     """OpenAI-compatible response object."""
 
@@ -291,6 +297,7 @@ class Response(BaseModel):
     created_at: int
     model: str
     status: ResponseStatus
+    incomplete_details: ResponseIncompleteDetails | None = None
     output: list[ResponseOutputContent] | None = None
     error: ResponseError | None = None
     usage: ResponseUsage | None = None
