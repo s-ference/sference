@@ -5945,13 +5945,13 @@
       },
       "TopupCreateRequest": {
         "properties": {
-          "amount_euros": {
+          "amount_usd": {
             "type": "string"
           }
         },
         "type": "object",
         "required": [
-          "amount_euros"
+          "amount_usd"
         ],
         "title": "TopupCreateRequest"
       },
