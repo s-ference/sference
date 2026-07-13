@@ -15,6 +15,14 @@ your existing workflow.
 
 ## Install
 
+**Node.js** (no install needed — npx runs it directly):
+
+```bash
+npx @sference/mcp
+```
+
+**Python**:
+
 ```bash
 pip install sference-mcp
 ```
@@ -38,7 +46,8 @@ or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 {
   "mcpServers": {
     "sference": {
-      "command": "sference-mcp",
+      "command": "npx",
+      "args": ["-y", "@sference/mcp"],
       "env": {
         "SFERENCE_API_KEY": "sk_..."
       }
@@ -56,7 +65,8 @@ Restart Claude Desktop. You now have access to GPU models. Try asking Claude:
 # ~/.config/goose/config.yaml
 mcp_servers:
   sference:
-    command: sference-mcp
+    command: npx
+    args: ["-y", "@sference/mcp"]
     env:
       SFERENCE_API_KEY: sk_...
 ```
@@ -68,7 +78,8 @@ mcp_servers:
 {
   "mcpServers": {
     "sference": {
-      "command": "sference-mcp",
+      "command": "npx",
+      "args": ["-y", "@sference/mcp"],
       "env": {
         "SFERENCE_API_KEY": "sk_..."
       }
@@ -85,7 +96,8 @@ Add to `~/.config/zed/settings.json`:
 {
   "agent_servers": {
     "sference": {
-      "command": "sference-mcp",
+      "command": "npx",
+      "args": ["-y", "@sference/mcp"],
       "env": {
         "SFERENCE_API_KEY": "sk_..."
       }
@@ -97,16 +109,20 @@ Add to `~/.config/zed/settings.json`:
 ### Hermes Agent
 
 ```bash
-hermes mcp add sference --command sference-mcp
+hermes mcp add sference --command npx -- -y @sference/mcp
 # or use the sference-agent-cloud skill
 ```
 
 ### Kimi CLI
 
 ```bash
-kimi config set mcp.sference.command sference-mcp
+kimi config set mcp.sference.command npx
+kimi config set mcp.sference.args '["-y", "@sference/mcp"]'
 kimi config set mcp.sference.env.SFERENCE_API_KEY sk_...
 ```
+
+> **Python alternative**: replace `"command": "npx", "args": ["-y", "@sference/mcp"]`
+> with `"command": "sference-mcp"` in any config above.
 
 ## Tools
 
