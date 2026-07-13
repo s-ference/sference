@@ -133,7 +133,7 @@ Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provid
 
 | Command | Description |
 |---------|-------------|
-| `sference responses create` | Create one response (`--model`, `--content`, optional `--wait`, `--poll-ms`, `--timeout-s`) |
+| `sference responses create` | Create one response (`--model`, `--content`; `--background` submits async and returns immediately). The sync default blocks; if the server-side wait times out, the request is **cancelled** and the command fails — use `--background` + `sference responses result` for long requests |
 | `sference responses result` | Poll until terminal state (`--id`, `--poll-ms`) |
 | `sference responses tail` | Print completion events as JSONL via `GET /v1/responses/events` (optional `--stream-id` to scope to a stream; omit for non-stream completions). Flags: `--consumer`, `--from-latest`, `--no-checkpoint`, `--poll-ms` |
 

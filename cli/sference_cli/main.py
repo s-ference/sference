@@ -109,6 +109,13 @@ def _call_api(fn: Callable[[], _T]) -> _T:
             )
             raise typer.Exit(code=1) from None
         typer.echo(err, err=True)
+        if err.startswith(("504:", "408:")):
+            typer.echo(
+                "The synchronous wait timed out and the request was cancelled. "
+                "For long-running requests, resubmit with --background and fetch "
+                "the result with `sference responses result --id <id>`.",
+                err=True,
+            )
         raise typer.Exit(code=1) from None
 
 
@@ -138,6 +145,13 @@ def _get_batch_or_missing(client: SferenceClient, batch_id: str) -> Any | None:
             )
             raise typer.Exit(code=1) from None
         typer.echo(err, err=True)
+        if err.startswith(("504:", "408:")):
+            typer.echo(
+                "The synchronous wait timed out and the request was cancelled. "
+                "For long-running requests, resubmit with --background and fetch "
+                "the result with `sference responses result --id <id>`.",
+                err=True,
+            )
         raise typer.Exit(code=1) from None
 
 
@@ -431,7 +445,12 @@ def responses_create(
     background: bool = typer.Option(
         False,
         "--background/--no-background",
-        help="Submit asynchronously and return immediately. Default blocks until the response is terminal (matches POST /v1/responses).",
+        help=(
+            "Submit asynchronously and return immediately; fetch later with "
+            "`sference responses result`. Default blocks until the response is "
+            "terminal; if the server-side sync wait times out the request is "
+            "cancelled and the command fails — use --background for long requests."
+        ),
     ),
     timeout: float = typer.Option(
         600.0,

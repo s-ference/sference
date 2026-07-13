@@ -3126,6 +3126,16 @@
               }
             ]
           },
+          "cost_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error": {
             "oneOf": [
               {
@@ -3249,6 +3259,16 @@
             ]
           },
           "cached_prompt_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_micros": {
             "oneOf": [
               {
                 "type": "integer"
@@ -3735,6 +3755,10 @@
             "default": 0
           },
           "total_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_cost_micros": {
             "type": "integer",
             "default": 0
           }
@@ -4331,6 +4355,10 @@
           },
           "request_count": {
             "type": "integer"
+          },
+          "cost_micros": {
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
@@ -4788,6 +4816,10 @@
           },
           "total_requests": {
             "type": "integer"
+          },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
@@ -5669,6 +5701,10 @@
             "type": "integer",
             "default": 0
           },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
           "last_completion_at": {
             "oneOf": [
               {
@@ -5796,6 +5832,16 @@
             ]
           },
           "total_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_micros": {
             "oneOf": [
               {
                 "type": "integer"
@@ -6003,6 +6049,10 @@
           },
           "total_requests": {
             "type": "integer"
+          },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
