@@ -63,6 +63,17 @@ def build_claude_env(
     env["ANTHROPIC_BASE_URL"] = base_url
     env["ANTHROPIC_AUTH_TOKEN"] = api_key
     env["ANTHROPIC_MODEL"] = model
+    # Subagents and background calls resolve model aliases (opus/sonnet/haiku/fable)
+    # independently of ANTHROPIC_MODEL; pin every alias to the catalog model so no
+    # request goes out with a claude-* model id the API can't serve.
+    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model
+    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model
+    env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = model
+    env["ANTHROPIC_DEFAULT_FABLE_MODEL"] = model
+    env["CLAUDE_CODE_SUBAGENT_MODEL"] = model
+    # Deprecated alias for ANTHROPIC_DEFAULT_HAIKU_MODEL; still read by older
+    # Claude Code versions, and a user-set value would leak a claude-* id.
+    env["ANTHROPIC_SMALL_FAST_MODEL"] = model
     # Claude Code prefers AUTH_TOKEN; drop API_KEY to avoid precedence confusion.
     env.pop("ANTHROPIC_API_KEY", None)
     if enable_tool_search:
@@ -102,6 +113,14 @@ def launch_claude_code(
     if dry_run:
         typer.echo(f"ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}")
         typer.echo(f"ANTHROPIC_MODEL={env['ANTHROPIC_MODEL']}")
+        for alias_var in (
+            "ANTHROPIC_DEFAULT_OPUS_MODEL",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL",
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+            "ANTHROPIC_DEFAULT_FABLE_MODEL",
+            "CLAUDE_CODE_SUBAGENT_MODEL",
+        ):
+            typer.echo(f"{alias_var}={env[alias_var]}")
         typer.echo("ANTHROPIC_AUTH_TOKEN=<redacted>")
         if enable_tool_search:
             typer.echo("ENABLE_TOOL_SEARCH=true")

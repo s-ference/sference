@@ -838,6 +838,11 @@ def test_claude_dry_run_prints_env(monkeypatch):
     assert result.exit_code == 0
     assert "ANTHROPIC_BASE_URL=https://api.sference.com" in result.stdout
     assert "ANTHROPIC_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "ANTHROPIC_DEFAULT_FABLE_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "CLAUDE_CODE_SUBAGENT_MODEL=moonshotai/Kimi-K2.6" in result.stdout
     assert "ANTHROPIC_AUTH_TOKEN=<redacted>" in result.stdout
     assert "ENABLE_TOOL_SEARCH=true" in result.stdout
     assert "command: /usr/local/bin/claude" in result.stdout
@@ -861,6 +866,12 @@ def test_claude_forwards_extra_args(monkeypatch):
     assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
     assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "moonshotai/Kimi-K2.7-Code"
 
 
 def test_claude_missing_binary_exits(monkeypatch):
