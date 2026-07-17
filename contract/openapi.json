@@ -3126,6 +3126,16 @@
               }
             ]
           },
+          "cost_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error": {
             "oneOf": [
               {
@@ -3249,6 +3259,16 @@
             ]
           },
           "cached_prompt_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_micros": {
             "oneOf": [
               {
                 "type": "integer"
@@ -3735,6 +3755,10 @@
             "default": 0
           },
           "total_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_cost_micros": {
             "type": "integer",
             "default": 0
           }
@@ -4331,6 +4355,10 @@
           },
           "request_count": {
             "type": "integer"
+          },
+          "cost_micros": {
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
@@ -4788,6 +4816,10 @@
           },
           "total_requests": {
             "type": "integer"
+          },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
@@ -5669,6 +5701,10 @@
             "type": "integer",
             "default": 0
           },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
           "last_completion_at": {
             "oneOf": [
               {
@@ -5796,6 +5832,16 @@
             ]
           },
           "total_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_micros": {
             "oneOf": [
               {
                 "type": "integer"
@@ -6003,6 +6049,10 @@
           },
           "total_requests": {
             "type": "integer"
+          },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
           }
         },
         "type": "object",
@@ -6040,14 +6090,10 @@
           },
           "role": {
             "type": "string"
-          },
-          "realtime_enabled": {
-            "type": "boolean"
           }
         },
         "type": "object",
         "required": [
-          "realtime_enabled",
           "role",
           "username"
         ],
@@ -6103,6 +6149,16 @@
                 "type": "null"
               }
             ]
+          },
+          "pricing": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/V1ModelPricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6132,6 +6188,43 @@
           "data"
         ],
         "title": "V1ModelListResponse"
+      },
+      "V1ModelPricing": {
+        "properties": {
+          "input_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "output_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cached_input_per_million_usd": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "V1ModelPricing"
       },
       "VerifyEmailRequest": {
         "properties": {
