@@ -3514,10 +3514,24 @@
             "type": "string"
           },
           "max_input_tokens": {
-            "type": "integer"
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max_tokens": {
-            "type": "integer"
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "capabilities": {
             "$ref": "#/components/schemas/ModelCapabilities"
@@ -3527,9 +3541,7 @@
         "required": [
           "created_at",
           "display_name",
-          "id",
-          "max_input_tokens",
-          "max_tokens"
+          "id"
         ],
         "title": "AnthropicModelItemResponse"
       },
