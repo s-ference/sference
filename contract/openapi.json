@@ -4012,6 +4012,9 @@
               }
             ]
           },
+          "max_output_tokens": {
+            "type": "integer"
+          },
           "input_per_million_usd": {
             "oneOf": [
               {
@@ -4067,6 +4070,7 @@
           "deployed_on_platform",
           "display_name",
           "id",
+          "max_output_tokens",
           "modality",
           "platform_status",
           "released"
@@ -4186,6 +4190,17 @@
                 "type": "null"
               }
             ]
+          },
+          "prompt_cache_key": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable identifier for a sequence of requests that share a long prefix (a chat session, an agent loop). Requests with the same key are routed to the same worker while it stays warm, so the shared prefix is served from its prompt cache. Without it, placement is inferred from the message text."
           },
           "service_tier": {
             "oneOf": [
@@ -4693,6 +4708,16 @@
               }
             ]
           },
+          "max_output_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "released": {
             "oneOf": [
               {
@@ -5055,6 +5080,17 @@
                 "type": "null"
               }
             ]
+          },
+          "prompt_cache_key": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable identifier for a sequence of requests that share a long prefix (a chat session, an agent loop). Requests with the same key are routed to the same worker while it stays warm, so the shared prefix is served from its prompt cache. Without it, placement is inferred from the input text."
           },
           "service_tier": {
             "oneOf": [
@@ -6134,6 +6170,26 @@
             "oneOf": [
               {
                 "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_output_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "released": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
