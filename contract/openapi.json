@@ -4606,6 +4606,17 @@
               }
             ]
           },
+          "prompt_cache_key": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable identifier for a sequence of requests that share a long prefix (a chat session, an agent loop). Requests with the same key are routed to the same worker while it stays warm, so the shared prefix is served from its prompt cache. Without it, placement is inferred from the message text."
+          },
           "service_tier": {
             "oneOf": [
               {
@@ -5474,6 +5485,17 @@
                 "type": "null"
               }
             ]
+          },
+          "prompt_cache_key": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable identifier for a sequence of requests that share a long prefix (a chat session, an agent loop). Requests with the same key are routed to the same worker while it stays warm, so the shared prefix is served from its prompt cache. Without it, placement is inferred from the input text."
           },
           "service_tier": {
             "oneOf": [
