@@ -2085,6 +2085,138 @@
         "deprecated": false
       }
     },
+    "/control/v1/models/custom": {
+      "post": {
+        "summary": "CreateCustomModel",
+        "operationId": "ControlV1ModelsCustomCreateCustomModel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomModelCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogModelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "summary": "DeleteCustomModel",
+        "operationId": "ControlV1ModelsCustomDeleteCustomModel",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "description": "Custom model id (e.g. org/name)"
+            },
+            "description": "Custom model id (e.g. org/name)",
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/models/catalog": {
       "get": {
         "summary": "GetCatalog",
@@ -2236,6 +2368,155 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/deployments": {
+      "get": {
+        "summary": "ListDeployments",
+        "operationId": "ControlV1DeploymentsListDeployments",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "summary": "CreateDeployment",
+        "operationId": "ControlV1DeploymentsCreateDeployment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeploymentCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/deployments/{deployment_id}": {
+      "delete": {
+        "summary": "DeleteDeployment",
+        "operationId": "ControlV1DeploymentsDeploymentIdDeleteDeployment",
+        "parameters": [
+          {
+            "name": "deployment_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
           },
           "400": {
             "description": "Bad request syntax or unsupported method",
@@ -4478,6 +4759,58 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "ownership": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "custom"
+            ],
+            "default": "platform"
+          },
+          "deploy_status": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "pending_deploy",
+              "deploying",
+              "available",
+              "rejected",
+              "failed",
+              null
+            ]
+          },
+          "architecture": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_hf_token": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4762,6 +5095,132 @@
         ],
         "title": "CreateEmbeddingRequest"
       },
+      "CustomModelCreateRequest": {
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1
+          },
+          "display_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 512
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "text_generation",
+              "text_embedding"
+            ],
+            "default": "text_generation"
+          },
+          "architecture": {
+            "type": "string",
+            "enum": [
+              "qwen",
+              "llama",
+              "kimi",
+              "glm",
+              "deepseek",
+              "minimax",
+              "gemma",
+              "gpt_oss",
+              "custom"
+            ]
+          },
+          "architecture_detail": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 1024
+          },
+          "artifact_type": {
+            "type": "string",
+            "enum": [
+              "full",
+              "lora"
+            ],
+            "default": "full"
+          },
+          "base_model_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 512
+          },
+          "hf_repo": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 512
+          },
+          "hf_revision": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 256
+          },
+          "private_repo": {
+            "type": "boolean",
+            "default": false
+          },
+          "hf_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 2048
+          },
+          "notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 4000
+          }
+        },
+        "type": "object",
+        "required": [
+          "architecture",
+          "model_id"
+        ],
+        "title": "CustomModelCreateRequest"
+      },
       "DailyUsage": {
         "properties": {
           "date": {
@@ -4801,6 +5260,201 @@
           "total_tokens"
         ],
         "title": "DailyUsage"
+      },
+      "DeploymentCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "model_source": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "custom"
+            ]
+          },
+          "model_id": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1
+          },
+          "region": {
+            "type": "string",
+            "enum": [
+              "emea",
+              "global"
+            ],
+            "default": "emea"
+          },
+          "hardware": {
+            "type": "string",
+            "enum": [
+              "4xb300",
+              "8xb300",
+              "4xb200",
+              "8xb200",
+              "4xmi250",
+              "8xmi250"
+            ],
+            "default": "4xb300"
+          },
+          "min_replicas": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "default": 0
+          },
+          "max_replicas": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "default": 1
+          },
+          "notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 4000
+          }
+        },
+        "type": "object",
+        "required": [
+          "model_id",
+          "model_source",
+          "name"
+        ],
+        "title": "DeploymentCreateRequest"
+      },
+      "DeploymentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeploymentResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "DeploymentListResponse"
+      },
+      "DeploymentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "model_source": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "custom"
+            ]
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "hardware": {
+            "type": "string",
+            "enum": [
+              "4xb300",
+              "8xb300",
+              "4xb200",
+              "8xb200",
+              "4xmi250",
+              "8xmi250"
+            ]
+          },
+          "price_per_hour_usd": {
+            "type": "number"
+          },
+          "min_replicas": {
+            "type": "integer"
+          },
+          "max_replicas": {
+            "type": "integer"
+          },
+          "notes": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_deploy",
+              "deploying",
+              "available",
+              "rejected",
+              "failed"
+            ]
+          },
+          "status_reason": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activated_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "hardware",
+          "id",
+          "max_replicas",
+          "min_replicas",
+          "model_id",
+          "model_source",
+          "name",
+          "price_per_hour_usd",
+          "region",
+          "status",
+          "updated_at"
+        ],
+        "title": "DeploymentResponse"
       },
       "ForgotPasswordRequest": {
         "properties": {
