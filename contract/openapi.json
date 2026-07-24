@@ -4115,6 +4115,19 @@
               }
             ]
           },
+          "stop_sequences": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stream": {
             "type": "boolean",
             "default": false
@@ -4133,6 +4146,16 @@
             "oneOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_k": {
+            "oneOf": [
+              {
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4856,6 +4879,30 @@
               }
             ]
           },
+          "presence_penalty": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 2.0,
+            "minimum": -2.0
+          },
+          "frequency_penalty": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 2.0,
+            "minimum": -2.0
+          },
           "max_tokens": {
             "oneOf": [
               {
@@ -4867,6 +4914,65 @@
             ]
           },
           "max_completion_tokens": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "top_k": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "minimum": -1
+          },
+          "min_p": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 1.0
+          },
+          "repetition_penalty": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 2.0
+          },
+          "stop": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seed": {
             "oneOf": [
               {
                 "type": "integer"
@@ -4923,6 +5029,16 @@
               {
                 "additionalProperties": {},
                 "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reasoning_effort": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -5288,17 +5404,14 @@
             ],
             "default": "emea"
           },
-          "hardware": {
+          "performance": {
             "type": "string",
             "enum": [
-              "4xb300",
-              "8xb300",
-              "4xb200",
-              "8xb200",
-              "4xmi250",
-              "8xmi250"
+              "cost_saving",
+              "standard",
+              "turbo"
             ],
-            "default": "4xb300"
+            "default": "standard"
           },
           "min_replicas": {
             "type": "integer",
@@ -5369,19 +5482,13 @@
           "region": {
             "type": "string"
           },
-          "hardware": {
+          "performance": {
             "type": "string",
             "enum": [
-              "4xb300",
-              "8xb300",
-              "4xb200",
-              "8xb200",
-              "4xmi250",
-              "8xmi250"
+              "cost_saving",
+              "standard",
+              "turbo"
             ]
-          },
-          "price_per_hour_usd": {
-            "type": "number"
           },
           "min_replicas": {
             "type": "integer"
@@ -5442,14 +5549,13 @@
         "type": "object",
         "required": [
           "created_at",
-          "hardware",
           "id",
           "max_replicas",
           "min_replicas",
           "model_id",
           "model_source",
           "name",
-          "price_per_hour_usd",
+          "performance",
           "region",
           "status",
           "updated_at"
@@ -5987,6 +6093,33 @@
         ],
         "title": "PricingInfo"
       },
+      "ReasoningConfig": {
+        "properties": {
+          "effort": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ReasoningConfig"
+      },
       "ResetPasswordRequest": {
         "properties": {
           "token": {
@@ -6121,6 +6254,30 @@
                 "type": "null"
               }
             ]
+          },
+          "reasoning": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "include": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Not supported. Every value OpenAI defines here depends on a feature this API does not implement, so requests carrying it are rejected rather than silently ignored \u2014 an ignored `include` looks identical to an unsupported one until you inspect the response and find the data missing."
           },
           "background": {
             "type": "boolean",
