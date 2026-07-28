@@ -7,10 +7,13 @@ import os
 import shutil
 import subprocess
 import sys
+import urllib.error
 from pathlib import Path
 from typing import Optional
 
 import typer
+
+from .proxy import fetch_sference_models, launch_claude_via_proxy
 
 DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K2.7-Code"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
@@ -321,7 +324,7 @@ def register_launch_commands(app: typer.Typer) -> None:
     @launch_app.command(
         "claude",
         context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-        help="Launch Claude Code with Sference API routing.",
+        help="Launch Claude Code with a local Sference proxy (default). Use --no-anthropic for the direct env-var mode.",
     )
     def claude(
         ctx: typer.Context,
@@ -329,7 +332,8 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help=f"Catalog model id (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help="Proxy mode: catalog id to inject into the /model picker. --no-anthropic: the pinned model (default: "
+            f"{DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -337,22 +341,44 @@ def register_launch_commands(app: typer.Typer) -> None:
             envvar="SFERENCE_BASE_URL",
             help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
         ),
+        no_anthropic: bool = typer.Option(
+            False,
+            "--no-anthropic",
+            help="Disable the proxy and route everything directly to the Sference endpoint "
+            "(today's ANTHROPIC_BASE_URL env-var behavior; no hybrid routing, no /model picker).",
+        ),
+        models: Optional[str] = typer.Option(
+            None,
+            "--models",
+            help="Proxy mode: comma-separated catalog ids to route and inject into the picker "
+            "(default: live GET /v1/models). Ignored with --no-anthropic.",
+        ),
+        proxy_port: Optional[int] = typer.Option(
+            None,
+            "--proxy-port",
+            help="Local mitmproxy port (default: auto-pick a free port). Proxy mode only.",
+        ),
         enable_tool_search: bool = typer.Option(
             False,
             "--enable-tool-search",
-            help="Set ENABLE_TOOL_SEARCH=true for Claude Code on a custom API host.",
+            help="Set ENABLE_TOOL_SEARCH=true (only meaningful with --no-anthropic; the proxy "
+            "keeps first-party detection on, so tool search already works).",
         ),
         dry_run: bool = typer.Option(
             False,
             "--dry-run",
-            help="Print env and command without launching Claude Code.",
+            help="Print the proxy/env config and command without launching anything.",
         ),
     ) -> None:
         """Run ``claude`` with Sference credentials.
 
-        Uses ``~/.sference/credentials.json`` or ``SFERENCE_API_KEY``. Unknown options
-        and trailing args are forwarded to Claude Code, e.g.
-        ``sference launch claude --resume`` or ``sference launch claude -p "fix the bug"``.
+        By default a local mitmproxy forward proxy routes Sference models to
+        ``api.sference.com`` (native ``/v1/messages``, body untranslated) while
+        Claude Code's first-party detection stays on — Sference models appear in
+        the ``/model`` picker and real Claude models pass through to Anthropic.
+        ``--no-anthropic`` switches to the direct env-var mode (everything to one
+        Sference model). Unknown options and trailing args are forwarded to
+        Claude Code, e.g. ``sference launch claude -p "fix the bug"``.
         """
         from sference_cli.main import _ensure_api_credential, _read_token
 
@@ -365,13 +391,50 @@ def register_launch_commands(app: typer.Typer) -> None:
         if forwarded and forwarded[0] == "--":
             forwarded = forwarded[1:]
 
-        launch_claude_code(
+        resolved_base = resolve_api_base_url(base_url)
+
+        if no_anthropic:
+            launch_claude_code(
+                api_key=api_key,
+                base_url=resolved_base,
+                model=resolve_launch_model(model),
+                enable_tool_search=enable_tool_search,
+                claude_args=forwarded,
+                dry_run=dry_run,
+            )
+            return
+
+        if enable_tool_search:
+            typer.echo(
+                "note: --enable-tool-search is a no-op in proxy mode (first-party "
+                "detection is on, so tool search already works).",
+                err=True,
+            )
+
+        # Proxy mode: resolve the routable model set.
+        if models:
+            model_set = {m.strip() for m in models.split(",") if m.strip()}
+        elif model:
+            model_set = {model}
+        else:
+            typer.echo(f"Fetching routable models from {resolved_base}/v1/models ...")
+            try:
+                model_set = fetch_sference_models(resolved_base, api_key)
+            except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError) as e:
+                typer.echo(f"ERROR: could not fetch models from {resolved_base}/v1/models: {e}", err=True)
+                typer.echo("Pass --models or --model explicitly to bypass the lookup.", err=True)
+                raise typer.Exit(code=1) from None
+            if not model_set:
+                typer.echo("ERROR: /v1/models returned no text-generation models for this account.", err=True)
+                raise typer.Exit(code=1)
+
+        launch_claude_via_proxy(
             api_key=api_key,
-            base_url=resolve_api_base_url(base_url),
-            model=resolve_launch_model(model),
-            enable_tool_search=enable_tool_search,
+            base_url=resolved_base,
+            models=model_set,
             claude_args=forwarded,
             dry_run=dry_run,
+            proxy_port=proxy_port,
         )
 
     @launch_app.command(
