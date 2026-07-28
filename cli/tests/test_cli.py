@@ -1361,23 +1361,30 @@ def test_build_allow_hosts_regex() -> None:
     import re as _re
 
     rx = build_allow_hosts_regex("https://api.sference.com")
-    # mitmproxy's _is_destination_in_hosts matches against the bare hostname
-    # (context.server.address[0]) and the TLS SNI — never "host:port" — so the
-    # regex is anchored to the hostname alone.
-    assert _re.search(rx, "api.anthropic.com", _re.IGNORECASE)
-    assert _re.search(rx, "api.sference.com", _re.IGNORECASE)
-    assert _re.search(rx, "API.SFERENCE.COM", _re.IGNORECASE)  # case-insensitive
+    # mitmproxy's NextLayer._ignore_connection tests "host:port" strings ONLY
+    # (built from server.address / peername / Host header / SNI) -- never a
+    # bare hostname. Matching the port form is what makes interception happen
+    # at all; a hostname-anchored regex silently passes everything through.
+    assert _re.search(rx, "api.anthropic.com:443", _re.IGNORECASE)
+    assert _re.search(rx, "api.sference.com:443", _re.IGNORECASE)
+    assert _re.search(rx, "API.SFERENCE.COM:443", _re.IGNORECASE)  # case-insensitive
+    assert _re.search(rx, "api.sference.com:8443", _re.IGNORECASE)  # any port
+    # regression: a bare hostname must NOT be what we rely on -- if this ever
+    # becomes the only thing that matches, interception is broken (the addon
+    # stops seeing flows and Sference models vanish from the /model picker).
+    assert not _re.search(rx, "api.anthropic.com", _re.IGNORECASE)
     # everything else bypasses interception
-    assert not _re.search(rx, "api.github.com", _re.IGNORECASE)
-    assert not _re.search(rx, "anthropic.com.evil.example", _re.IGNORECASE)
+    assert not _re.search(rx, "api.github.com:443", _re.IGNORECASE)
+    assert not _re.search(rx, "anthropic.com.evil.example:443", _re.IGNORECASE)
+    assert not _re.search(rx, "notapi.sference.com:443", _re.IGNORECASE)
     # a base URL carrying a port or /v1 still yields just the host
     rx2 = build_allow_hosts_regex("https://api.sference.com:8443/v1")
-    assert _re.search(rx2, "api.sference.com", _re.IGNORECASE)
-    assert not _re.search(rx2, "sference.com", _re.IGNORECASE)  # no subdomain bleed
+    assert _re.search(rx2, "api.sference.com:443", _re.IGNORECASE)
+    assert not _re.search(rx2, "sference.com:443", _re.IGNORECASE)  # no subdomain bleed
     # dots are escaped (literal match, not wildcard)
     rx3 = build_allow_hosts_regex("https://apiXsferenceYcom")
-    assert _re.search(rx3, "apiXsferenceYcom")
-    assert not _re.search(rx3, "api.sference.com")
+    assert _re.search(rx3, "apiXsferenceYcom:443")
+    assert not _re.search(rx3, "api.sference.com:443")
 
 
 def test_parse_models_env() -> None:

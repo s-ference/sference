@@ -48,16 +48,22 @@ def build_allow_hosts_regex(sference_base_url: str) -> str:
     injection) and the Sference API (the rewrite target) — get terminated.
 
     Returns a single alternation regex, e.g.
-    ``^(api\\.anthropic\\.com|api\\.sference\\.com)$``. Hosts are matched
-    case-insensitively by mitmproxy, with an optional ``:port`` suffix handled
-    by mitmproxy itself (it matches against both ``host`` and ``host:port``).
+    ``^(api\\.anthropic\\.com|api\\.sference\\.com):\\d+$``.
+
+    The trailing ``:port`` is REQUIRED, not optional. mitmproxy's
+    ``NextLayer._ignore_connection`` builds every candidate string as
+    ``f"{host}:{port}"`` (from ``server.peername``, ``server.address``, the
+    HTTP Host header, and the TLS SNI) — it never tests a bare hostname. A
+    regex anchored ``^host$`` therefore matches nothing, every connection
+    counts as not-allowed, and the proxy silently degrades to raw TCP
+    passthrough for ALL traffic, including the hosts we need to intercept.
     """
     hosts = {ANTHROPIC_API_HOST}
     netloc = urlsplit(sference_base_url.rstrip("/")).netloc
-    host = netloc.split(":", 1)[0]  # drop any port; mitmproxy adds :port itself
+    host = netloc.split(":", 1)[0]  # drop any port; mitmproxy appends its own
     if host:
         hosts.add(host)
-    return "^(" + "|".join(re.escape(h) for h in sorted(hosts)) + ")$"
+    return "^(" + "|".join(re.escape(h) for h in sorted(hosts)) + r"):\d+$"
 
 
 def decide_routing(
