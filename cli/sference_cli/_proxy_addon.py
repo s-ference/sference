@@ -78,9 +78,9 @@ class SferenceRouter:
             ):
                 body, dropped = strip_unsigned_thinking_blocks(body)
                 if dropped:
-                    flow.request.set_text(json.dumps(body))
-                    flow.request.headers.pop("content-length", None)
-                    flow.request.headers.pop("Content-Length", None)
+                    new_body = json.dumps(body)
+                    flow.request.set_text(new_body)
+                    flow.request.headers["content-length"] = str(len(new_body))
                     ctx.log.info(
                         f"sference: stripped {dropped} unsigned thinking block(s) "
                         "from Anthropic-bound request"
