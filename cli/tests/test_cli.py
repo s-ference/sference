@@ -1090,6 +1090,7 @@ from sference_cli._proxy_routing import (  # noqa: E402
     BOOTSTRAP,
     PASSTHROUGH,
     SFERENCE,
+    build_allow_hosts_regex,
     decide_routing,
     inject_models_into_bootstrap,
     parse_models_env,
@@ -1180,6 +1181,13 @@ def test_claude_proxy_launches_through_mitmproxy(monkeypatch, tmp_path: Path):
     assert len(launches) == 2  # mitmproxy, then claude
     assert launches[0].cmd[0] == "/usr/local/bin/mitmdump"
     assert "-s" in launches[0].cmd
+    # TLS interception is scoped to only the hosts we route (see
+    # build_allow_hosts_regex) so other tools Claude Code spawns aren't broken.
+    allow_sets = [c for c in launches[0].cmd if isinstance(c, str) and c.startswith("allow_hosts=")]
+    assert allow_sets, f"no allow_hosts in {launches[0].cmd}"
+    # dots are escaped in the regex
+    assert "api\\.anthropic\\.com" in allow_sets[0]
+    assert "api\\.sference\\.com" in allow_sets[0]
     assert launches[1].cmd[0] == "/usr/local/bin/claude"
     assert launches[1].cmd[1:] == ["-p", "hi"]  # forwarded args
     claude_env = launches[1].env
@@ -1347,6 +1355,29 @@ def test_strip_unsigned_thinking_blocks() -> None:
     assert strip_unsigned_thinking_blocks("not a dict") == ("not a dict", 0)
     assert strip_unsigned_thinking_blocks({}) == ({}, 0)
     assert strip_unsigned_thinking_blocks({"messages": "nope"}) == ({"messages": "nope"}, 0)
+
+
+def test_build_allow_hosts_regex() -> None:
+    import re as _re
+
+    rx = build_allow_hosts_regex("https://api.sference.com")
+    # mitmproxy's _is_destination_in_hosts matches against the bare hostname
+    # (context.server.address[0]) and the TLS SNI — never "host:port" — so the
+    # regex is anchored to the hostname alone.
+    assert _re.search(rx, "api.anthropic.com", _re.IGNORECASE)
+    assert _re.search(rx, "api.sference.com", _re.IGNORECASE)
+    assert _re.search(rx, "API.SFERENCE.COM", _re.IGNORECASE)  # case-insensitive
+    # everything else bypasses interception
+    assert not _re.search(rx, "api.github.com", _re.IGNORECASE)
+    assert not _re.search(rx, "anthropic.com.evil.example", _re.IGNORECASE)
+    # a base URL carrying a port or /v1 still yields just the host
+    rx2 = build_allow_hosts_regex("https://api.sference.com:8443/v1")
+    assert _re.search(rx2, "api.sference.com", _re.IGNORECASE)
+    assert not _re.search(rx2, "sference.com", _re.IGNORECASE)  # no subdomain bleed
+    # dots are escaped (literal match, not wildcard)
+    rx3 = build_allow_hosts_regex("https://apiXsferenceYcom")
+    assert _re.search(rx3, "apiXsferenceYcom")
+    assert not _re.search(rx3, "api.sference.com")
 
 
 def test_parse_models_env() -> None:

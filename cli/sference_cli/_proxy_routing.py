@@ -16,6 +16,7 @@ the response is already native Anthropic. No Anthropic↔OpenAI translation.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -23,6 +24,40 @@ from urllib.parse import urlsplit, urlunsplit
 PASSTHROUGH = "passthrough"  # leave untouched, goes to the real upstream
 SFERENCE = "sference"  # rewrite to the Sference /v1/messages endpoint
 BOOTSTRAP = "bootstrap"  # Claude Code /api/claude_cli/bootstrap — inject models
+
+# Hosts the addon actually acts on. Everything else must bypass TLS
+# interception (see build_allow_hosts_regex).
+ANTHROPIC_API_HOST = "api.anthropic.com"
+
+
+def build_allow_hosts_regex(sference_base_url: str) -> str:
+    """Build the mitmproxy ``allow_hosts`` regex limiting interception to the
+    hosts this proxy needs to touch.
+
+    The launcher sets ``HTTPS_PROXY`` on the whole ``claude`` process, and
+    Claude Code passes its env through to every tool it spawns (Bash, curl,
+    gh, …). Without scoping, mitmproxy TLS-intercepts ALL of that traffic and
+    any tool that doesn't trust the mitmproxy CA (every non-Node binary: Go's
+    ``gh``, system curl, etc.) fails with an x509 error — even for hosts we
+    never route.
+
+    mitmproxy's ``allow_hosts`` inverts that: connections to non-matching hosts
+    are passed through as raw TCP (``TCPLayer(ignore=True)``) with NO TLS
+    termination, so they neither break nor pollute the flow log. Only the
+    hosts we genuinely intercept — Anthropic's API (routing + bootstrap model
+    injection) and the Sference API (the rewrite target) — get terminated.
+
+    Returns a single alternation regex, e.g.
+    ``^(api\\.anthropic\\.com|api\\.sference\\.com)$``. Hosts are matched
+    case-insensitively by mitmproxy, with an optional ``:port`` suffix handled
+    by mitmproxy itself (it matches against both ``host`` and ``host:port``).
+    """
+    hosts = {ANTHROPIC_API_HOST}
+    netloc = urlsplit(sference_base_url.rstrip("/")).netloc
+    host = netloc.split(":", 1)[0]  # drop any port; mitmproxy adds :port itself
+    if host:
+        hosts.add(host)
+    return "^(" + "|".join(re.escape(h) for h in sorted(hosts)) + ")$"
 
 
 def decide_routing(
