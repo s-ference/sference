@@ -33,6 +33,8 @@ from typing import Optional
 
 import typer
 
+from sference_cli._proxy_routing import build_allow_hosts_regex
+
 MITM_CA_CERT = Path.home() / ".mitmproxy" / "mitmproxy-ca-cert.pem"
 DEFAULT_FLOW_DETAIL = "1"
 # Stable, discoverable log path (not the ephemeral temp dir, which is hard to find
@@ -173,6 +175,7 @@ def launch_claude_via_proxy(
         typer.echo(f"HTTPS_PROXY=http://127.0.0.1:{port}")
         typer.echo(f"NODE_EXTRA_CA_CERTS={MITM_CA_CERT}")
         typer.echo("ANTHROPIC_BASE_URL=<unset> (first-party detection stays on)")
+        typer.echo(f"allow_hosts={build_allow_hosts_regex(sference_base)} (only these hosts are TLS-intercepted)")
         typer.echo(f"command: {claude_bin} {' '.join(claude_args)}".rstrip())
         return
 
@@ -183,11 +186,17 @@ def launch_claude_via_proxy(
         "SFERENCE_BASE_URL": sference_base,
         "SFERENCE_PROXY_MODELS": json.dumps(sorted(models)),
     }
+    # Scope TLS interception to just the hosts we route. Without this, every
+    # tool Claude Code spawns (Bash → curl, gh, …) also goes through the proxy
+    # and fails TLS validation unless it trusts the mitmproxy CA. allow_hosts
+    # makes non-matching hosts pass through as raw TCP — no CA involvement.
+    allow_hosts = build_allow_hosts_regex(sference_base)
     mitm_cmd = [
         shutil.which("mitmdump"),
         "-p", str(port),
         "--listen-host", "127.0.0.1",
         "--set", f"flow_detail={os.environ.get('FLOW_DETAIL', DEFAULT_FLOW_DETAIL)}",
+        "--set", f"allow_hosts={allow_hosts}",
         "-s", str(addon_path),
     ]
 

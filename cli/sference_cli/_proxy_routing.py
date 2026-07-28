@@ -16,6 +16,7 @@ the response is already native Anthropic. No Anthropic↔OpenAI translation.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -23,6 +24,46 @@ from urllib.parse import urlsplit, urlunsplit
 PASSTHROUGH = "passthrough"  # leave untouched, goes to the real upstream
 SFERENCE = "sference"  # rewrite to the Sference /v1/messages endpoint
 BOOTSTRAP = "bootstrap"  # Claude Code /api/claude_cli/bootstrap — inject models
+
+# Hosts the addon actually acts on. Everything else must bypass TLS
+# interception (see build_allow_hosts_regex).
+ANTHROPIC_API_HOST = "api.anthropic.com"
+
+
+def build_allow_hosts_regex(sference_base_url: str) -> str:
+    """Build the mitmproxy ``allow_hosts`` regex limiting interception to the
+    hosts this proxy needs to touch.
+
+    The launcher sets ``HTTPS_PROXY`` on the whole ``claude`` process, and
+    Claude Code passes its env through to every tool it spawns (Bash, curl,
+    gh, …). Without scoping, mitmproxy TLS-intercepts ALL of that traffic and
+    any tool that doesn't trust the mitmproxy CA (every non-Node binary: Go's
+    ``gh``, system curl, etc.) fails with an x509 error — even for hosts we
+    never route.
+
+    mitmproxy's ``allow_hosts`` inverts that: connections to non-matching hosts
+    are passed through as raw TCP (``TCPLayer(ignore=True)``) with NO TLS
+    termination, so they neither break nor pollute the flow log. Only the
+    hosts we genuinely intercept — Anthropic's API (routing + bootstrap model
+    injection) and the Sference API (the rewrite target) — get terminated.
+
+    Returns a single alternation regex, e.g.
+    ``^(api\\.anthropic\\.com|api\\.sference\\.com):\\d+$``.
+
+    The trailing ``:port`` is REQUIRED, not optional. mitmproxy's
+    ``NextLayer._ignore_connection`` builds every candidate string as
+    ``f"{host}:{port}"`` (from ``server.peername``, ``server.address``, the
+    HTTP Host header, and the TLS SNI) — it never tests a bare hostname. A
+    regex anchored ``^host$`` therefore matches nothing, every connection
+    counts as not-allowed, and the proxy silently degrades to raw TCP
+    passthrough for ALL traffic, including the hosts we need to intercept.
+    """
+    hosts = {ANTHROPIC_API_HOST}
+    netloc = urlsplit(sference_base_url.rstrip("/")).netloc
+    host = netloc.split(":", 1)[0]  # drop any port; mitmproxy appends its own
+    if host:
+        hosts.add(host)
+    return "^(" + "|".join(re.escape(h) for h in sorted(hosts)) + r"):\d+$"
 
 
 def decide_routing(
