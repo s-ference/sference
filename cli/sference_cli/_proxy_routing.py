@@ -96,7 +96,12 @@ def strip_unsigned_thinking_blocks(body: Any) -> tuple[Any, int]:
                 and not block.get("signature")
             )
         ]
-        if len(kept) != len(content):
+        # Never empty a message: Anthropic rejects a zero-length content array,
+        # which would turn a recoverable 400 into one we caused. Leaving the
+        # blocks in place costs us that request (Anthropic 400s on the bad
+        # signature and Claude Code retries, exactly as it did before this fix)
+        # rather than making things worse.
+        if kept and len(kept) != len(content):
             dropped += len(content) - len(kept)
             message["content"] = kept
     return body, dropped
