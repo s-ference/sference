@@ -35,8 +35,8 @@ def resolve_launch_model(explicit: Optional[str]) -> str:
     return DEFAULT_LAUNCH_MODEL
 
 
-def resolve_openai_base_url_for_pi(explicit: Optional[str]) -> str:
-    """OpenAI-compatible base URL with ``/v1`` for Pi ``models.json``."""
+def resolve_openai_base_url(explicit: Optional[str]) -> str:
+    """OpenAI-compatible base URL with ``/v1`` for tool config files (Pi, opencode)."""
     base = resolve_api_base_url(explicit)
     base = base.rstrip("/")
     if base.endswith("/v1"):
@@ -204,6 +204,111 @@ def launch_pi(
     os.execvpe(pi_bin, cmd, env)
 
 
+def find_opencode_executable() -> str | None:
+    return shutil.which("opencode")
+
+
+def _opencode_config_path() -> Path:
+    return Path.home() / ".config" / "opencode" / "opencode.json"
+
+
+def _write_opencode_config(*, base_url: str, model: str) -> Path:
+    """Merge a ``sference`` OpenAI-compatible provider into the opencode config.
+
+    Reads ``~/.config/opencode/opencode.json`` (creating it if absent), sets
+    ``provider.sference`` to a block pointing at the Sference OpenAI-compatible
+    endpoint (``/v1/chat/completions``), and writes it back. The user's existing
+    config — other providers, keybinds, theme, default ``model`` — is preserved;
+    only ``provider.sference`` is (over)written. If the existing file is not
+    valid JSON, we refuse to clobber it rather than silently destroying the
+    user's opencode config.
+
+    The API key is referenced as ``{env:SFERENCE_API_KEY}`` so no secret is
+    stored on disk; ``launch_opencode`` injects the resolved key into the
+    opencode process env at exec time. opencode splits ``provider/model`` on
+    the first slash, so a model id like ``moonshotai/Kimi-K2.7-Code`` is passed
+    as ``--model sference/moonshotai/Kimi-K2.7-Code`` and resolves to provider
+    ``sference`` + model id ``moonshotai/Kimi-K2.7-Code``.
+    """
+    path = _opencode_config_path()
+    if path.exists():
+        with path.open("r", encoding="utf-8") as fh:
+            try:
+                data = json.load(fh)
+            except json.JSONDecodeError:
+                typer.echo(
+                    f"Could not parse existing opencode config at {path} as JSON.\n"
+                    "Refusing to overwrite your opencode config. Fix or remove the "
+                    "file and re-run.",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+    else:
+        data = {}
+
+    data.setdefault("provider", {})
+    data["provider"]["sference"] = {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "Sference",
+        "options": {
+            "baseURL": base_url,
+            "apiKey": "{env:SFERENCE_API_KEY}",
+        },
+        "models": {
+            model: {"name": model},
+        },
+    }
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+    return path
+
+
+def launch_opencode(
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+    opencode_args: list[str],
+    dry_run: bool,
+) -> None:
+    opencode_bin = find_opencode_executable()
+    if opencode_bin is None:
+        typer.echo(
+            "opencode not found on PATH.\n"
+            "Install from https://opencode.ai/docs and ensure the `opencode` command is available.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    config_path = _write_opencode_config(base_url=base_url, model=model)
+    env = os.environ.copy()
+    # The config references {env:SFERENCE_API_KEY}; inject the resolved key so
+    # no secret is persisted to disk.
+    env["SFERENCE_API_KEY"] = api_key
+    cmd = [opencode_bin, "--model", f"sference/{model}", *opencode_args]
+
+    if dry_run:
+        typer.echo(f"Wrote provider 'sference' to {config_path}")
+        typer.echo(f"baseURL: {base_url}")
+        typer.echo(f"model: {model}")
+        typer.echo("apiKey: {env:SFERENCE_API_KEY} (injected at launch)")
+        typer.echo(f"command: {' '.join(cmd)}")
+        return
+
+    if sys.platform == "win32":
+        raise SystemExit(subprocess.call(cmd, env=env))
+
+    os.execvpe(opencode_bin, cmd, env)
+
+
 def register_launch_commands(app: typer.Typer) -> None:
     launch_app = typer.Typer(help="Launch external tools configured for Sference.", invoke_without_command=True)
 
@@ -314,9 +419,62 @@ def register_launch_commands(app: typer.Typer) -> None:
 
         launch_pi(
             api_key=api_key,
-            base_url=resolve_openai_base_url_for_pi(base_url),
+            base_url=resolve_openai_base_url(base_url),
             model=resolve_launch_model(model),
             pi_args=forwarded,
+            dry_run=dry_run,
+        )
+
+    @launch_app.command(
+        "opencode",
+        context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+        help="Launch opencode with Sference OpenAI-compatible routing.",
+    )
+    def opencode(
+        ctx: typer.Context,
+        model: Optional[str] = typer.Option(
+            None,
+            "--model",
+            "-m",
+            help=f"Catalog model id (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+        ),
+        base_url: Optional[str] = typer.Option(
+            None,
+            "--base-url",
+            envvar="SFERENCE_BASE_URL",
+            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
+        ),
+        dry_run: bool = typer.Option(
+            False,
+            "--dry-run",
+            help="Print provider config and command without launching opencode.",
+        ),
+    ) -> None:
+        """Run ``opencode`` with Sference credentials.
+
+        Merges a ``sference`` provider (OpenAI-compatible, ``/v1/chat/completions``)
+        into ``~/.config/opencode/opencode.json`` and execs
+        ``opencode --model sference/<id>``. The API key is injected via the
+        ``SFERENCE_API_KEY`` env var (referenced as ``{env:SFERENCE_API_KEY}`` in
+        the config, so no secret is written to disk). Unknown options and trailing
+        args are forwarded to opencode, e.g. ``sference launch opencode --prompt "..."``.
+        """
+        from sference_cli.main import _ensure_api_credential, _read_token
+
+        _ensure_api_credential()
+        api_key = _read_token()
+        if api_key is None:
+            raise typer.Exit(code=1)
+
+        forwarded = list(ctx.args)
+        if forwarded and forwarded[0] == "--":
+            forwarded = forwarded[1:]
+
+        launch_opencode(
+            api_key=api_key,
+            base_url=resolve_openai_base_url(base_url),
+            model=resolve_launch_model(model),
+            opencode_args=forwarded,
             dry_run=dry_run,
         )
 

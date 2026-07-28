@@ -817,6 +817,7 @@ def test_launch_still_invocable() -> None:
     assert result.exit_code == 0
     assert "claude" in result.stdout
     assert "pi" in result.stdout
+    assert "opencode" in result.stdout
 
 
 def test_launch_uses_sference_model_env(monkeypatch):
@@ -960,6 +961,124 @@ def test_pi_requires_credential(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "no_credentials.json")
     monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
     result = runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "No API credential" in out
+
+
+def test_opencode_dry_run_prints_config(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json")
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "opencode", "--dry-run", "--model", "moonshotai/Kimi-K2.6"],
+    )
+    assert result.exit_code == 0
+    assert "Wrote provider 'sference' to" in result.stdout
+    assert "baseURL: https://api.sference.com/v1" in result.stdout
+    assert "model: moonshotai/Kimi-K2.6" in result.stdout
+    assert "apiKey: {env:SFERENCE_API_KEY}" in result.stdout
+    assert "command: /usr/local/bin/opencode --model sference/moonshotai/Kimi-K2.6" in result.stdout
+
+
+def test_opencode_writes_config(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    config_path = tmp_path / "opencode.json"
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
+    assert config_path.exists()
+    data = json.loads(config_path.read_text())
+    provider = data["provider"]["sference"]
+    assert provider["npm"] == "@ai-sdk/openai-compatible"
+    assert provider["name"] == "Sference"
+    assert provider["options"]["baseURL"] == "https://api.sference.com/v1"
+    assert provider["options"]["apiKey"] == "{env:SFERENCE_API_KEY}"
+    assert provider["models"]["moonshotai/Kimi-K2.7-Code"]["name"] == "moonshotai/Kimi-K2.7-Code"
+
+
+def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    config_path = tmp_path / "opencode.json"
+    # Pre-existing user config: another provider + a default model + keybinds.
+    config_path.write_text(
+        json.dumps(
+            {
+                "model": "anthropic/claude-sonnet-4-5",
+                "keybinds": {"ctrl_k": "open"},
+                "provider": {"openai": {"options": {"apiKey": "sk_user_openai"}}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run", "--model", "Qwen/Qwen3.6-35B-A3B"])
+    assert result.exit_code == 0
+    data = json.loads(config_path.read_text())
+    # User config preserved...
+    assert data["model"] == "anthropic/claude-sonnet-4-5"
+    assert data["keybinds"] == {"ctrl_k": "open"}
+    assert data["provider"]["openai"]["options"]["apiKey"] == "sk_user_openai"
+    # ...and sference merged in.
+    sference = data["provider"]["sference"]
+    assert sference["options"]["baseURL"] == "https://api.sference.com/v1"
+    assert sference["models"]["Qwen/Qwen3.6-35B-A3B"]["name"] == "Qwen/Qwen3.6-35B-A3B"
+
+
+def test_opencode_refuses_unparseable_existing_config(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    config_path = tmp_path / "opencode.json"
+    config_path.write_text("{not valid json", encoding="utf-8")
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "Could not parse existing opencode config" in out
+    # File left untouched.
+    assert config_path.read_text() == "{not valid json"
+
+
+def test_opencode_forwards_extra_args(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json")
+    captured: dict = {}
+
+    def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
+        captured["path"] = path
+        captured["args"] = args
+        captured["env"] = env
+        raise SystemExit(0)
+
+    monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--", "/path/to/project"])
+    assert result.exit_code == 0
+    assert captured["path"] == "/usr/local/bin/opencode"
+    assert captured["args"] == [
+        "/usr/local/bin/opencode",
+        "--model",
+        "sference/moonshotai/Kimi-K2.7-Code",
+        "/path/to/project",
+    ]
+    assert captured["env"]["SFERENCE_API_KEY"] == "sk_fake_for_tests"
+
+
+def test_opencode_missing_binary_exits(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: None)
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "not found on PATH" in out
+
+
+def test_opencode_requires_credential(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "no_credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     assert result.exit_code == 1
     out = (result.stdout or "") + (result.stderr or "")
     assert "No API credential" in out
