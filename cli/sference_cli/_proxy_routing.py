@@ -51,6 +51,62 @@ def decide_routing(
     return PASSTHROUGH
 
 
+def strip_unsigned_thinking_blocks(body: Any) -> tuple[Any, int]:
+    """Drop ``thinking`` blocks carrying an empty ``signature`` from a request body.
+
+    Returns ``(body, dropped_count)``; the body is mutated in place and also
+    returned for convenience.
+
+    Anthropic verifies the ``signature`` on every ``thinking`` block it is sent
+    and rejects the whole request with a 400 (``Invalid `signature` in
+    `thinking` block``) if one does not validate. Sference's ``/v1/messages``
+    emits ``signature: ""``, so once a Sference model has answered in a session,
+    every later request routed to *Anthropic* replays that unsignable history
+    and 400s.
+
+    Claude Code already recovers by stripping the thinking blocks and resending,
+    so this is not a correctness fix — it is a cost fix: it avoids re-uploading
+    a large request body (~180KB in practice) and burning a round-trip on every
+    turn after a model switch. We drop exactly what the client would have
+    dropped, one step earlier.
+
+    Only empty-signature blocks are removed; genuine Anthropic-minted
+    signatures are left untouched so real Claude reasoning still replays.
+    """
+    if not isinstance(body, dict):
+        return body, 0
+    messages = body.get("messages")
+    if not isinstance(messages, list):
+        return body, 0
+
+    dropped = 0
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        # Content may be a plain string (no blocks to inspect).
+        if not isinstance(content, list):
+            continue
+        kept = [
+            block
+            for block in content
+            if not (
+                isinstance(block, dict)
+                and block.get("type") == "thinking"
+                and not block.get("signature")
+            )
+        ]
+        # Never empty a message: Anthropic rejects a zero-length content array,
+        # which would turn a recoverable 400 into one we caused. Leaving the
+        # blocks in place costs us that request (Anthropic 400s on the bad
+        # signature and Claude Code retries, exactly as it did before this fix)
+        # rather than making things worse.
+        if kept and len(kept) != len(content):
+            dropped += len(content) - len(kept)
+            message["content"] = kept
+    return body, dropped
+
+
 def _sference_origin(sference_base_url: str) -> str:
     """Normalize the Sference base URL to scheme + netloc (strip any ``/v1``).
 

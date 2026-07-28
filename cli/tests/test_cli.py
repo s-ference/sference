@@ -1094,6 +1094,7 @@ from sference_cli._proxy_routing import (  # noqa: E402
     inject_models_into_bootstrap,
     parse_models_env,
     rewrite_request_for_sference,
+    strip_unsigned_thinking_blocks,
 )
 
 
@@ -1255,6 +1256,97 @@ def test_inject_models_into_bootstrap() -> None:
     # missing options key -> created
     out3 = inject_models_into_bootstrap({}, {"zai-org/GLM-5.2"})
     assert out3["additional_model_options"][0]["model"] == "zai-org/GLM-5.2"
+
+
+def test_strip_unsigned_thinking_blocks() -> None:
+    # Sference-produced block (empty signature) is dropped; Anthropic-minted one stays.
+    body = {
+        "messages": [
+            {"role": "user", "content": "hi"},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "unsigned", "signature": ""},
+                    {"type": "thinking", "thinking": "signed", "signature": "CAIS9Ag"},
+                    {"type": "text", "text": "answer"},
+                ],
+            },
+        ]
+    }
+    out, dropped = strip_unsigned_thinking_blocks(body)
+    assert dropped == 1
+    kept = out["messages"][1]["content"]
+    assert [b["type"] for b in kept] == ["thinking", "text"]
+    assert kept[0]["signature"] == "CAIS9Ag"  # signed reasoning preserved
+    # string content (no blocks) untouched
+    assert out["messages"][0]["content"] == "hi"
+
+    # a missing signature key counts as unsigned (sibling block keeps the
+    # message non-empty, so the strip is allowed to happen)
+    body2 = {
+        "messages": [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "x"},
+                    {"type": "text", "text": "kept"},
+                ],
+            }
+        ]
+    }
+    _, dropped2 = strip_unsigned_thinking_blocks(body2)
+    assert dropped2 == 1
+
+    # nothing to strip -> reported as 0 so the caller skips re-serializing
+    body3 = {"messages": [{"role": "assistant", "content": [{"type": "text", "text": "a"}]}]}
+    _, dropped3 = strip_unsigned_thinking_blocks(body3)
+    assert dropped3 == 0
+
+    # counts across multiple messages
+    body4 = {
+        "messages": [
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "a", "signature": ""},
+                    {"type": "text", "text": "one"},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "b", "signature": ""},
+                    {"type": "text", "text": "two"},
+                ],
+            },
+        ]
+    }
+    _, dropped4 = strip_unsigned_thinking_blocks(body4)
+    assert dropped4 == 2
+
+    # a message that is ONLY unsigned thinking is left intact -- emitting an
+    # empty content array would be a 400 we caused, worse than the one we avoid
+    body5 = {
+        "messages": [
+            {"role": "assistant", "content": [{"type": "thinking", "thinking": "a", "signature": ""}]},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "b", "signature": ""},
+                    {"type": "text", "text": "kept"},
+                ],
+            },
+        ]
+    }
+    out5, dropped5 = strip_unsigned_thinking_blocks(body5)
+    assert dropped5 == 1  # only the strippable one counted
+    assert len(out5["messages"][0]["content"]) == 1  # thinking-only left alone
+    assert [b["type"] for b in out5["messages"][1]["content"]] == ["text"]
+
+    # malformed shapes are returned unchanged rather than raising
+    assert strip_unsigned_thinking_blocks("not a dict") == ("not a dict", 0)
+    assert strip_unsigned_thinking_blocks({}) == ({}, 0)
+    assert strip_unsigned_thinking_blocks({"messages": "nope"}) == ({"messages": "nope"}, 0)
 
 
 def test_parse_models_env() -> None:

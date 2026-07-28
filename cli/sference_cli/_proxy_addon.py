@@ -34,6 +34,7 @@ from _proxy_routing import (  # noqa: E402
     inject_models_into_bootstrap,
     parse_models_env,
     rewrite_request_for_sference,
+    strip_unsigned_thinking_blocks,
 )
 
 SFERENCE_BASE_URL = os.environ.get("SFERENCE_BASE_URL", "https://api.sference.com").rstrip("/")
@@ -64,6 +65,26 @@ class SferenceRouter:
 
         decision = decide_routing(host, method, path, body, SFERENCE_MODELS)
         if decision == PASSTHROUGH:
+            # Anthropic rejects thinking blocks whose signature it can't verify,
+            # and Sference emits an empty one — so a session that switched away
+            # from a Sference model replays unsignable history and 400s. Claude
+            # Code recovers by stripping and resending; do it here instead and
+            # save the wasted upload + round-trip. Sference-bound requests keep
+            # the blocks (byte-for-byte passthrough).
+            if (
+                host == "api.anthropic.com"
+                and method == "POST"
+                and "/v1/messages" in (path or "")
+            ):
+                body, dropped = strip_unsigned_thinking_blocks(body)
+                if dropped:
+                    # set_text() recomputes content-length itself (correctly for
+                    # any content-encoding); do NOT touch the header afterwards.
+                    flow.request.set_text(json.dumps(body))
+                    ctx.log.info(
+                        f"sference: stripped {dropped} unsigned thinking block(s) "
+                        "from Anthropic-bound request"
+                    )
             return
         if decision == BOOTSTRAP:
             _bootstrap_flows.add(flow.id)
