@@ -51,9 +51,11 @@ function Install-WithUv {
         $versionSpec = "==$($env:SFERENCE_CLI_VERSION)"
     }
     Write-Info "Installing $Package$versionSpec with uv..."
-    uv tool install "$Package$versionSpec" --force
+    # --refresh: bypass uv's index cache so a freshly-released version resolves
+    # immediately instead of serving a stale older one for up to PyPI's max-age.
+    uv tool install "$Package$versionSpec" --force --refresh
     Write-Info "Installing mitmproxy (for 'sference launch claude' proxy mode) with uv..."
-    try { uv tool install mitmproxy --force } catch { Write-Warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic" }
+    try { uv tool install mitmproxy --force --refresh } catch { Write-Warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic" }
 }
 
 function Install-WithPipx {
@@ -95,9 +97,9 @@ function Install-WithPip {
         $versionSpec = "==$($env:SFERENCE_CLI_VERSION)"
     }
     Write-Info "Installing $Package$versionSpec with $python -m pip --user..."
-    & $python -m pip install --user "$Package$versionSpec"
+    & $python -m pip install --user --no-cache-dir "$Package$versionSpec"
     Write-Info "Installing mitmproxy (for 'sference launch claude' proxy mode) with $python -m pip --user..."
-    try { & $python -m pip install --user mitmproxy } catch { Write-Warn "mitmproxy install failed (needs Python >=3.12); 'sference launch claude' will need --no-anthropic" }
+    try { & $python -m pip install --user --no-cache-dir mitmproxy } catch { Write-Warn "mitmproxy install failed (needs Python >=3.12); 'sference launch claude' will need --no-anthropic" }
     return $true
 }
 

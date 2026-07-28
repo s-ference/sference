@@ -144,9 +144,11 @@ install_with_uv() {
 	mkdir -p "${DEFAULT_BIN_DIR}"
 	export UV_TOOL_BIN_DIR="${DEFAULT_BIN_DIR}"
 	info "Installing ${PACKAGE}${VERSION_SPEC} with uv..."
-	"$UV_BIN" tool install "${PACKAGE}${VERSION_SPEC}" --force
+	# --refresh: bypass uv's index cache so a freshly-released version resolves
+	# immediately instead of serving a stale older one for up to PyPI's max-age.
+	"$UV_BIN" tool install "${PACKAGE}${VERSION_SPEC}" --force --refresh
 	info "Installing mitmproxy (for 'sference launch claude' proxy mode) with uv..."
-	"$UV_BIN" tool install mitmproxy --force || warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic"
+	"$UV_BIN" tool install mitmproxy --force --refresh || warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic"
 }
 
 install_with_pipx() {
@@ -163,6 +165,8 @@ install_with_pipx() {
 	info "Installing mitmproxy (for 'sference launch claude' proxy mode) with pipx..."
 	pipx install mitmproxy --force || warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic"
 }
+
+# pipx has no --refresh equivalent; pip uses --no-cache-dir below.
 
 python310_or_newer() {
 	PY="$1"
@@ -186,9 +190,9 @@ install_with_pip() {
 	fi
 	mkdir -p "${DEFAULT_BIN_DIR}"
 	info "Installing ${PACKAGE}${VERSION_SPEC} with ${PY} -m pip --user..."
-	"$PY" -m pip install --user "${PACKAGE}${VERSION_SPEC}"
+	"$PY" -m pip install --user --no-cache-dir "${PACKAGE}${VERSION_SPEC}"
 	info "Installing mitmproxy (for 'sference launch claude' proxy mode) with ${PY} -m pip --user..."
-	"$PY" -m pip install --user mitmproxy || warn "mitmproxy install failed (needs Python >=3.12); 'sference launch claude' will need --no-anthropic"
+	"$PY" -m pip install --user --no-cache-dir mitmproxy || warn "mitmproxy install failed (needs Python >=3.12); 'sference launch claude' will need --no-anthropic"
 }
 
 resolve_binary_path() {

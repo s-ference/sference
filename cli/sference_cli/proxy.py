@@ -35,6 +35,9 @@ import typer
 
 MITM_CA_CERT = Path.home() / ".mitmproxy" / "mitmproxy-ca-cert.pem"
 DEFAULT_FLOW_DETAIL = "1"
+# Stable, discoverable log path (not the ephemeral temp dir, which is hard to find
+# and gets cleared by OS housekeeping). Lives with the other sference state files.
+DEFAULT_LOG_FILE = Path.home() / ".sference" / "claude_proxy.log"
 
 
 def _normalize_base_url(raw: str) -> str:
@@ -149,7 +152,8 @@ def launch_claude_via_proxy(
 
     port = proxy_port or pick_free_port()
     sference_base = _normalize_base_url(base_url)
-    log_path = Path(log_file) if log_file else Path(tempfile.gettempdir()) / "sference_claude_proxy.log"
+    log_path = Path(log_file) if log_file else DEFAULT_LOG_FILE
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     claude_bin = shutil.which("claude")
     if claude_bin is None:

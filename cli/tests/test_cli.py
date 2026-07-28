@@ -1113,6 +1113,8 @@ def test_claude_proxy_dry_run_prints_config(monkeypatch):
     assert "NODE_EXTRA_CA_CERTS=" in result.stdout
     assert "ANTHROPIC_BASE_URL=<unset>" in result.stdout
     assert "command: /usr/local/bin/claude" in result.stdout
+    # log lives at a stable, discoverable path (not the ephemeral temp dir)
+    assert "claude_proxy.log" in result.stdout
 
 
 def test_claude_proxy_missing_mitmproxy_exits(monkeypatch):
