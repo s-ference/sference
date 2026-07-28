@@ -52,6 +52,8 @@ function Install-WithUv {
     }
     Write-Info "Installing $Package$versionSpec with uv..."
     uv tool install "$Package$versionSpec" --force
+    Write-Info "Installing mitmproxy (for 'sference launch claude' proxy mode) with uv..."
+    try { uv tool install mitmproxy --force } catch { Write-Warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic" }
 }
 
 function Install-WithPipx {
@@ -64,6 +66,8 @@ function Install-WithPipx {
     }
     Write-Info "Installing $Package$versionSpec with pipx..."
     pipx install "$Package$versionSpec" --force
+    Write-Info "Installing mitmproxy (for 'sference launch claude' proxy mode) with pipx..."
+    try { pipx install mitmproxy --force } catch { Write-Warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic" }
     return $true
 }
 
@@ -92,6 +96,8 @@ function Install-WithPip {
     }
     Write-Info "Installing $Package$versionSpec with $python -m pip --user..."
     & $python -m pip install --user "$Package$versionSpec"
+    Write-Info "Installing mitmproxy (for 'sference launch claude' proxy mode) with $python -m pip --user..."
+    try { & $python -m pip install --user mitmproxy } catch { Write-Warn "mitmproxy install failed (needs Python >=3.12); 'sference launch claude' will need --no-anthropic" }
     return $true
 }
 

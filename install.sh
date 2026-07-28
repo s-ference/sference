@@ -145,6 +145,8 @@ install_with_uv() {
 	export UV_TOOL_BIN_DIR="${DEFAULT_BIN_DIR}"
 	info "Installing ${PACKAGE}${VERSION_SPEC} with uv..."
 	"$UV_BIN" tool install "${PACKAGE}${VERSION_SPEC}" --force
+	info "Installing mitmproxy (for 'sference launch claude' proxy mode) with uv..."
+	"$UV_BIN" tool install mitmproxy --force || warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic"
 }
 
 install_with_pipx() {
@@ -158,6 +160,8 @@ install_with_pipx() {
 	mkdir -p "${DEFAULT_BIN_DIR}"
 	info "Installing ${PACKAGE}${VERSION_SPEC} with pipx..."
 	pipx install "${PACKAGE}${VERSION_SPEC}" --force
+	info "Installing mitmproxy (for 'sference launch claude' proxy mode) with pipx..."
+	pipx install mitmproxy --force || warn "mitmproxy install failed; 'sference launch claude' will need --no-anthropic"
 }
 
 python310_or_newer() {
@@ -183,6 +187,8 @@ install_with_pip() {
 	mkdir -p "${DEFAULT_BIN_DIR}"
 	info "Installing ${PACKAGE}${VERSION_SPEC} with ${PY} -m pip --user..."
 	"$PY" -m pip install --user "${PACKAGE}${VERSION_SPEC}"
+	info "Installing mitmproxy (for 'sference launch claude' proxy mode) with ${PY} -m pip --user..."
+	"$PY" -m pip install --user mitmproxy || warn "mitmproxy install failed (needs Python >=3.12); 'sference launch claude' will need --no-anthropic"
 }
 
 resolve_binary_path() {

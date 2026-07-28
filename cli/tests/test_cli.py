@@ -824,7 +824,7 @@ def test_launch_uses_sference_model_env(monkeypatch):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     monkeypatch.setenv("SFERENCE_MODEL", "Qwen/Qwen3.6-35B-A3B")
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--dry-run"])
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
     assert result.exit_code == 0
     assert "ANTHROPIC_MODEL=Qwen/Qwen3.6-35B-A3B" in result.stdout
 
@@ -834,7 +834,7 @@ def test_claude_dry_run_prints_env(monkeypatch):
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     result = runner.invoke(
         cli_main.app,
-        ["launch", "claude", "--dry-run", "--model", "moonshotai/Kimi-K2.6", "--enable-tool-search"],
+        ["launch", "claude", "--no-anthropic", "--dry-run", "--model", "moonshotai/Kimi-K2.6", "--enable-tool-search"],
     )
     assert result.exit_code == 0
     assert "ANTHROPIC_BASE_URL=https://api.sference.com" in result.stdout
@@ -861,7 +861,7 @@ def test_claude_forwards_extra_args(monkeypatch):
         raise SystemExit(0)
 
     monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--resume", "abc"])
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--resume", "abc"])
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/claude"
     assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
@@ -878,7 +878,7 @@ def test_claude_forwards_extra_args(monkeypatch):
 def test_claude_missing_binary_exits(monkeypatch):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: None)
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--dry-run"])
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
     assert result.exit_code == 1
     out = (result.stdout or "") + (result.stderr or "")
     assert "not found on PATH" in out
@@ -1082,4 +1082,183 @@ def test_opencode_requires_credential(monkeypatch, tmp_path: Path):
     assert result.exit_code == 1
     out = (result.stdout or "") + (result.stderr or "")
     assert "No API credential" in out
+
+
+# ── launch claude proxy mode (default) ────────────────────────────────────────
+
+from sference_cli._proxy_routing import (  # noqa: E402
+    BOOTSTRAP,
+    PASSTHROUGH,
+    SFERENCE,
+    decide_routing,
+    inject_models_into_bootstrap,
+    parse_models_env,
+    rewrite_request_for_sference,
+)
+
+
+def test_claude_proxy_dry_run_prints_config(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(
+        "sference_cli.proxy.shutil.which",
+        lambda b: "/usr/local/bin/mitmdump" if b == "mitmdump" else "/usr/local/bin/claude",
+    )
+    result = runner.invoke(
+        cli_main.app, ["launch", "claude", "--model", "zai-org/GLM-5.2", "--dry-run"]
+    )
+    assert result.exit_code == 0
+    assert "mitmdump on 127.0.0.1:" in result.stdout
+    assert "Models (1): zai-org/GLM-5.2" in result.stdout
+    assert "HTTPS_PROXY=http://127.0.0.1:" in result.stdout
+    assert "NODE_EXTRA_CA_CERTS=" in result.stdout
+    assert "ANTHROPIC_BASE_URL=<unset>" in result.stdout
+    assert "command: /usr/local/bin/claude" in result.stdout
+
+
+def test_claude_proxy_missing_mitmproxy_exits(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.proxy.shutil.which", lambda b: None)
+    result = runner.invoke(
+        cli_main.app, ["launch", "claude", "--model", "zai-org/GLM-5.2", "--dry-run"]
+    )
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "mitmproxy not found" in out
+    assert "--no-anthropic" in out
+
+
+def test_claude_proxy_launches_through_mitmproxy(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(
+        "sference_cli.proxy.shutil.which",
+        lambda b: "/usr/local/bin/mitmdump" if b == "mitmdump" else "/usr/local/bin/claude",
+    )
+    monkeypatch.setattr("sference_cli.proxy._extract_addon_files", lambda: (tmp_path, tmp_path / "_proxy_addon.py"))
+    monkeypatch.setattr("sference_cli.proxy.MITM_CA_CERT", tmp_path / "ca.pem")
+    (tmp_path / "ca.pem").write_text("FAKE CA", encoding="utf-8")
+    monkeypatch.setattr("sference_cli.proxy.port_in_use", lambda port: True)
+    monkeypatch.setattr("sference_cli.proxy.time.sleep", lambda *_a: None)
+    monkeypatch.setattr("sference_cli.proxy.signal.signal", lambda *_a: None)
+
+    launches: list = []
+
+    class FakeProc:
+        def __init__(self, cmd, env):
+            self.cmd = cmd
+            self.env = env
+            launches.append(self)
+
+        def poll(self):  # mitmproxy "running"
+            return None
+
+        def wait(self, timeout=None):
+            return 0
+
+        @property
+        def returncode(self):
+            return 0
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+    def fake_popen(cmd, **kwargs):
+        return FakeProc(cmd, kwargs.get("env"))
+
+    monkeypatch.setattr("sference_cli.proxy.subprocess.Popen", fake_popen)
+
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "claude", "--model", "zai-org/GLM-5.2", "--", "-p", "hi"],
+    )
+    assert result.exit_code == 0
+    assert len(launches) == 2  # mitmproxy, then claude
+    assert launches[0].cmd[0] == "/usr/local/bin/mitmdump"
+    assert "-s" in launches[0].cmd
+    assert launches[1].cmd[0] == "/usr/local/bin/claude"
+    assert launches[1].cmd[1:] == ["-p", "hi"]  # forwarded args
+    claude_env = launches[1].env
+    assert claude_env["HTTPS_PROXY"].startswith("http://127.0.0.1:")
+    assert "NODE_EXTRA_CA_CERTS" in claude_env
+    assert "ANTHROPIC_BASE_URL" not in claude_env
+    mitm_env = launches[0].env
+    assert mitm_env["SFERENCE_API_KEY"] == "sk_fake_for_tests"
+    assert "zai-org/GLM-5.2" in mitm_env["SFERENCE_PROXY_MODELS"]
+    assert mitm_env["SFERENCE_BASE_URL"] == "https://api.sference.com"
+
+
+def test_claude_proxy_enable_tool_search_is_noop_notice(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(
+        "sference_cli.proxy.shutil.which",
+        lambda b: "/usr/local/bin/mitmdump" if b == "mitmdump" else "/usr/local/bin/claude",
+    )
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "claude", "--model", "zai-org/GLM-5.2", "--enable-tool-search", "--dry-run"],
+    )
+    assert result.exit_code == 0
+    err = result.stderr or ""
+    assert "no-op in proxy mode" in err
+
+
+# ── pure routing helpers (no mitmproxy, no subprocess) ───────────────────────
+
+
+def test_decide_routing() -> None:
+    models = {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"}
+    assert decide_routing("downloads.claude.ai", "POST", "/v1/messages", {"model": "zai-org/GLM-5.2"}, models) == PASSTHROUGH
+    assert decide_routing("api.anthropic.com", "GET", "/api/claude_cli/bootstrap?entrypoint=sdk-cli", None, models) == BOOTSTRAP
+    assert decide_routing("api.anthropic.com", "POST", "/v1/messages?beta=true", {"model": "zai-org/GLM-5.2"}, models) == SFERENCE
+    # real Claude model -> passthrough
+    assert decide_routing("api.anthropic.com", "POST", "/v1/messages", {"model": "claude-sonnet-4-5"}, models) == PASSTHROUGH
+    # GET on /v1/messages -> passthrough
+    assert decide_routing("api.anthropic.com", "GET", "/v1/messages", None, models) == PASSTHROUGH
+    # no model -> passthrough
+    assert decide_routing("api.anthropic.com", "POST", "/v1/messages", {}, models) == PASSTHROUGH
+    # non-dict body -> passthrough
+    assert decide_routing("api.anthropic.com", "POST", "/v1/messages", None, models) == PASSTHROUGH
+
+
+def test_rewrite_request_for_sference() -> None:
+    url, set_h, remove_h = rewrite_request_for_sference(
+        "https://api.anthropic.com/v1/messages?beta=true", "https://api.sference.com", "sk_test"
+    )
+    assert url == "https://api.sference.com/v1/messages?beta=true"
+    assert set_h == {"x-api-key": "sk_test"}
+    assert remove_h == ["authorization"]
+    # accepts a base url that already has /v1 (strips it; path is preserved)
+    url2, _, _ = rewrite_request_for_sference(
+        "https://api.anthropic.com/v1/messages", "https://api.sference.com/v1", "sk_test"
+    )
+    assert url2 == "https://api.sference.com/v1/messages"
+
+
+def test_inject_models_into_bootstrap() -> None:
+    body = {"additional_model_options": [{"model": "claude-sonnet-4-5", "name": "Sonnet"}]}
+    out = inject_models_into_bootstrap(body, {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"})
+    opts = out["additional_model_options"]
+    rendered = {o["model"] for o in opts}
+    assert "claude-sonnet-4-5" in rendered  # existing preserved
+    assert {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"} <= rendered  # added
+    sference_opt = next(o for o in opts if o["model"] == "zai-org/GLM-5.2")
+    assert sference_opt["name"] == "[Sference] zai-org/GLM-5.2"
+    # idempotent (dedup)
+    out2 = inject_models_into_bootstrap(out, {"zai-org/GLM-5.2"})
+    assert len(out2["additional_model_options"]) == len(opts)
+    # non-dict body returned unchanged
+    assert inject_models_into_bootstrap("not a dict", {"x"}) == "not a dict"
+    # missing options key -> created
+    out3 = inject_models_into_bootstrap({}, {"zai-org/GLM-5.2"})
+    assert out3["additional_model_options"][0]["model"] == "zai-org/GLM-5.2"
+
+
+def test_parse_models_env() -> None:
+    assert parse_models_env('["a", "b"]') == {"a", "b"}
+    assert parse_models_env("") == set()
+    assert parse_models_env("not json") == set()
+    assert parse_models_env('["", "c"]') == {"c"}  # empty strings dropped
+
 
