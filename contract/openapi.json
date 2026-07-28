@@ -1189,6 +1189,74 @@
         "deprecated": false
       }
     },
+    "/control/v1/billing/invoices": {
+      "post": {
+        "summary": "CreateInvoice",
+        "operationId": "ControlV1BillingInvoicesCreateInvoice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/billing/topups": {
       "post": {
         "summary": "CreateTopup",
@@ -1920,6 +1988,27 @@
                 }
               ]
             },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "api_key_id",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter activity to one API key"
+            },
+            "description": "Filter activity to one API key",
             "required": false,
             "deprecated": false,
             "allowEmptyValue": false,
@@ -3689,10 +3778,10 @@
         "deprecated": false
       }
     },
-    "/public/v1/webhooks/mollie/payments": {
+    "/public/v1/webhooks/stripe": {
       "post": {
-        "summary": "MolliePaymentsWebhook",
-        "operationId": "PublicV1WebhooksMolliePaymentsMolliePaymentsWebhook",
+        "summary": "StripeWebhook",
+        "operationId": "PublicV1WebhooksStripeStripeWebhook",
         "responses": {
           "201": {
             "description": "Document created, URL follows",
@@ -3840,6 +3929,36 @@
             "oneOf": [
               {
                 "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "api_key_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "api_key_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "api_key_prefix": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -5134,6 +5253,16 @@
                 "type": "null"
               }
             ]
+          },
+          "reasoning_content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5614,6 +5743,79 @@
           "body"
         ],
         "title": "InferenceRequest"
+      },
+      "InvoiceCreateRequest": {
+        "properties": {
+          "period_start": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "period_end": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "InvoiceCreateRequest"
+      },
+      "InvoiceCreateResponse": {
+        "properties": {
+          "stripe_invoice_id": {
+            "type": "string"
+          },
+          "hosted_invoice_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount_cents": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_cents",
+          "currency",
+          "period_end",
+          "period_start",
+          "status",
+          "stripe_invoice_id"
+        ],
+        "title": "InvoiceCreateResponse"
       },
       "LedgerEntryItem": {
         "properties": {
@@ -6277,7 +6479,7 @@
                 "type": "null"
               }
             ],
-            "description": "Not supported. Every value OpenAI defines here depends on a feature this API does not implement, so requests carrying it are rejected rather than silently ignored \u2014 an ignored `include` looks identical to an unsupported one until you inspect the response and find the data missing."
+            "description": "Ignored. Every value OpenAI defines here (web search, code interpreter, computer use, file search, logprobs, encrypted reasoning) depends on a feature this API does not implement, so the requested extra data is never present in the response regardless. Silently ignored rather than rejected: upstream routers such as requesty.ai count a 400 as a failed request against our reliability, while an ignored `include` degrades gracefully \u2014 the caller simply gets none of the extra data they would not have received anyway."
           },
           "background": {
             "type": "boolean",
@@ -7379,7 +7581,7 @@
       },
       "TopupCreateResponse": {
         "properties": {
-          "mollie_payment_id": {
+          "stripe_session_id": {
             "type": "string"
           },
           "checkout_url": {
@@ -7389,7 +7591,7 @@
         "type": "object",
         "required": [
           "checkout_url",
-          "mollie_payment_id"
+          "stripe_session_id"
         ],
         "title": "TopupCreateResponse"
       },
@@ -7530,6 +7732,16 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/V1ModelPricing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "released": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
