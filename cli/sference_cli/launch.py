@@ -417,7 +417,6 @@ def register_launch_commands(app: typer.Typer) -> None:
         elif model:
             model_set = {model}
         else:
-            typer.echo(f"Fetching routable models from {resolved_base}/v1/models ...")
             try:
                 model_set = fetch_sference_models(resolved_base, api_key)
             except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError) as e:
