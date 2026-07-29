@@ -228,7 +228,6 @@ def launch_claude_via_proxy(
             signal.signal(sig, lambda *_a: (_cleanup(), sys.exit(130))[1])
 
     try:
-        typer.echo(f"Starting mitmproxy on 127.0.0.1:{port} (log: {log_path})...")
         if not _wait_for_mitmproxy(mitm_proc, port, log_path):
             raise typer.Exit(code=1)
 
@@ -240,9 +239,8 @@ def launch_claude_via_proxy(
             )
             raise typer.Exit(code=1)
 
-        typer.echo(f"Proxy ready. Sference models in /model picker; Claude models pass through.")
-        typer.echo(f"  HTTPS_PROXY=http://127.0.0.1:{port}")
-        typer.echo(f"  NODE_EXTRA_CA_CERTS={MITM_CA_CERT}")
+        # Quiet by default: one line. The full config (ports, proxy env, models)
+        # is available via --dry-run; the proxy detail is in the log file.
         typer.echo("Launching Claude Code...")
 
         claude_env = os.environ.copy()
