@@ -181,6 +181,17 @@ def rewrite_request_for_sference(
     return new_url, headers_to_set, headers_to_remove
 
 
+# Claude-family display names for the models we route. The picker shows this
+# instead of the raw catalog id so the entries read like first-party Claude
+# models. Keyed by exact catalog id; unknown ids get the generic fallback.
+MODEL_DESCRIPTIONS: dict[str, str] = {
+    "moonshotai/Kimi-K3": "Fable",
+    "zai-org/GLM-5.2": "Opus",
+    "deepseek-ai/DeepSeek-V4-Flash": "Sonnet",
+}
+DEFAULT_MODEL_DESCRIPTION = "Sference (routed via local proxy)"
+
+
 def inject_models_into_bootstrap(body: Any, sference_models: set[str]) -> Any:
     """Append Sference models to a bootstrap response's ``additional_model_options``.
 
@@ -202,7 +213,7 @@ def inject_models_into_bootstrap(body: Any, sference_models: set[str]) -> Any:
             {
                 "model": model,
                 "name": f"[Sference] {model}",
-                "description": "Sference (routed via local proxy)",
+                "description": MODEL_DESCRIPTIONS.get(model, DEFAULT_MODEL_DESCRIPTION),
                 "disabled_reason": None,
             }
         )

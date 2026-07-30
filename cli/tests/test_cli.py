@@ -866,13 +866,13 @@ def test_claude_forwards_extra_args(monkeypatch):
     assert captured["path"] == "/usr/local/bin/claude"
     assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
-    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K2.7-Code"
-    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "moonshotai/Kimi-K2.7-Code"
-    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "moonshotai/Kimi-K2.7-Code"
-    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "moonshotai/Kimi-K2.7-Code"
-    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "moonshotai/Kimi-K2.7-Code"
-    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "moonshotai/Kimi-K2.7-Code"
-    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "moonshotai/Kimi-K2.7-Code"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "zai-org/GLM-5.2"
 
 
 def test_claude_missing_binary_exits(monkeypatch):
@@ -920,7 +920,7 @@ def test_pi_writes_models_json(monkeypatch, tmp_path: Path):
     assert data["providers"]["sference"]["api"] == "openai-completions"
     assert data["providers"]["sference"]["baseUrl"] == "https://api.sference.com/v1"
     assert data["providers"]["sference"]["apiKey"] == "sk_fake_for_tests"
-    assert data["providers"]["sference"]["models"][0]["id"] == "moonshotai/Kimi-K2.7-Code"
+    assert data["providers"]["sference"]["models"][0]["id"] == "zai-org/GLM-5.2"
 
 
 def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
@@ -943,7 +943,7 @@ def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
         "--provider",
         "sference",
         "--model",
-        "moonshotai/Kimi-K2.7-Code",
+        "zai-org/GLM-5.2",
         "/path/to/project",
     ]
 
@@ -966,10 +966,14 @@ def test_pi_requires_credential(monkeypatch, tmp_path: Path):
     assert "No API credential" in out
 
 
+_FAKE_OPENCODE_MODELS = {"zai-org/GLM-5.2", "moonshotai/Kimi-K3", "Qwen/Qwen3.6-35B-A3B"}
+
+
 def test_opencode_dry_run_prints_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json")
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
     result = runner.invoke(
         cli_main.app,
         ["launch", "opencode", "--dry-run", "--model", "moonshotai/Kimi-K2.6"],
@@ -987,6 +991,7 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
     config_path = tmp_path / "opencode.json"
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
     runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     assert config_path.exists()
     data = json.loads(config_path.read_text())
@@ -995,7 +1000,12 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
     assert provider["name"] == "Sference"
     assert provider["options"]["baseURL"] == "https://api.sference.com/v1"
     assert provider["options"]["apiKey"] == "{env:SFERENCE_API_KEY}"
-    assert provider["models"]["moonshotai/Kimi-K2.7-Code"]["name"] == "moonshotai/Kimi-K2.7-Code"
+    # default model is GLM-5.2 (the new DEFAULT_LAUNCH_MODEL)
+    assert data["model"] == "sference/zai-org/GLM-5.2"
+    assert provider["models"]["zai-org/GLM-5.2"]["name"] == "zai-org/GLM-5.2"
+    # all fetched models appear in the picker
+    for m in _FAKE_OPENCODE_MODELS:
+        assert m in provider["models"]
 
 
 def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
@@ -1014,17 +1024,21 @@ def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
         encoding="utf-8",
     )
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
     result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run", "--model", "Qwen/Qwen3.6-35B-A3B"])
     assert result.exit_code == 0
     data = json.loads(config_path.read_text())
     # User config preserved...
-    assert data["model"] == "anthropic/claude-sonnet-4-5"
     assert data["keybinds"] == {"ctrl_k": "open"}
     assert data["provider"]["openai"]["options"]["apiKey"] == "sk_user_openai"
-    # ...and sference merged in.
+    # ...default model overwritten to Sference...
+    assert data["model"] == "sference/Qwen/Qwen3.6-35B-A3B"
+    # ...and sference merged in with all fetched models.
     sference = data["provider"]["sference"]
     assert sference["options"]["baseURL"] == "https://api.sference.com/v1"
     assert sference["models"]["Qwen/Qwen3.6-35B-A3B"]["name"] == "Qwen/Qwen3.6-35B-A3B"
+    for m in _FAKE_OPENCODE_MODELS:
+        assert m in sference["models"]
 
 
 def test_opencode_refuses_unparseable_existing_config(monkeypatch, tmp_path: Path):
@@ -1054,13 +1068,14 @@ def test_opencode_forwards_extra_args(monkeypatch, tmp_path: Path):
         raise SystemExit(0)
 
     monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
     result = runner.invoke(cli_main.app, ["launch", "opencode", "--", "/path/to/project"])
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/opencode"
     assert captured["args"] == [
         "/usr/local/bin/opencode",
         "--model",
-        "sference/moonshotai/Kimi-K2.7-Code",
+        "sference/zai-org/GLM-5.2",
         "/path/to/project",
     ]
     assert captured["env"]["SFERENCE_API_KEY"] == "sk_fake_for_tests"
@@ -1256,6 +1271,18 @@ def test_inject_models_into_bootstrap() -> None:
     assert {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"} <= rendered  # added
     sference_opt = next(o for o in opts if o["model"] == "zai-org/GLM-5.2")
     assert sference_opt["name"] == "[Sference] zai-org/GLM-5.2"
+    # Claude-family display names for routed models; unknown ids get the fallback.
+    assert sference_opt["description"] == "Opus"
+    assert next(o for o in opts if o["model"] == "Qwen/Qwen3.6-35B-A3B")["description"] == (
+        "Sference (routed via local proxy)"
+    )
+    named = inject_models_into_bootstrap(
+        {}, {"moonshotai/Kimi-K3", "deepseek-ai/DeepSeek-V4-Flash"}
+    )["additional_model_options"]
+    assert {o["model"]: o["description"] for o in named} == {
+        "moonshotai/Kimi-K3": "Fable",
+        "deepseek-ai/DeepSeek-V4-Flash": "Sonnet",
+    }
     # idempotent (dedup)
     out2 = inject_models_into_bootstrap(out, {"zai-org/GLM-5.2"})
     assert len(out2["additional_model_options"]) == len(opts)
