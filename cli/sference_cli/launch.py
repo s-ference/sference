@@ -15,7 +15,7 @@ import typer
 
 from .proxy import fetch_sference_models, launch_claude_via_proxy
 
-DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K2.7-Code"
+DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
 
@@ -215,23 +215,27 @@ def _opencode_config_path() -> Path:
     return Path.home() / ".config" / "opencode" / "opencode.json"
 
 
-def _write_opencode_config(*, base_url: str, model: str) -> Path:
+def _write_opencode_config(*, base_url: str, model: str, models: set[str]) -> Path:
     """Merge a ``sference`` OpenAI-compatible provider into the opencode config.
 
     Reads ``~/.config/opencode/opencode.json`` (creating it if absent), sets
     ``provider.sference`` to a block pointing at the Sference OpenAI-compatible
     endpoint (``/v1/chat/completions``), and writes it back. The user's existing
-    config — other providers, keybinds, theme, default ``model`` — is preserved;
-    only ``provider.sference`` is (over)written. If the existing file is not
+    config — other providers, keybinds, theme — is preserved; only
+    ``provider.sference`` is (over)written. If the existing file is not
     valid JSON, we refuse to clobber it rather than silently destroying the
     user's opencode config.
+
+    All models in ``models`` are written to the provider's ``models`` block so
+    they appear in opencode's model picker. ``model`` is the default — set as
+    the top-level ``model`` key so opencode uses Sference by default on startup.
 
     The API key is referenced as ``{env:SFERENCE_API_KEY}`` so no secret is
     stored on disk; ``launch_opencode`` injects the resolved key into the
     opencode process env at exec time. opencode splits ``provider/model`` on
-    the first slash, so a model id like ``moonshotai/Kimi-K2.7-Code`` is passed
-    as ``--model sference/moonshotai/Kimi-K2.7-Code`` and resolves to provider
-    ``sference`` + model id ``moonshotai/Kimi-K2.7-Code``.
+    the first slash, so a model id like ``zai-org/GLM-5.2`` is passed
+    as ``--model sference/zai-org/GLM-5.2`` and resolves to provider
+    ``sference`` + model id ``zai-org/GLM-5.2``.
     """
     path = _opencode_config_path()
     if path.exists():
@@ -250,6 +254,7 @@ def _write_opencode_config(*, base_url: str, model: str) -> Path:
         data = {}
 
     data.setdefault("provider", {})
+    all_models = models | {model}
     data["provider"]["sference"] = {
         "npm": "@ai-sdk/openai-compatible",
         "name": "Sference",
@@ -258,9 +263,13 @@ def _write_opencode_config(*, base_url: str, model: str) -> Path:
             "apiKey": "{env:SFERENCE_API_KEY}",
         },
         "models": {
-            model: {"name": model},
+            m: {"name": m}
+            for m in sorted(all_models)
         },
     }
+    # Set Sference as the default model so opencode uses it on startup without
+    # the user having to select it in the picker.
+    data["model"] = f"sference/{model}"
 
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
@@ -291,7 +300,17 @@ def launch_opencode(
         )
         raise typer.Exit(code=1)
 
-    config_path = _write_opencode_config(base_url=base_url, model=model)
+    # Fetch all available text-generation models from /v1/models so they all
+    # appear in opencode's model picker, not just the default. Falls back to
+    # just the chosen model if the fetch fails (e.g. offline) so the launch
+    # still works.
+    try:
+        fetched = fetch_sference_models(base_url, api_key)
+    except Exception:
+        fetched = set()
+    models = fetched if fetched else set()
+
+    config_path = _write_opencode_config(base_url=base_url, model=model, models=models)
     env = os.environ.copy()
     # The config references {env:SFERENCE_API_KEY}; inject the resolved key so
     # no secret is persisted to disk.
@@ -302,6 +321,7 @@ def launch_opencode(
         typer.echo(f"Wrote provider 'sference' to {config_path}")
         typer.echo(f"baseURL: {base_url}")
         typer.echo(f"model: {model}")
+        typer.echo(f"models in picker: {len(models) + 1}")
         typer.echo("apiKey: {env:SFERENCE_API_KEY} (injected at launch)")
         typer.echo(f"command: {' '.join(cmd)}")
         return
