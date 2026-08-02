@@ -1189,74 +1189,6 @@
         "deprecated": false
       }
     },
-    "/control/v1/billing/invoices": {
-      "post": {
-        "summary": "CreateInvoice",
-        "operationId": "ControlV1BillingInvoicesCreateInvoice",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InvoiceCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Document created, URL follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvoiceCreateResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
     "/control/v1/billing/topups": {
       "post": {
         "summary": "CreateTopup",
@@ -4750,6 +4682,10 @@
           },
           "credit_balance_micros": {
             "type": "integer"
+          },
+          "billing_mode": {
+            "type": "string",
+            "default": "prepaid"
           }
         },
         "type": "object",
@@ -5743,79 +5679,6 @@
           "body"
         ],
         "title": "InferenceRequest"
-      },
-      "InvoiceCreateRequest": {
-        "properties": {
-          "period_start": {
-            "oneOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "period_end": {
-            "oneOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [],
-        "title": "InvoiceCreateRequest"
-      },
-      "InvoiceCreateResponse": {
-        "properties": {
-          "stripe_invoice_id": {
-            "type": "string"
-          },
-          "hosted_invoice_url": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "amount_cents": {
-            "type": "integer"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "period_start": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "period_end": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "amount_cents",
-          "currency",
-          "period_end",
-          "period_start",
-          "status",
-          "stripe_invoice_id"
-        ],
-        "title": "InvoiceCreateResponse"
       },
       "LedgerEntryItem": {
         "properties": {
@@ -7033,6 +6896,7 @@
             "enum": [
               "waitlist",
               "invited",
+              "open",
               null
             ]
           },
@@ -7454,6 +7318,10 @@
           "zero_data_retention_enabled": {
             "type": "boolean",
             "default": false
+          },
+          "billing_mode": {
+            "type": "string",
+            "default": "prepaid"
           },
           "members": {
             "oneOf": [
