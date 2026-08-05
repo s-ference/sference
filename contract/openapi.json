@@ -1439,6 +1439,24 @@
       }
     },
     "/control/v1/teams/me/members": {
+      "get": {
+        "summary": "ListMembers",
+        "operationId": "ControlV1TeamsMeMembersListMembers",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
       "post": {
         "summary": "AddMember",
         "operationId": "ControlV1TeamsMeMembersAddMember",
@@ -1655,8 +1673,8 @@
         "deprecated": false
       },
       "patch": {
-        "summary": "UpdateMemberRole",
-        "operationId": "ControlV1TeamsMeMembersUserIdUpdateMemberRole",
+        "summary": "UpdateMember",
+        "operationId": "ControlV1TeamsMeMembersUserIdUpdateMember",
         "parameters": [
           {
             "name": "user_id",
@@ -1673,7 +1691,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TeamMemberRoleUpdateRequest"
+                "$ref": "#/components/schemas/MemberUpdateRequest"
               }
             }
           },
@@ -1686,7 +1704,1423 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeamMemberItem"
+                  "$ref": "#/components/schemas/MemberItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/departments": {
+      "get": {
+        "summary": "ListDepartments",
+        "operationId": "ControlV1TeamsMeDepartmentsListDepartments",
+        "parameters": [
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "description": "Include soft-deleted departments",
+              "default": false
+            },
+            "description": "Include soft-deleted departments",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "summary": "CreateDepartment",
+        "operationId": "ControlV1TeamsMeDepartmentsCreateDepartment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/invites": {
+      "get": {
+        "summary": "ListInvites",
+        "operationId": "ControlV1TeamsMeInvitesListInvites",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "summary": "CreateInvite",
+        "operationId": "ControlV1TeamsMeInvitesCreateInvite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created, URL follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/departments/{department_id}": {
+      "delete": {
+        "summary": "DeleteDepartment",
+        "operationId": "ControlV1TeamsMeDepartmentsDepartmentIdDeleteDepartment",
+        "parameters": [
+          {
+            "name": "department_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "patch": {
+        "summary": "UpdateDepartment",
+        "operationId": "ControlV1TeamsMeDepartmentsDepartmentIdUpdateDepartment",
+        "parameters": [
+          {
+            "name": "department_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/audit-log": {
+      "get": {
+        "summary": "GetAuditLog",
+        "operationId": "ControlV1TeamsMeAuditLogGetAuditLog",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one action"
+            },
+            "description": "Filter to one action",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000.0,
+              "minimum": 1.0,
+              "default": 200
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/model-policy": {
+      "get": {
+        "summary": "GetModelPolicy",
+        "operationId": "ControlV1TeamsMeModelPolicyGetModelPolicy",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPolicyResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "put": {
+        "summary": "UpdateModelPolicy",
+        "operationId": "ControlV1TeamsMeModelPolicyUpdateModelPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelPolicyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/organization": {
+      "get": {
+        "summary": "GetOrganization",
+        "operationId": "ControlV1TeamsMeOrganizationGetOrganization",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "patch": {
+        "summary": "UpdateOrganization",
+        "operationId": "ControlV1TeamsMeOrganizationUpdateOrganization",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/spend-policy": {
+      "get": {
+        "summary": "GetSpendPolicy",
+        "operationId": "ControlV1TeamsMeSpendPolicyGetSpendPolicy",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendPolicyResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "put": {
+        "summary": "UpdateSpendPolicy",
+        "operationId": "ControlV1TeamsMeSpendPolicyUpdateSpendPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpendPolicyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendPolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/api-keys": {
+      "get": {
+        "summary": "ListApiKeys",
+        "operationId": "ControlV1TeamsMeApiKeysListApiKeys",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgApiKeyListResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/departments/{department_id}/restore": {
+      "post": {
+        "summary": "RestoreDepartment",
+        "operationId": "ControlV1TeamsMeDepartmentsDepartmentIdRestoreRestoreDepartment",
+        "parameters": [
+          {
+            "name": "department_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/api-keys/{key_id}": {
+      "delete": {
+        "summary": "RevokeApiKey",
+        "operationId": "ControlV1TeamsMeApiKeysKeyIdRevokeApiKey",
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "patch": {
+        "summary": "UpdateApiKey",
+        "operationId": "ControlV1TeamsMeApiKeysKeyIdUpdateApiKey",
+        "parameters": [
+          {
+            "name": "key_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgApiKeyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgApiKeyItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/invites/{invite_id}": {
+      "delete": {
+        "summary": "RevokeInvite",
+        "operationId": "ControlV1TeamsMeInvitesInviteIdRevokeInvite",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/me/members/{user_id}/spend-policy": {
+      "put": {
+        "summary": "UpdateMemberSpendPolicy",
+        "operationId": "ControlV1TeamsMeMembersUserIdSpendPolicyUpdateMemberSpendPolicy",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberSpendPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/invites/accept": {
+      "post": {
+        "summary": "AcceptInvite",
+        "operationId": "ControlV1TeamsInvitesAcceptAcceptInvite",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteAcceptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteAcceptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/teams/invites/{token}": {
+      "get": {
+        "summary": "GetInvitePreview",
+        "operationId": "ControlV1TeamsInvitesTokenGetInvitePreview",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "deprecated": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/activity/export.csv": {
+      "get": {
+        "summary": "ExportActivityCsv",
+        "operationId": "ControlV1ActivityExportCsvExportActivityCsv",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 5000.0,
+              "minimum": 1.0,
+              "description": "Rows to export",
+              "default": 1000
+            },
+            "description": "Rows to export",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "api_key_id",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1962,6 +3396,26 @@
               "description": "Team admins: filter activity to one member"
             },
             "description": "Team admins: filter activity to one member",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter activity to keys carrying this tag"
+            },
+            "description": "Filter activity to keys carrying this tag",
             "required": false,
             "deprecated": false,
             "allowEmptyValue": false,
@@ -3516,6 +4970,719 @@
         "deprecated": false
       }
     },
+    "/control/v1/usage/by-department": {
+      "get": {
+        "summary": "GetByDepartment",
+        "operationId": "ControlV1UsageByDepartmentGetByDepartment",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageByDepartmentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/usage/by-department.csv": {
+      "get": {
+        "summary": "GetByDepartmentCsv",
+        "operationId": "ControlV1UsageByDepartmentCsvGetByDepartmentCsv",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/usage/by-key": {
+      "get": {
+        "summary": "GetByKey",
+        "operationId": "ControlV1UsageByKeyGetByKey",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one key tag"
+            },
+            "description": "Filter to one key tag",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageByKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/usage/by-key.csv": {
+      "get": {
+        "summary": "GetByKeyCsv",
+        "operationId": "ControlV1UsageByKeyCsvGetByKeyCsv",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one key tag"
+            },
+            "description": "Filter to one key tag",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/usage/by-member": {
+      "get": {
+        "summary": "GetByMember",
+        "operationId": "ControlV1UsageByMemberGetByMember",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageByMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/usage/by-member.csv": {
+      "get": {
+        "summary": "GetByMemberCsv",
+        "operationId": "ControlV1UsageByMemberCsvGetByMemberCsv",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/control/v1/usage/by-model.csv": {
+      "get": {
+        "summary": "GetByModelCsv",
+        "operationId": "ControlV1UsageByModelCsvGetByModelCsv",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Number of days to look back",
+              "default": 30
+            },
+            "description": "Number of days to look back",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Team admins: filter usage to one member"
+            },
+            "description": "Team admins: filter usage to one member",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/usage/daily": {
       "get": {
         "summary": "GetDaily",
@@ -3900,10 +6067,23 @@
         },
         "type": "object",
         "required": [
+          "api_key_id",
+          "api_key_name",
+          "api_key_prefix",
+          "batch_id",
+          "cached_prompt_tokens",
+          "completed_at",
+          "completion_tokens",
+          "cost_micros",
           "created_at",
+          "custom_id",
+          "error",
           "id",
           "model",
+          "prompt_tokens",
           "status",
+          "stream_id",
+          "total_tokens",
           "type"
         ],
         "title": "ActivityItem"
@@ -4055,11 +6235,22 @@
         },
         "type": "object",
         "required": [
+          "batch_id",
           "body_json",
+          "cached_prompt_tokens",
+          "completed_at",
+          "completion_tokens",
+          "cost_micros",
           "created_at",
+          "custom_id",
+          "error_json",
           "id",
           "model",
+          "prompt_tokens",
+          "result_json",
           "status",
+          "stream_id",
+          "total_tokens",
           "type"
         ],
         "title": "ActivityItemDetail"
@@ -4357,6 +6548,37 @@
             "type": "string",
             "maxLength": 200,
             "minLength": 1
+          },
+          "tag": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 64
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4418,6 +6640,36 @@
                 "type": "null"
               }
             ]
+          },
+          "tag": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4443,6 +6695,90 @@
           "items"
         ],
         "title": "ApiKeyListResponse"
+      },
+      "AuditEntry": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor_email": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "target_type": {
+            "type": "string"
+          },
+          "target_label": {
+            "type": "string"
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "actor_email",
+          "created_at",
+          "id",
+          "target_label",
+          "target_type"
+        ],
+        "title": "AuditEntry"
+      },
+      "AuditLogResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEntry"
+            },
+            "type": "array"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "actions",
+          "items"
+        ],
+        "title": "AuditLogResponse"
       },
       "BatchCreateRequest": {
         "properties": {
@@ -5442,6 +7778,214 @@
         ],
         "title": "DailyUsage"
       },
+      "DepartmentCreateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "DepartmentCreateRequest"
+      },
+      "DepartmentItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_count": {
+            "type": "integer",
+            "default": 0
+          },
+          "head_user_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "month_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "day_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "blocked": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "id",
+          "name"
+        ],
+        "title": "DepartmentItem"
+      },
+      "DepartmentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "DepartmentListResponse"
+      },
+      "DepartmentUpdateRequest": {
+        "properties": {
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 255,
+            "minLength": 1
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "DepartmentUpdateRequest"
+      },
       "DeploymentCreateRequest": {
         "properties": {
           "name": {
@@ -5613,6 +8157,7 @@
         },
         "type": "object",
         "required": [
+          "activated_at",
           "created_at",
           "id",
           "max_replicas",
@@ -5620,9 +8165,11 @@
           "model_id",
           "model_source",
           "name",
+          "notes",
           "performance",
           "region",
           "status",
+          "status_reason",
           "updated_at"
         ],
         "title": "DeploymentResponse"
@@ -5679,6 +8226,156 @@
           "body"
         ],
         "title": "InferenceRequest"
+      },
+      "InviteAcceptRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "InviteAcceptRequest"
+      },
+      "InviteAcceptResponse": {
+        "properties": {
+          "organization_id": {
+            "type": "string"
+          },
+          "organization_name": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "organization_id",
+          "organization_name"
+        ],
+        "title": "InviteAcceptResponse"
+      },
+      "InviteCreateRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "InviteCreateRequest"
+      },
+      "InviteItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invited_by_email": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "revoked",
+              "expired"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "email",
+          "expires_at",
+          "id",
+          "invited_by_email",
+          "status"
+        ],
+        "title": "InviteItem"
+      },
+      "InviteListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InviteItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "InviteListResponse"
+      },
+      "InvitePreviewResponse": {
+        "properties": {
+          "organization_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "revoked",
+              "expired"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "expires_at",
+          "organization_name",
+          "status"
+        ],
+        "title": "InvitePreviewResponse"
       },
       "LedgerEntryItem": {
         "properties": {
@@ -5850,6 +8547,327 @@
         ],
         "title": "LoginResponse"
       },
+      "MemberItem": {
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_department_head": {
+            "type": "boolean",
+            "default": false
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthly_limit_source": {
+            "type": "string",
+            "enum": [
+              "override",
+              "department",
+              "org",
+              "none"
+            ],
+            "default": "none"
+          },
+          "daily_limit_source": {
+            "type": "string",
+            "enum": [
+              "override",
+              "department",
+              "org",
+              "none"
+            ],
+            "default": "none"
+          },
+          "month_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "day_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "blocked": {
+            "type": "boolean",
+            "default": false
+          },
+          "model_caps": {
+            "items": {
+              "$ref": "#/components/schemas/MemberModelCap"
+            },
+            "type": "array"
+          },
+          "model_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "email",
+          "is_active",
+          "role",
+          "user_id"
+        ],
+        "title": "MemberItem"
+      },
+      "MemberListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemberItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "MemberListResponse"
+      },
+      "MemberModelCap": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "month_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "day_spend_micros": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "MemberModelCap"
+      },
+      "MemberModelCapRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "MemberModelCapRequest"
+      },
+      "MemberSpendPolicyRequest": {
+        "properties": {
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_caps": {
+            "items": {
+              "$ref": "#/components/schemas/MemberModelCapRequest"
+            },
+            "type": "array"
+          },
+          "model_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "MemberSpendPolicyRequest"
+      },
+      "MemberUpdateRequest": {
+        "properties": {
+          "role": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "admin",
+              "member",
+              null
+            ]
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_department_head": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_active": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "MemberUpdateRequest"
+      },
       "ModelCapabilities": {
         "properties": {
           "image_input": {
@@ -5915,6 +8933,94 @@
         "type": "object",
         "required": [],
         "title": "ModelDeploymentRequestResponse"
+      },
+      "ModelPolicyDepartmentItem": {
+        "properties": {
+          "department_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "model_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "department_id",
+          "name"
+        ],
+        "title": "ModelPolicyDepartmentItem"
+      },
+      "ModelPolicyResponse": {
+        "properties": {
+          "org_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/ModelPolicyDepartmentItem"
+            },
+            "type": "array"
+          },
+          "effective_for_viewer": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ModelPolicyResponse"
+      },
+      "ModelPolicyUpdateRequest": {
+        "properties": {
+          "org_allowlist": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ModelPolicyUpdateRequest"
       },
       "ModelSearchItem": {
         "properties": {
@@ -6132,6 +9238,308 @@
           "provider"
         ],
         "title": "OAuthCompleteRequest"
+      },
+      "OrgApiKeyItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "tag": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_user_id": {
+            "type": "string"
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revoked_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "month_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "day_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "blocked": {
+            "type": "boolean",
+            "default": false
+          },
+          "ceiling_monthly_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ceiling_daily_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "id",
+          "name",
+          "owner_email",
+          "owner_user_id",
+          "prefix"
+        ],
+        "title": "OrgApiKeyItem"
+      },
+      "OrgApiKeyListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrgApiKeyItem"
+            },
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "OrgApiKeyListResponse"
+      },
+      "OrgApiKeyUpdateRequest": {
+        "properties": {
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "tag": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 64
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "OrgApiKeyUpdateRequest"
+      },
+      "OrganizationResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email_domain": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departments_enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "zero_data_retention_enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "alert_threshold_pct": {
+            "type": "integer",
+            "default": 80
+          },
+          "mcp_servers_configured": {
+            "type": "integer",
+            "default": 0
+          },
+          "viewer": {
+            "$ref": "#/components/schemas/Viewer"
+          },
+          "surfaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email_domain",
+          "id",
+          "name",
+          "viewer"
+        ],
+        "title": "OrganizationResponse"
+      },
+      "OrganizationUpdateRequest": {
+        "properties": {
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 255,
+            "minLength": 1
+          },
+          "departments_enabled": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "zero_data_retention_enabled": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alert_threshold_pct": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 99,
+            "minimum": 1
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "OrganizationUpdateRequest"
       },
       "PricingInfo": {
         "properties": {
@@ -6915,6 +10323,132 @@
         ],
         "title": "SignupResponse"
       },
+      "SpendPolicyResponse": {
+        "properties": {
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "month_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "day_spend_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "blocked": {
+            "type": "boolean",
+            "default": false
+          },
+          "member_default_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "SpendPolicyResponse"
+      },
+      "SpendPolicyUpdateRequest": {
+        "properties": {
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_default_daily_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "SpendPolicyUpdateRequest"
+      },
       "StreamCreateRequest": {
         "properties": {
           "name": {
@@ -7339,6 +10873,7 @@
         },
         "type": "object",
         "required": [
+          "email_domain",
           "id",
           "name",
           "role"
@@ -7373,23 +10908,6 @@
           "user_id"
         ],
         "title": "TeamMemberItem"
-      },
-      "TeamMemberRoleUpdateRequest": {
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": [
-              "admin",
-              "member"
-            ],
-            "description": "New team role for the member"
-          }
-        },
-        "type": "object",
-        "required": [
-          "role"
-        ],
-        "title": "TeamMemberRoleUpdateRequest"
       },
       "TeamUpdateRequest": {
         "properties": {
@@ -7463,6 +10981,306 @@
         ],
         "title": "TopupCreateResponse"
       },
+      "UsageByDepartmentItem": {
+        "properties": {
+          "department_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "member_count": {
+            "type": "integer",
+            "default": 0
+          },
+          "requests": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocked": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "department_id",
+          "name"
+        ],
+        "title": "UsageByDepartmentItem"
+      },
+      "UsageByDepartmentResponse": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UsageByDepartmentItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "period_end",
+          "period_start"
+        ],
+        "title": "UsageByDepartmentResponse"
+      },
+      "UsageByKeyItem": {
+        "properties": {
+          "api_key_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "tag": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revoked": {
+            "type": "boolean",
+            "default": false
+          },
+          "last_used_at": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requests": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "cost_micros": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key_id",
+          "name",
+          "owner_email",
+          "prefix"
+        ],
+        "title": "UsageByKeyItem"
+      },
+      "UsageByKeyResponse": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UsageByKeyItem"
+            },
+            "type": "array"
+          },
+          "by_tag": {
+            "items": {
+              "$ref": "#/components/schemas/UsageByTagItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "period_end",
+          "period_start"
+        ],
+        "title": "UsageByKeyResponse"
+      },
+      "UsageByMemberItem": {
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "department_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member"
+            ]
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "requests": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "effective_monthly_limit_micros": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blocked": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "is_active",
+          "role",
+          "user_id"
+        ],
+        "title": "UsageByMemberItem"
+      },
+      "UsageByMemberResponse": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UsageByMemberItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "period_end",
+          "period_start"
+        ],
+        "title": "UsageByMemberResponse"
+      },
+      "UsageByTagItem": {
+        "properties": {
+          "tag": {
+            "type": "string"
+          },
+          "keys": {
+            "type": "integer",
+            "default": 0
+          },
+          "requests": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "cost_micros": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "tag"
+        ],
+        "title": "UsageByTagItem"
+      },
       "UsageDailyResponse": {
         "properties": {
           "items": {
@@ -7520,6 +11338,13 @@
               "$ref": "#/components/schemas/ModelUsageSummary"
             },
             "type": "array"
+          },
+          "by_user": {
+            "items": {
+              "$ref": "#/components/schemas/UserUsageSummary"
+            },
+            "type": "array",
+            "default": []
           }
         },
         "type": "object",
@@ -7544,6 +11369,48 @@
           "username"
         ],
         "title": "UserResponse"
+      },
+      "UserUsageSummary": {
+        "properties": {
+          "user_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_prompt_tokens": {
+            "type": "integer"
+          },
+          "total_completion_tokens": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          },
+          "total_cached_prompt_tokens": {
+            "type": "integer",
+            "default": 0
+          },
+          "total_requests": {
+            "type": "integer"
+          },
+          "total_cost_micros": {
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_completion_tokens",
+          "total_prompt_tokens",
+          "total_requests",
+          "total_tokens"
+        ],
+        "title": "UserUsageSummary"
       },
       "V1ModelItemResponse": {
         "properties": {
@@ -7693,6 +11560,53 @@
           "token"
         ],
         "title": "VerifyEmailRequest"
+      },
+      "Viewer": {
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "member"
+            ]
+          },
+          "is_department_head": {
+            "type": "boolean",
+            "default": false
+          },
+          "department_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "org",
+              "department",
+              "self"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "role",
+          "scope",
+          "user_id"
+        ],
+        "title": "Viewer"
       }
     }
   }
