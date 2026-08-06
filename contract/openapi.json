@@ -8300,7 +8300,14 @@
             ]
           },
           "invited_by_email": {
-            "type": "string"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "type": "string",
@@ -8326,7 +8333,6 @@
           "email",
           "expires_at",
           "id",
-          "invited_by_email",
           "status"
         ],
         "title": "InviteItem"
