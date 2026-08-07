@@ -1272,6 +1272,26 @@
         "deprecated": false
       }
     },
+    "/control/v1/billing/balance": {
+      "get": {
+        "summary": "GetBalance",
+        "operationId": "ControlV1BillingBalanceGetBalance",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingBalanceResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/billing/summary": {
       "get": {
         "summary": "GetSummary",
@@ -6941,6 +6961,22 @@
           "status"
         ],
         "title": "BatchResultsResponse"
+      },
+      "BillingBalanceResponse": {
+        "properties": {
+          "credit_balance_micros": {
+            "type": "integer"
+          },
+          "billing_mode": {
+            "type": "string",
+            "default": "prepaid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credit_balance_micros"
+        ],
+        "title": "BillingBalanceResponse"
       },
       "BillingModelSummary": {
         "properties": {
