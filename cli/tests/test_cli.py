@@ -944,10 +944,13 @@ def test_pi_dry_run_prints_config(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0
     assert "Wrote provider 'sference' to" in result.stdout
     assert "baseUrl: https://api.sference.com/v1" in result.stdout
+    assert "api: openai-responses (/v1/responses)" in result.stdout
     assert "model: moonshotai/Kimi-K3" in result.stdout
     assert "models registered: 3" in result.stdout
+    assert "model scope: sference/** (other providers hidden by default)" in result.stdout
     assert "apiKey: <redacted>" in result.stdout
     assert "command: /usr/local/bin/pi --provider sference --model moonshotai/Kimi-K3" in result.stdout
+    assert "--models sference/**" in result.stdout
 
 
 def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
@@ -962,14 +965,15 @@ def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     assert models_json.exists()
     data = json.loads(models_json.read_text())
     provider = data["providers"]["sference"]
-    assert provider["api"] == "openai-completions"
+    assert provider["api"] == "openai-responses"
     assert provider["baseUrl"] == "https://api.sference.com/v1"
     assert provider["apiKey"] == "sk_fake_for_tests"
     models = provider["models"]
     # all fetched catalog models are registered (default GLM-5.2 is already among them)
     assert {m["id"] for m in models} == {e["id"] for e in _FAKE_PI_MODEL_ENTRIES}
     by_id = {m["id"]: m for m in models}
-    # GLM: reasoning on, text-only, zai thinking format, cost + context mapped
+    # GLM: reasoning on, text-only, cost + context mapped. openai-responses drives
+    # reasoning via native reasoning.effort (no chat-completions thinkingFormat compat).
     glm = by_id["zai-org/GLM-5.2"]
     assert glm["name"] == "GLM 5.2"
     assert glm["reasoning"] is True
@@ -980,25 +984,36 @@ def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     assert glm["cost"]["cacheWrite"] == 0
     assert glm["contextWindow"] == 200000
     assert glm["maxTokens"] == 16384
-    assert glm["compat"]["thinkingFormat"] == "zai"
-    assert glm["compat"]["supportsReasoningEffort"] is False
-    assert glm["compat"]["maxTokensField"] == "max_tokens"
-    # Qwen/ThinkingCap: qwen thinking format
+    assert "compat" not in glm
+    # Reasoning models expose only xhigh (max is rejected by Sference and omitted
+    # so a max selection clamps down to xhigh instead of 400ing).
+    assert glm["thinkingLevelMap"] == {"xhigh": "xhigh"}
+    # Qwen/ThinkingCap: reasoning on, no per-model thinking format under responses
     qwen = by_id["Qwen/Qwen3.6-35B-A3B"]
     assert qwen["reasoning"] is True
-    assert qwen["compat"]["thinkingFormat"] == "qwen"
+    assert "compat" not in qwen
+    assert qwen["thinkingLevelMap"] == {"xhigh": "xhigh"}
     assert qwen["contextWindow"] == 131072
     assert qwen["maxTokens"] == 16384
     # Kimi: non-reasoning, image input
     kimi = by_id["moonshotai/Kimi-K3"]
     assert kimi["reasoning"] is False
     assert kimi["input"] == ["text", "image"]
-    assert kimi["compat"]["thinkingFormat"] == "zai"
+    assert "compat" not in kimi
+    # non-reasoning model gets no thinkingLevelMap
+    assert "thinkingLevelMap" not in kimi
     assert kimi["contextWindow"] == 256000
     assert kimi["maxTokens"] == 16384
 
 
-def test_pi_appends_chosen_model_if_missing(monkeypatch, tmp_path: Path):
+def test_pi_does_not_add_model_absent_from_catalog(monkeypatch, tmp_path: Path):
+    """The picker shows only currently-available Sference models.
+
+    ``sference launch pi`` registers exactly the live /v1/models catalog — not
+    the chosen ``--model`` and not a bare ``{id, name}`` fallback when the model
+    isn't served. ``--model`` only selects the active model for the launch; it
+    is never injected into the picker if the catalog doesn't list it.
+    """
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
     models_json = tmp_path / "models.json"
@@ -1012,10 +1027,46 @@ def test_pi_appends_chosen_model_if_missing(monkeypatch, tmp_path: Path):
     data = json.loads(models_json.read_text())
     models = data["providers"]["sference"]["models"]
     ids = {m["id"] for m in models}
-    assert "custom-org/not-in-catalog" in ids
-    appended = next(m for m in models if m["id"] == "custom-org/not-in-catalog")
-    # appended as a bare {id, name} fallback (no catalog metadata)
-    assert appended == {"id": "custom-org/not-in-catalog", "name": "custom-org/not-in-catalog"}
+    # non-catalog model is not added to the picker
+    assert "custom-org/not-in-catalog" not in ids
+    # only the live catalog models are registered
+    assert ids == {e["id"] for e in _FAKE_PI_MODEL_ENTRIES}
+
+
+def test_pi_drops_model_no_longer_in_catalog(monkeypatch, tmp_path: Path):
+    """A model absent from the live catalog is not re-added, so a deprecated
+    model disappears from the picker instead of accumulating forever.
+
+    ``sference launch pi`` previously force-appended the chosen model as a bare
+    ``{id, name}`` whenever it was missing from the catalog — even when it was
+    the default and had been removed because it was deprecated. Running the
+    command again after a model is dropped would resurrect it every time.
+    """
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    models_json = tmp_path / "models.json"
+    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
+
+    # Default launcher model (GLM-5.2) is in the catalog initially and registered.
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+    )
+    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    data = json.loads(models_json.read_text())
+    ids = {m["id"] for m in data["providers"]["sference"]["models"]}
+    assert "zai-org/GLM-5.2" in ids
+
+    # GLM-5.2 is removed from the catalog; default --model should not re-add it.
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: [e for e in _FAKE_PI_MODEL_ENTRIES if e["id"] != "zai-org/GLM-5.2"],
+    )
+    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    data = json.loads(models_json.read_text())
+    ids = [m["id"] for m in data["providers"]["sference"]["models"]]
+    assert "zai-org/GLM-5.2" not in ids
+    # live catalog models still registered (Qwen + Kimi), nothing stale
+    assert set(ids) == {"Qwen/Qwen3.6-35B-A3B", "moonshotai/Kimi-K3"}
 
 
 def test_pi_falls_back_when_fetch_fails(monkeypatch, tmp_path: Path):
@@ -1063,6 +1114,8 @@ def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
         "sference",
         "--model",
         "zai-org/GLM-5.2",
+        "--models",
+        "sference/**",
         "/path/to/project",
     ]
 
