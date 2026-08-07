@@ -51,8 +51,13 @@ def _normalize_base_url(raw: str) -> str:
     return raw
 
 
-def fetch_sference_models(base_url: str, api_key: str) -> set[str]:
-    """Pull the live text-generation model list from GET {base_url}/v1/models.
+def fetch_sference_model_entries(base_url: str, api_key: str) -> list[dict]:
+    """Pull the live text-generation model entries from GET {base_url}/v1/models.
+
+    Returns the raw ``data`` items — the OpenAI-compatible shape with Sference
+    extensions (``display_name``, ``capabilities``, ``context_tokens``,
+    ``pricing``) — filtered to ``modality == "text_generation"``. Callers that
+    only need ids should use :func:`fetch_sference_models`.
 
     Keeps the router in sync with what the account can serve, so a
     deprecated/renamed model never slips through and 400s mid-session.
@@ -64,13 +69,18 @@ def fetch_sference_models(base_url: str, api_key: str) -> set[str]:
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
         payload = json.loads(resp.read().decode("utf-8"))
-    return {
-        item["id"]
+    return [
+        item
         for item in payload.get("data", [])
         if isinstance(item, dict)
         and item.get("id")
         and item.get("modality", "text_generation") == "text_generation"
-    }
+    ]
+
+
+def fetch_sference_models(base_url: str, api_key: str) -> set[str]:
+    """Ids of the text-generation models the account can serve (GET /v1/models)."""
+    return {item["id"] for item in fetch_sference_model_entries(base_url, api_key)}
 
 
 def pick_free_port() -> int:
