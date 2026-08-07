@@ -13,7 +13,7 @@ from typing import Optional
 
 import typer
 
-from .proxy import fetch_sference_models, launch_claude_via_proxy
+from .proxy import fetch_sference_model_entries, fetch_sference_models, launch_claude_via_proxy
 
 DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
@@ -140,8 +140,92 @@ def _pi_models_json_path() -> Path:
     return Path.home() / ".pi" / "agent" / "models.json"
 
 
-def _write_pi_models_json(*, base_url: str, api_key: str, model: str) -> Path:
-    """Write or update ``~/.pi/agent/models.json`` with a Sference provider."""
+def _pi_thinking_format(model_id: str, display_name: str) -> str:
+    """Reasoning wire format a model expects.
+
+    pi auto-detects this from the provider baseUrl, which fails for our custom
+    endpoint, so it is set per model. Qwen-based models (ThinkingCap, Qwen)
+    toggle reasoning off a top-level ``enable_thinking`` boolean → "qwen";
+    GLM/Kimi/DeepSeek use the zai format. Getting this wrong makes reasoning
+    models return degenerate empty responses.
+    """
+    label = f"{model_id} {display_name}".lower()
+    if "qwen" in label or "thinkingcap" in label:
+        return "qwen"
+    return "zai"
+
+
+def _pi_model_config(entry: dict) -> dict:
+    """Map a ``GET /v1/models`` entry to a pi ProviderModelConfig.
+
+    Mirrors the desktop agent-runner's ``toProviderModel``: reasoning/input
+    come from ``capabilities``, cost from ``pricing``, and the per-model
+    ``thinkingFormat`` is derived from the id/display name. ``maxTokens`` is
+    clamped to 16384 (pi's default cap) like the desktop.
+    """
+    caps = entry.get("capabilities") or {}
+    thinking = bool((caps.get("thinking") or {}).get("supported", False))
+    image_in = bool((caps.get("image_input") or {}).get("supported", False))
+    pricing = entry.get("pricing") or {}
+    context_tokens = entry.get("context_tokens")
+    context_window = context_tokens if context_tokens is not None else 128000
+    max_tokens = min(context_tokens if context_tokens is not None else 8192, 16384)
+    return {
+        "id": entry["id"],
+        "name": entry.get("display_name") or entry["id"],
+        "reasoning": thinking,
+        "input": ["text", "image"] if image_in else ["text"],
+        "cost": {
+            "input": pricing.get("input_per_million_usd") or 0,
+            "output": pricing.get("output_per_million_usd") or 0,
+            "cacheRead": pricing.get("cached_input_per_million_usd") or 0,
+            "cacheWrite": 0,
+        },
+        "contextWindow": context_window,
+        "maxTokens": max_tokens,
+        "compat": {
+            "thinkingFormat": _pi_thinking_format(entry["id"], entry.get("display_name") or ""),
+            "supportsReasoningEffort": False,
+            "maxTokensField": "max_tokens",
+        },
+    }
+
+
+def _build_pi_models(*, base_url: str, api_key: str, model: str) -> list[dict]:
+    """Build the pi model config list for the sference provider.
+
+    Fetches the live catalog (GET {base_url}/models) and maps every
+    text-generation entry to a pi ProviderModelConfig with reasoning/input/
+    cost/context metadata and the per-model thinking wire format, so all
+    Sference-provided models appear in pi's ``/model`` picker — not just the one
+    passed to ``--model``. Falls back to just ``model`` if the fetch fails
+    (offline) so ``launch pi`` still works. ``model`` is always present (appended
+    as a bare ``{id, name}`` if the catalog doesn't list it).
+    """
+    try:
+        entries = fetch_sference_model_entries(base_url, api_key)
+    except Exception:
+        typer.echo(
+            f"note: could not fetch model catalog from {base_url}/models; "
+            f"registered only --model {model}. The /model picker will show just "
+            "this model.",
+            err=True,
+        )
+        entries = []
+    configs = [_pi_model_config(entry) for entry in entries]
+    if model not in {c["id"] for c in configs}:
+        configs.append({"id": model, "name": model})
+    return configs
+
+
+def _write_pi_models_json(*, base_url: str, api_key: str, models: list[dict]) -> Path:
+    """Write or update ``~/.pi/agent/models.json`` with a Sference provider.
+
+    ``models`` is the full list of pi ProviderModelConfig dicts to register —
+    all Sference-provided text-generation models (plus the chosen model as a
+    fallback if absent from the catalog). Existing providers other than
+    ``sference`` are preserved; only the ``sference`` block is overwritten.
+    """
     path = _pi_models_json_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -149,7 +233,7 @@ def _write_pi_models_json(*, base_url: str, api_key: str, model: str) -> Path:
         "api": "openai-completions",
         "baseUrl": base_url,
         "apiKey": api_key,
-        "models": [{"id": model, "name": model}],
+        "models": models,
     }
 
     if path.exists():
@@ -188,7 +272,8 @@ def launch_pi(
         )
         raise typer.Exit(code=1)
 
-    models_json = _write_pi_models_json(base_url=base_url, api_key=api_key, model=model)
+    models = _build_pi_models(base_url=base_url, api_key=api_key, model=model)
+    models_json = _write_pi_models_json(base_url=base_url, api_key=api_key, models=models)
     env = os.environ.copy()
     # Pi reads providers from ~/.pi/agent/models.json; no env vars needed.
     cmd = [pi_bin, "--provider", "sference", "--model", model, *pi_args]
@@ -197,6 +282,7 @@ def launch_pi(
         typer.echo(f"Wrote provider 'sference' to {models_json}")
         typer.echo(f"baseUrl: {base_url}")
         typer.echo(f"model: {model}")
+        typer.echo(f"models registered: {len(models)}")
         typer.echo("apiKey: <redacted>")
         typer.echo(f"command: {' '.join(cmd)}")
         return
@@ -484,9 +570,13 @@ def register_launch_commands(app: typer.Typer) -> None:
         """Run ``pi`` with Sference credentials.
 
         Writes a ``sference`` provider block to ``~/.pi/agent/models.json`` with
-        ``baseUrl``, ``apiKey``, and the chosen ``model``, then execs
-        ``pi --provider sference --model <id>``. Unknown options and trailing args
-        are forwarded to Pi, e.g. ``sference launch pi -- /path/to/project``.
+        ``baseUrl``, ``apiKey``, and the full list of Sference-provided models
+        (fetched live from ``GET /v1/models``), then execs
+        ``pi --provider sference --model <id>``. All catalog models appear in
+        pi's ``/model`` picker; ``--model`` selects the active one. If the
+        catalog fetch fails (offline), only the chosen model is registered.
+        Unknown options and trailing args are forwarded to Pi, e.g.
+        ``sference launch pi -- /path/to/project``.
         """
         from sference_cli.main import _ensure_api_credential, _read_token
 

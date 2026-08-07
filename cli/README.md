@@ -127,7 +127,7 @@ Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moons
 | `sference launch pi --model moonshotai/Kimi-K2.7-Code` | Override catalog model |
 | `sference launch pi -- /path/to/project` | Forward Pi args after `sference launch pi` |
 
-Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provider block to `~/.pi/agent/models.json` with `baseUrl`, `apiKey`, and the chosen `model`, then execs `pi --provider sference --model <id>`. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.7-Code` (override with `--model` or `SFERENCE_MODEL`).
+Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provider block to `~/.pi/agent/models.json` with `baseUrl`, `apiKey`, and the full list of Sference-provided models (fetched live from `GET /v1/models`), then execs `pi --provider sference --model <id>`. All catalog models appear in pi's `/model` picker; `--model` selects the active one. If the catalog fetch fails (offline), only the chosen model is registered. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.7-Code` (override with `--model` or `SFERENCE_MODEL`).
 
 ### Batch
 

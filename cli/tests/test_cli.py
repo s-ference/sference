@@ -893,40 +893,159 @@ def test_claude_requires_credential(monkeypatch, tmp_path: Path):
     assert "No API credential" in out
 
 
+_FAKE_PI_MODEL_ENTRIES = [
+    {
+        "id": "zai-org/GLM-5.2",
+        "display_name": "GLM 5.2",
+        "modality": "text_generation",
+        "context_tokens": 200000,
+        "capabilities": {
+            "thinking": {"supported": True, "types": {"enabled": {"supported": True}, "adaptive": {"supported": False}}},
+            "image_input": {"supported": False},
+        },
+        "pricing": {"input_per_million_usd": 0.6, "output_per_million_usd": 2.2, "cached_input_per_million_usd": 0.1},
+    },
+    {
+        "id": "Qwen/Qwen3.6-35B-A3B",
+        "display_name": "Qwen3.6 35B A3B (ThinkingCap)",
+        "modality": "text_generation",
+        "context_tokens": 131072,
+        "capabilities": {
+            "thinking": {"supported": True, "types": {"enabled": {"supported": True}, "adaptive": {"supported": False}}},
+            "image_input": {"supported": False},
+        },
+        "pricing": {"input_per_million_usd": 0.3, "output_per_million_usd": 1.5, "cached_input_per_million_usd": 0.07},
+    },
+    {
+        "id": "moonshotai/Kimi-K3",
+        "display_name": "Kimi K3",
+        "modality": "text_generation",
+        "context_tokens": 256000,
+        "capabilities": {
+            "thinking": {"supported": False, "types": {"enabled": {"supported": False}, "adaptive": {"supported": False}}},
+            "image_input": {"supported": True},
+        },
+        "pricing": {"input_per_million_usd": 1.0, "output_per_million_usd": 4.0, "cached_input_per_million_usd": 0.2},
+    },
+]
+
+
 def test_pi_dry_run_prints_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json")
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+    )
     result = runner.invoke(
         cli_main.app,
-        ["launch", "pi", "--dry-run", "--model", "moonshotai/Kimi-K2.6"],
+        ["launch", "pi", "--dry-run", "--model", "moonshotai/Kimi-K3"],
     )
     assert result.exit_code == 0
     assert "Wrote provider 'sference' to" in result.stdout
     assert "baseUrl: https://api.sference.com/v1" in result.stdout
-    assert "model: moonshotai/Kimi-K2.6" in result.stdout
+    assert "model: moonshotai/Kimi-K3" in result.stdout
+    assert "models registered: 3" in result.stdout
     assert "apiKey: <redacted>" in result.stdout
-    assert "command: /usr/local/bin/pi --provider sference --model moonshotai/Kimi-K2.6" in result.stdout
+    assert "command: /usr/local/bin/pi --provider sference --model moonshotai/Kimi-K3" in result.stdout
 
 
-def test_pi_writes_models_json(monkeypatch, tmp_path: Path):
+def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
     models_json = tmp_path / "models.json"
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+    )
     runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
     assert models_json.exists()
     data = json.loads(models_json.read_text())
-    assert data["providers"]["sference"]["api"] == "openai-completions"
-    assert data["providers"]["sference"]["baseUrl"] == "https://api.sference.com/v1"
-    assert data["providers"]["sference"]["apiKey"] == "sk_fake_for_tests"
-    assert data["providers"]["sference"]["models"][0]["id"] == "zai-org/GLM-5.2"
+    provider = data["providers"]["sference"]
+    assert provider["api"] == "openai-completions"
+    assert provider["baseUrl"] == "https://api.sference.com/v1"
+    assert provider["apiKey"] == "sk_fake_for_tests"
+    models = provider["models"]
+    # all fetched catalog models are registered (default GLM-5.2 is already among them)
+    assert {m["id"] for m in models} == {e["id"] for e in _FAKE_PI_MODEL_ENTRIES}
+    by_id = {m["id"]: m for m in models}
+    # GLM: reasoning on, text-only, zai thinking format, cost + context mapped
+    glm = by_id["zai-org/GLM-5.2"]
+    assert glm["name"] == "GLM 5.2"
+    assert glm["reasoning"] is True
+    assert glm["input"] == ["text"]
+    assert glm["cost"]["input"] == 0.6
+    assert glm["cost"]["output"] == 2.2
+    assert glm["cost"]["cacheRead"] == 0.1
+    assert glm["cost"]["cacheWrite"] == 0
+    assert glm["contextWindow"] == 200000
+    assert glm["maxTokens"] == 16384
+    assert glm["compat"]["thinkingFormat"] == "zai"
+    assert glm["compat"]["supportsReasoningEffort"] is False
+    assert glm["compat"]["maxTokensField"] == "max_tokens"
+    # Qwen/ThinkingCap: qwen thinking format
+    qwen = by_id["Qwen/Qwen3.6-35B-A3B"]
+    assert qwen["reasoning"] is True
+    assert qwen["compat"]["thinkingFormat"] == "qwen"
+    assert qwen["contextWindow"] == 131072
+    assert qwen["maxTokens"] == 16384
+    # Kimi: non-reasoning, image input
+    kimi = by_id["moonshotai/Kimi-K3"]
+    assert kimi["reasoning"] is False
+    assert kimi["input"] == ["text", "image"]
+    assert kimi["compat"]["thinkingFormat"] == "zai"
+    assert kimi["contextWindow"] == 256000
+    assert kimi["maxTokens"] == 16384
+
+
+def test_pi_appends_chosen_model_if_missing(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    models_json = tmp_path / "models.json"
+    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+    )
+    runner.invoke(
+        cli_main.app, ["launch", "pi", "--dry-run", "--model", "custom-org/not-in-catalog"]
+    )
+    data = json.loads(models_json.read_text())
+    models = data["providers"]["sference"]["models"]
+    ids = {m["id"] for m in models}
+    assert "custom-org/not-in-catalog" in ids
+    appended = next(m for m in models if m["id"] == "custom-org/not-in-catalog")
+    # appended as a bare {id, name} fallback (no catalog metadata)
+    assert appended == {"id": "custom-org/not-in-catalog", "name": "custom-org/not-in-catalog"}
+
+
+def test_pi_falls_back_when_fetch_fails(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    models_json = tmp_path / "models.json"
+    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
+
+    def raise_fetch(*a):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", raise_fetch)
+    result = runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    assert result.exit_code == 0
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "could not fetch model catalog" in out
+    data = json.loads(models_json.read_text())
+    models = data["providers"]["sference"]["models"]
+    # only the chosen (default) model is registered, as a bare {id, name}
+    assert [m["id"] for m in models] == ["zai-org/GLM-5.2"]
+    assert models[0] == {"id": "zai-org/GLM-5.2", "name": "zai-org/GLM-5.2"}
 
 
 def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json")
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+    )
     captured: dict = {}
 
     def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
