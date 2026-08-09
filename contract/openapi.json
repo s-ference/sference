@@ -10899,6 +10899,10 @@
             "type": "string",
             "default": "prepaid"
           },
+          "agents_enabled": {
+            "type": "boolean",
+            "default": false
+          },
           "members": {
             "oneOf": [
               {
