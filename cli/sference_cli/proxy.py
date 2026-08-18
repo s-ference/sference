@@ -102,16 +102,20 @@ def mitmproxy_available() -> bool:
 
 
 def _extract_addon_files() -> tuple[Path, Path]:
-    """Extract the addon + routing helpers to a temp dir; return (tmpdir, addon_path).
+    """Extract the addon + its sibling imports to a temp dir; return (tmpdir, addon_path).
 
-    Both files live in the same dir so the addon can ``from _proxy_routing import …``
-    via a sibling path (mitmproxy's venv has no ``sference_cli``).
+    All three files live in the same dir so the addon can ``from _proxy_routing
+    import …`` / ``from device_auth import …`` via a sibling path (mitmproxy's
+    venv has no ``sference_cli``). ``device_auth.py`` is stdlib-only for exactly
+    this reason.
     """
     res = importlib.resources.files("sference_cli")
     addon_src = (res / "_proxy_addon.py").read_text(encoding="utf-8")
     routing_src = (res / "_proxy_routing.py").read_text(encoding="utf-8")
+    device_auth_src = (res / "device_auth.py").read_text(encoding="utf-8")
     tmpdir = Path(tempfile.mkdtemp(prefix="sference_proxy_"))
     (tmpdir / "_proxy_routing.py").write_text(routing_src, encoding="utf-8")
+    (tmpdir / "device_auth.py").write_text(device_auth_src, encoding="utf-8")
     addon_path = tmpdir / "_proxy_addon.py"
     addon_path.write_text(addon_src, encoding="utf-8")
     return tmpdir, addon_path
@@ -152,8 +156,16 @@ def launch_claude_via_proxy(
     dry_run: bool,
     proxy_port: Optional[int] = None,
     log_file: Optional[str] = None,
+    refresh_token: Optional[str] = None,
+    credentials_path: Optional[str] = None,
 ) -> None:
-    """Start mitmproxy, then exec ``claude`` pointed at it. Blocks until claude exits."""
+    """Start mitmproxy, then exec ``claude`` pointed at it. Blocks until claude exits.
+
+    ``refresh_token``/``credentials_path`` come from device-flow (v2)
+    credentials: the addon refreshes the 24 h access token on a 401 and rewrites
+    the credentials file, so long sessions survive token expiry. Legacy API-key
+    credentials pass neither and 401s pass through untouched.
+    """
     if not mitmproxy_available():
         typer.echo(
             "mitmproxy not found. Install it with:  uv tool install mitmproxy\n"
@@ -182,6 +194,8 @@ def launch_claude_via_proxy(
         typer.echo(f"Sference API: {sference_base}")
         typer.echo(f"Models ({len(models)}): {', '.join(sorted(models))}")
         typer.echo("apiKey: <redacted> (x-api-key, injected at launch)")
+        if refresh_token:
+            typer.echo("refreshToken: <redacted> (addon refreshes the 24h access token on 401)")
         typer.echo(f"HTTPS_PROXY=http://127.0.0.1:{port}")
         typer.echo(f"NODE_EXTRA_CA_CERTS={MITM_CA_CERT}")
         typer.echo("ANTHROPIC_BASE_URL=<unset> (first-party detection stays on)")
@@ -196,6 +210,10 @@ def launch_claude_via_proxy(
         "SFERENCE_BASE_URL": sference_base,
         "SFERENCE_PROXY_MODELS": json.dumps(sorted(models)),
     }
+    if refresh_token:
+        mitm_env["SFERENCE_REFRESH_TOKEN"] = refresh_token
+    if credentials_path:
+        mitm_env["SFERENCE_CREDENTIALS_PATH"] = credentials_path
     # Scope TLS interception to just the hosts we route. Without this, every
     # tool Claude Code spawns (Bash → curl, gh, …) also goes through the proxy
     # and fails TLS validation unless it trusts the mitmproxy CA. allow_hosts

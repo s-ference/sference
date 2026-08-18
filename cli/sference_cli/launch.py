@@ -503,12 +503,22 @@ def register_launch_commands(app: typer.Typer) -> None:
         Sference model). Unknown options and trailing args are forwarded to
         Claude Code, e.g. ``sference launch claude -p "fix the bug"``.
         """
-        from sference_cli.main import _ensure_api_credential, _read_token
+        from sference_cli.main import (
+            CREDENTIALS_PATH,
+            _ensure_api_credential,
+            _read_device_credentials,
+            _read_token,
+        )
 
         _ensure_api_credential()
         api_key = _read_token()
         if api_key is None:
             raise typer.Exit(code=1)
+        # Device-flow (v2) credentials let the proxy refresh the 24 h access
+        # token mid-session; legacy API-key credentials have no refresh token.
+        # Skip when SFERENCE_API_KEY overrides the file — the env token is not
+        # the file's grant, and refreshing would swap identities mid-session.
+        device_creds = None if os.environ.get("SFERENCE_API_KEY") else _read_device_credentials()
 
         forwarded = list(ctx.args)
         if forwarded and forwarded[0] == "--":
@@ -557,6 +567,8 @@ def register_launch_commands(app: typer.Typer) -> None:
             claude_args=forwarded,
             dry_run=dry_run,
             proxy_port=proxy_port,
+            refresh_token=device_creds["refresh_token"] if device_creds else None,
+            credentials_path=str(CREDENTIALS_PATH) if device_creds else None,
         )
 
     @launch_app.command(

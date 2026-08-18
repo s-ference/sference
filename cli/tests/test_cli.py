@@ -192,7 +192,26 @@ def test_auth_login_api_key_noninteractive(monkeypatch, tmp_path: Path):
     assert data["token"] == "sk_test_cli_key_abc"
 
 
-def test_auth_login_interactive_opens_browser(monkeypatch, tmp_path: Path):
+def _fake_device_start() -> dict:
+    return {
+        "device_code": "dc_test",
+        "user_code": "ABCD-EFGH",
+        "verification_uri": "https://app.sference.com/device",
+        "expires_in": 600,
+        "interval": 5,
+    }
+
+
+def _fake_device_tokens() -> dict:
+    return {
+        "access_token": "jwt_access_test",
+        "token_type": "bearer",
+        "expires_in": 86400,
+        "refresh_token": "rt_test",
+    }
+
+
+def test_auth_login_device_flow_opens_browser(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
     opened: list[str] = []
 
@@ -201,30 +220,129 @@ def test_auth_login_interactive_opens_browser(monkeypatch, tmp_path: Path):
         return True
 
     monkeypatch.setattr(cli_main.webbrowser, "open", fake_open)
-    result = runner.invoke(
-        cli_main.app,
-        ["auth", "login", "--console-url", "http://localhost:3000", "--no-validate"],
-        input="sk_pasted_key\n",
-    )
+    monkeypatch.setattr(cli_main, "start_device_login", lambda *a, **k: _fake_device_start())
+    monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
+    result = runner.invoke(cli_main.app, ["auth", "login", "--no-validate"])
     assert result.exit_code == 0
-    assert any("/login" in u for u in opened)
+    assert opened == ["https://app.sference.com/device?code=ABCD-EFGH"]
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
-    assert data["token"] == "sk_pasted_key"
+    assert data["access_token"] == "jwt_access_test"
+    assert data["refresh_token"] == "rt_test"
+    assert data["expires_at"] > 0
 
 
-def test_auth_login_no_browser(monkeypatch, tmp_path: Path):
+def test_auth_login_device_flow_no_browser(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
     mock_open = MagicMock()
     monkeypatch.setattr(cli_main.webbrowser, "open", mock_open)
-    result = runner.invoke(
-        cli_main.app,
-        ["auth", "login", "--no-browser", "--no-validate"],
-        input="sk_no_browser\n",
-    )
+    monkeypatch.setattr(cli_main, "start_device_login", lambda *a, **k: _fake_device_start())
+    monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
+    result = runner.invoke(cli_main.app, ["auth", "login", "--no-browser", "--no-validate"])
     assert result.exit_code == 0
     mock_open.assert_not_called()
+    assert "ABCD-EFGH" in result.stdout
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
-    assert data["token"] == "sk_no_browser"
+    assert data["access_token"] == "jwt_access_test"
+
+
+def test_auth_login_device_flow_start_failure_exits_1(monkeypatch, tmp_path: Path):
+    from sference_cli.device_auth import DeviceAuthError
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main.webbrowser, "open", MagicMock())
+
+    def boom(*a, **k):
+        raise DeviceAuthError("invalid_client", "unknown client_id")
+
+    monkeypatch.setattr(cli_main, "start_device_login", boom)
+    result = runner.invoke(cli_main.app, ["auth", "login", "--no-validate"])
+    assert result.exit_code == 1
+    assert "unknown client_id" in result.output
+    assert not (tmp_path / "credentials.json").exists()
+
+
+def test_read_token_legacy_api_key_shape(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    (tmp_path / "credentials.json").write_text(json.dumps({"token": "sk_legacy"}), encoding="utf-8")
+    assert cli_main._read_token() == "sk_legacy"
+
+
+def test_read_token_valid_device_credentials_skip_refresh(monkeypatch, tmp_path: Path):
+    import time as _time
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    (tmp_path / "credentials.json").write_text(
+        json.dumps(
+            {
+                "access_token": "jwt_valid",
+                "refresh_token": "rt_valid",
+                "expires_at": _time.time() + 3600,
+            }
+        ),
+        encoding="utf-8",
+    )
+    refresh_mock = MagicMock()
+    monkeypatch.setattr(cli_main, "refresh_tokens", refresh_mock)
+    assert cli_main._read_token() == "jwt_valid"
+    refresh_mock.assert_not_called()
+
+
+def test_read_token_expired_device_credentials_refresh(monkeypatch, tmp_path: Path):
+    import time as _time
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    (tmp_path / "credentials.json").write_text(
+        json.dumps(
+            {
+                "access_token": "jwt_stale",
+                "refresh_token": "rt_old",
+                "expires_at": _time.time() - 10,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli_main,
+        "refresh_tokens",
+        lambda base, client, rt: {
+            "access_token": "jwt_fresh",
+            "token_type": "bearer",
+            "expires_in": 86400,
+            "refresh_token": "rt_new",
+        },
+    )
+    assert cli_main._read_token() == "jwt_fresh"
+    data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
+    assert data["access_token"] == "jwt_fresh"
+    assert data["refresh_token"] == "rt_new"
+
+
+def test_read_token_refresh_invalid_grant_returns_none(monkeypatch, tmp_path: Path):
+    import time as _time
+
+    from sference_cli.device_auth import DeviceAuthError
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    (tmp_path / "credentials.json").write_text(
+        json.dumps(
+            {
+                "access_token": "jwt_stale",
+                "refresh_token": "rt_revoked",
+                "expires_at": _time.time() - 10,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def boom(*a, **k):
+        raise DeviceAuthError("invalid_grant", "refresh token revoked")
+
+    monkeypatch.setattr(cli_main, "refresh_tokens", boom)
+    assert cli_main._read_token() is None
 
 
 def test_models_list_json(monkeypatch):
