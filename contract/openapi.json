@@ -823,6 +823,147 @@
         "deprecated": false
       }
     },
+    "/v1/oauth/device_code": {
+      "post": {
+        "summary": "DeviceCode",
+        "operationId": "V1OauthDeviceCodeDeviceCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCodeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "RFC 6749 error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceTokenErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/oauth/revoke": {
+      "post": {
+        "summary": "Revoke",
+        "operationId": "V1OauthRevokeRevoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/oauth/token": {
+      "post": {
+        "summary": "Token",
+        "operationId": "V1OauthTokenToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "RFC 6749 error response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceTokenErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/v1/batches/{batch_id}/cancel": {
       "post": {
         "summary": "CancelBatch",
@@ -2164,6 +2305,26 @@
             "allowReserved": false
           },
           {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search actor, target or action text"
+            },
+            "description": "Search actor, target or action text",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {
@@ -3263,19 +3424,6 @@
         "operationId": "ControlV1ActivityListActivity",
         "parameters": [
           {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "minimum": 1.0,
-              "default": 1
-            },
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
             "name": "page_size",
             "in": "query",
             "schema": {
@@ -3284,6 +3432,27 @@
               "minimum": 1.0,
               "default": 25
             },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UUIDv7 id of the last row of the previous page (keyset)"
+            },
+            "description": "UUIDv7 id of the last row of the previous page (keyset)",
             "required": false,
             "deprecated": false,
             "allowEmptyValue": false,
@@ -6283,22 +6452,18 @@
             },
             "type": "array"
           },
-          "page": {
-            "type": "integer"
-          },
           "page_size": {
             "type": "integer"
           },
-          "total": {
-            "type": "integer"
+          "has_more": {
+            "type": "boolean"
           }
         },
         "type": "object",
         "required": [
+          "has_more",
           "items",
-          "page",
-          "page_size",
-          "total"
+          "page_size"
         ],
         "title": "ActivityListResponse"
       },
@@ -6799,6 +6964,91 @@
           "items"
         ],
         "title": "AuditLogResponse"
+      },
+      "AutoTopupPaymentMethod": {
+        "properties": {
+          "brand": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last4": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "AutoTopupPaymentMethod"
+      },
+      "AutoTopupSettingsResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "threshold_micros": {
+            "type": "integer"
+          },
+          "topup_amount_micros": {
+            "type": "integer"
+          },
+          "payment_method": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AutoTopupPaymentMethod"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "consecutive_failures": {
+            "type": "integer"
+          },
+          "paused": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "consecutive_failures",
+          "enabled",
+          "paused",
+          "threshold_micros",
+          "topup_amount_micros"
+        ],
+        "title": "AutoTopupSettingsResponse"
+      },
+      "AutoTopupUpdateRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "threshold_usd": {
+            "type": "string"
+          },
+          "amount_usd": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_usd",
+          "enabled",
+          "threshold_usd"
+        ],
+        "title": "AutoTopupUpdateRequest"
       },
       "BatchCreateRequest": {
         "properties": {
@@ -7579,6 +7829,26 @@
         ],
         "title": "ChatMessage"
       },
+      "ConvertToDomainResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email_domain": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email_domain",
+          "id",
+          "name"
+        ],
+        "title": "ConvertToDomainResponse"
+      },
       "CreateEmbeddingRequest": {
         "properties": {
           "model": {
@@ -8210,6 +8480,277 @@
         ],
         "title": "DeploymentResponse"
       },
+      "DeviceApproveRequest": {
+        "properties": {
+          "user_code": {
+            "type": "string",
+            "maxLength": 16
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_code"
+        ],
+        "title": "DeviceApproveRequest"
+      },
+      "DeviceAuthorizationResponse": {
+        "properties": {
+          "user_code": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "device_label": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": "string"
+          },
+          "approved": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approved",
+          "client_id",
+          "device_label",
+          "expires_at",
+          "user_code"
+        ],
+        "title": "DeviceAuthorizationResponse"
+      },
+      "DeviceCodeRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "device_label": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 200
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "DeviceCodeRequest"
+      },
+      "DeviceCodeResponse": {
+        "properties": {
+          "device_code": {
+            "type": "string"
+          },
+          "user_code": {
+            "type": "string"
+          },
+          "verification_uri": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "interval": {
+            "type": "integer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_code",
+          "expires_in",
+          "interval",
+          "user_code",
+          "verification_uri"
+        ],
+        "title": "DeviceCodeResponse"
+      },
+      "DeviceRevokeRequest": {
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 64
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "token"
+        ],
+        "title": "DeviceRevokeRequest"
+      },
+      "DeviceTokenErrorResponse": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "error_description": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error",
+          "error_description"
+        ],
+        "title": "DeviceTokenErrorResponse"
+      },
+      "DeviceTokenRequest": {
+        "properties": {
+          "grant_type": {
+            "type": "string"
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "device_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refresh_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "grant_type"
+        ],
+        "title": "DeviceTokenRequest"
+      },
+      "DeviceTokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in",
+          "refresh_token"
+        ],
+        "title": "DeviceTokenResponse"
+      },
+      "DomainOptionsResponse": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "freemail": {
+            "type": "boolean"
+          },
+          "current_team_is_domain_team": {
+            "type": "boolean"
+          },
+          "domain_team": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DomainTeamSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_request_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_team_is_domain_team",
+          "domain",
+          "domain_team",
+          "freemail",
+          "pending_request_id"
+        ],
+        "title": "DomainOptionsResponse"
+      },
+      "DomainTeamSummary": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "creator_email_masked": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "member_count": {
+            "type": "integer"
+          },
+          "instant_join_enabled": {
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "required": [
+          "creator_email_masked",
+          "id",
+          "instant_join_enabled",
+          "member_count",
+          "name"
+        ],
+        "title": "DomainTeamSummary"
+      },
       "ForgotPasswordRequest": {
         "properties": {
           "email": {
@@ -8418,6 +8959,74 @@
           "status"
         ],
         "title": "InvitePreviewResponse"
+      },
+      "JoinRequestItem": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at",
+          "email",
+          "id",
+          "status",
+          "user_id"
+        ],
+        "title": "JoinRequestItem"
+      },
+      "JoinRequestListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JoinRequestItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "JoinRequestListResponse"
+      },
+      "JoinRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "team_name": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "team_id",
+          "team_name"
+        ],
+        "title": "JoinRequestResponse"
       },
       "LedgerEntryItem": {
         "properties": {
@@ -9273,6 +9882,26 @@
                 "type": "null"
               }
             ]
+          },
+          "bypass_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intended_plan": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -9280,6 +9909,68 @@
           "provider"
         ],
         "title": "OAuthCompleteRequest"
+      },
+      "OAuthGrantItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "device_label": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "last_refreshed_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "created_at",
+          "device_label",
+          "expires_at",
+          "id",
+          "last_refreshed_at"
+        ],
+        "title": "OAuthGrantItem"
+      },
+      "OAuthGrantListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OAuthGrantItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "OAuthGrantListResponse"
       },
       "OrgApiKeyItem": {
         "properties": {
@@ -9582,6 +10273,22 @@
         "type": "object",
         "required": [],
         "title": "OrganizationUpdateRequest"
+      },
+      "PaymentMethodSetupResponse": {
+        "properties": {
+          "stripe_session_id": {
+            "type": "string"
+          },
+          "setup_url": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "setup_url",
+          "stripe_session_id"
+        ],
+        "title": "PaymentMethodSetupResponse"
       },
       "PricingInfo": {
         "properties": {
@@ -10314,6 +11021,26 @@
               }
             ],
             "maxLength": 32
+          },
+          "bypass_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intended_plan": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10347,6 +11074,7 @@
               "waitlist",
               "invited",
               "open",
+              "bypass",
               null
             ]
           },
@@ -10856,6 +11584,141 @@
         "required": [],
         "title": "StreamPatchRequest"
       },
+      "SubscriptionCreateRequest": {
+        "properties": {
+          "tier": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier"
+        ],
+        "title": "SubscriptionCreateRequest"
+      },
+      "SubscriptionCreateResponse": {
+        "properties": {
+          "tier": {
+            "type": "string"
+          },
+          "checkout_url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stripe_session_id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier"
+        ],
+        "title": "SubscriptionCreateResponse"
+      },
+      "SubscriptionQuotaItem": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "daily_tokens": {
+            "type": "integer"
+          },
+          "used_tokens": {
+            "type": "integer"
+          },
+          "remaining_tokens": {
+            "type": "integer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "daily_tokens",
+          "model",
+          "remaining_tokens",
+          "used_tokens"
+        ],
+        "title": "SubscriptionQuotaItem"
+      },
+      "SubscriptionResponse": {
+        "properties": {
+          "subscription": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "subscription"
+        ],
+        "title": "SubscriptionResponse"
+      },
+      "SubscriptionState": {
+        "properties": {
+          "tier": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "current_period_end": {
+            "oneOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancel_at_period_end": {
+            "type": "boolean"
+          },
+          "quotas": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionQuotaItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cancel_at_period_end",
+          "quotas",
+          "status",
+          "tier"
+        ],
+        "title": "SubscriptionState"
+      },
       "TeamAddMemberRequest": {
         "properties": {
           "email": {
@@ -10892,6 +11755,10 @@
             "type": "string"
           },
           "zero_data_retention_enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "instant_join_enabled": {
             "type": "boolean",
             "default": false
           },
@@ -10958,6 +11825,16 @@
       "TeamUpdateRequest": {
         "properties": {
           "zero_data_retention_enabled": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instant_join_enabled": {
             "oneOf": [
               {
                 "type": "boolean"
