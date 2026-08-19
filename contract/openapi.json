@@ -7829,26 +7829,6 @@
         ],
         "title": "ChatMessage"
       },
-      "ConvertToDomainResponse": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "email_domain": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email_domain",
-          "id",
-          "name"
-        ],
-        "title": "ConvertToDomainResponse"
-      },
       "CreateEmbeddingRequest": {
         "properties": {
           "model": {
@@ -8674,83 +8654,6 @@
         ],
         "title": "DeviceTokenResponse"
       },
-      "DomainOptionsResponse": {
-        "properties": {
-          "domain": {
-            "type": "string"
-          },
-          "freemail": {
-            "type": "boolean"
-          },
-          "current_team_is_domain_team": {
-            "type": "boolean"
-          },
-          "domain_team": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DomainTeamSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "pending_request_id": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "current_team_is_domain_team",
-          "domain",
-          "domain_team",
-          "freemail",
-          "pending_request_id"
-        ],
-        "title": "DomainOptionsResponse"
-      },
-      "DomainTeamSummary": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "creator_email_masked": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "member_count": {
-            "type": "integer"
-          },
-          "instant_join_enabled": {
-            "type": "boolean"
-          }
-        },
-        "type": "object",
-        "required": [
-          "creator_email_masked",
-          "id",
-          "instant_join_enabled",
-          "member_count",
-          "name"
-        ],
-        "title": "DomainTeamSummary"
-      },
       "ForgotPasswordRequest": {
         "properties": {
           "email": {
@@ -8959,74 +8862,6 @@
           "status"
         ],
         "title": "InvitePreviewResponse"
-      },
-      "JoinRequestItem": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "user_id": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "type": "object",
-        "required": [
-          "created_at",
-          "email",
-          "id",
-          "status",
-          "user_id"
-        ],
-        "title": "JoinRequestItem"
-      },
-      "JoinRequestListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/JoinRequestItem"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "JoinRequestListResponse"
-      },
-      "JoinRequestResponse": {
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "team_id": {
-            "type": "string"
-          },
-          "team_name": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "status",
-          "team_id",
-          "team_name"
-        ],
-        "title": "JoinRequestResponse"
       },
       "LedgerEntryItem": {
         "properties": {
@@ -9874,26 +9709,6 @@
             ]
           },
           "invite_token": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "bypass_token": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "intended_plan": {
             "oneOf": [
               {
                 "type": "string"
@@ -11021,26 +10836,6 @@
               }
             ],
             "maxLength": 32
-          },
-          "bypass_token": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "intended_plan": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "type": "object",
@@ -11074,7 +10869,6 @@
               "waitlist",
               "invited",
               "open",
-              "bypass",
               null
             ]
           },
@@ -11584,141 +11378,6 @@
         "required": [],
         "title": "StreamPatchRequest"
       },
-      "SubscriptionCreateRequest": {
-        "properties": {
-          "tier": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "tier"
-        ],
-        "title": "SubscriptionCreateRequest"
-      },
-      "SubscriptionCreateResponse": {
-        "properties": {
-          "tier": {
-            "type": "string"
-          },
-          "checkout_url": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "stripe_session_id": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "change": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "tier"
-        ],
-        "title": "SubscriptionCreateResponse"
-      },
-      "SubscriptionQuotaItem": {
-        "properties": {
-          "model": {
-            "type": "string"
-          },
-          "daily_tokens": {
-            "type": "integer"
-          },
-          "used_tokens": {
-            "type": "integer"
-          },
-          "remaining_tokens": {
-            "type": "integer"
-          }
-        },
-        "type": "object",
-        "required": [
-          "daily_tokens",
-          "model",
-          "remaining_tokens",
-          "used_tokens"
-        ],
-        "title": "SubscriptionQuotaItem"
-      },
-      "SubscriptionResponse": {
-        "properties": {
-          "subscription": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/SubscriptionState"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "subscription"
-        ],
-        "title": "SubscriptionResponse"
-      },
-      "SubscriptionState": {
-        "properties": {
-          "tier": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "current_period_end": {
-            "oneOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "cancel_at_period_end": {
-            "type": "boolean"
-          },
-          "quotas": {
-            "items": {
-              "$ref": "#/components/schemas/SubscriptionQuotaItem"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object",
-        "required": [
-          "cancel_at_period_end",
-          "quotas",
-          "status",
-          "tier"
-        ],
-        "title": "SubscriptionState"
-      },
       "TeamAddMemberRequest": {
         "properties": {
           "email": {
@@ -11755,10 +11414,6 @@
             "type": "string"
           },
           "zero_data_retention_enabled": {
-            "type": "boolean",
-            "default": false
-          },
-          "instant_join_enabled": {
             "type": "boolean",
             "default": false
           },
@@ -11825,16 +11480,6 @@
       "TeamUpdateRequest": {
         "properties": {
           "zero_data_retention_enabled": {
-            "oneOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "instant_join_enabled": {
             "oneOf": [
               {
                 "type": "boolean"
