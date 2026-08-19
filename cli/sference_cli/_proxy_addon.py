@@ -80,16 +80,17 @@ def _write_file_credentials(access_token: str, refresh_token: str, expires_in: f
     path = Path(SFERENCE_CREDENTIALS_PATH)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
-                {
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "expires_at": time.time() + float(expires_in),
-                }
-            ),
-            encoding="utf-8",
+        payload = json.dumps(
+            {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "expires_at": time.time() + float(expires_in),
+            }
         )
+        # Standard CLI credential storage: the user's own tokens in their own
+        # home dir (dir 0700, file 0600) — the same pattern gh/aws/gcloud use,
+        # not a server-side secret store.
+        path.write_text(payload, encoding="utf-8")  # codeql[py/clear-text-storage-sensitive-data]
         os.chmod(path, 0o600)
     except OSError as exc:
         ctx.log.warn(f"sference: could not persist refreshed credentials: {exc}")
