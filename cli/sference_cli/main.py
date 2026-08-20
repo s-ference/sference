@@ -154,6 +154,48 @@ def _has_device_grant() -> bool:
     return isinstance(payload.get("access_token"), str) and isinstance(payload.get("refresh_token"), str)
 
 
+def _env_api_key() -> str | None:
+    env = os.environ.get("SFERENCE_API_KEY")
+    return env.strip() if env and env.strip() else None
+
+
+# Set once a refresh has proved the grant is gone, so the rest of the command
+# stops presenting a credential the server has already rejected.
+_device_grant_dead = False
+
+
+def _recover_from_unauthorized() -> str | None:
+    """SDK 401 hook: the access token was rejected — try to replace it.
+
+    The cached token is used until it nears expiry, so a grant revoked (or
+    reuse-detected) server-side is invisible locally until something 401s. That
+    is the moment to refresh: either the token had simply gone stale and the
+    grant is fine, or the refresh fails and the grant really is dead — in which
+    case an API key, if the caller has one, is the credential to continue on.
+    """
+    global _device_grant_dead
+    if _device_grant_dead or not _has_device_grant():
+        return None
+    payload = _read_credentials_file() or {}
+    refresh_token = payload.get("refresh_token")
+    if not isinstance(refresh_token, str):
+        return None
+    try:
+        tokens = refresh_tokens(_device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token)
+    except DeviceAuthError as exc:
+        _device_grant_dead = True
+        _warn_once(
+            f"This device is no longer signed in ({exc.description}).\n"
+            "Run `sference auth login` to sign in again."
+        )
+        env_key = _env_api_key()
+        if env_key is not None:
+            _warn_once("Continuing with SFERENCE_API_KEY.")
+        return env_key
+    _write_device_credentials(tokens)
+    return str(tokens["access_token"])
+
+
 def _read_token() -> str | None:
     """Resolve the credential to send, device login first.
 
@@ -164,10 +206,9 @@ def _read_token() -> str | None:
     login the user had just completed — including the validation step right
     after it, which then reported a bare 401.
     """
-    env = os.environ.get("SFERENCE_API_KEY")
-    env_key = env.strip() if env and env.strip() else None
+    env_key = _env_api_key()
 
-    if _has_device_grant():
+    if _has_device_grant() and not _device_grant_dead:
         if env_key is not None:
             _warn_once(
                 "Note: SFERENCE_API_KEY is set, but this device is signed in — using the "
@@ -199,7 +240,15 @@ def _client(
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
         base_url = env_base_url
-    return SferenceClient(base_url=base_url, api_key=token or _read_token(), timeout=timeout)
+    # Only a device grant has anything to recover to; an sk_ key that 401s is
+    # simply wrong, and retrying it would just repeat the request.
+    on_unauthorized = _recover_from_unauthorized if _has_device_grant() else None
+    return SferenceClient(
+        base_url=base_url,
+        api_key=token or _read_token(),
+        timeout=timeout,
+        on_unauthorized=on_unauthorized,
+    )
 
 
 def _ensure_api_credential() -> None:
@@ -220,13 +269,16 @@ def _call_api(fn: Callable[[], _T]) -> _T:
     except ApiError as exc:
         err = str(exc)
         if err.startswith("401:"):
-            typer.echo(
-                "Unauthorized (401). Run `sference auth login` to sign in again.\n"
-                "CI/non-interactive: sference auth login --api-key 'sk_...' "
-                "(create a key in Console → API Keys while signed in).\n"
-                "SFERENCE_API_KEY is used only when this device is not signed in.",
-                err=True,
-            )
+            # A dead grant has already been explained by the recovery hook, in
+            # more specific terms than this generic hint — don't say it twice.
+            if not _device_grant_dead:
+                typer.echo(
+                    "Unauthorized (401). Run `sference auth login` to sign in again.\n"
+                    "CI/non-interactive: sference auth login --api-key 'sk_...' "
+                    "(create a key in Console → API Keys while signed in).\n"
+                    "SFERENCE_API_KEY is used only when this device is not signed in.",
+                    err=True,
+                )
             raise typer.Exit(code=1) from None
         typer.echo(err, err=True)
         if err.startswith(("504:", "408:")):

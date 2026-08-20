@@ -695,3 +695,76 @@ def test_get_results_indexed_via_mock_transport() -> None:
     assert isinstance(by_id["r1"], BatchResultRow)
     assert by_id["r1"].completion_text == "ok"
 
+
+
+def test_on_unauthorized_retries_once_with_the_replacement_credential() -> None:
+    """A 401 means the handler never ran, so replacing the credential and
+    retrying repeats no side effect."""
+    seen: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("authorization"))
+        if request.headers.get("authorization") == "Bearer fresh":
+            return httpx.Response(status_code=200, json={"username": "dev", "role": "admin"})
+        return httpx.Response(status_code=401, json={"detail": "Unauthorized"})
+
+    with SferenceClient(
+        transport=httpx.MockTransport(handler),
+        api_key="stale",
+        on_unauthorized=lambda: "fresh",
+    ) as client:
+        assert client.get_me()["username"] == "dev"
+
+    assert seen == ["Bearer stale", "Bearer fresh"]
+
+
+def test_on_unauthorized_returning_none_lets_the_401_surface() -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(status_code=401, json={"detail": "Unauthorized"})
+
+    with SferenceClient(
+        transport=httpx.MockTransport(handler),
+        api_key="stale",
+        on_unauthorized=lambda: None,
+    ) as client:
+        with pytest.raises(ApiError, match="401"):
+            client.get_me()
+
+    assert len(calls) == 1, "no replacement credential means no retry"
+
+
+def test_on_unauthorized_is_consulted_at_most_once_per_request() -> None:
+    """The replacement must not loop: if it is also rejected, the 401 stands."""
+    hook_calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code=401, json={"detail": "Unauthorized"})
+
+    def hook() -> str:
+        hook_calls.append(1)
+        return "also-bad"
+
+    with SferenceClient(
+        transport=httpx.MockTransport(handler), api_key="stale", on_unauthorized=hook
+    ) as client:
+        with pytest.raises(ApiError, match="401"):
+            client.get_me()
+
+    assert len(hook_calls) == 1
+
+
+def test_no_hook_means_no_retry() -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(status_code=401, json={"detail": "Unauthorized"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="k") as client:
+        with pytest.raises(ApiError, match="401"):
+            client.get_me()
+
+    assert len(calls) == 1

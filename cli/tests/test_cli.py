@@ -1783,3 +1783,108 @@ def test_parse_models_env() -> None:
     assert parse_models_env('["", "c"]') == {"c"}  # empty strings dropped
 
 
+
+
+def test_stale_access_token_recovers_by_refreshing(monkeypatch, tmp_path: Path):
+    """The cached token is used until it nears expiry, so a token invalidated
+    server-side only shows up as a 401 — that is when the CLI refreshes."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_warned", set())
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    _write_device_creds(tmp_path / "credentials.json")
+    monkeypatch.setattr(
+        cli_main,
+        "refresh_tokens",
+        lambda *a, **k: {
+            "access_token": "jwt_recovered",
+            "token_type": "bearer",
+            "expires_in": 86400,
+            "refresh_token": "rt_recovered",
+        },
+    )
+
+    assert cli_main._recover_from_unauthorized() == "jwt_recovered"
+    data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
+    assert data["access_token"] == "jwt_recovered"
+    assert data["refresh_token"] == "rt_recovered"
+
+
+def test_revoked_grant_falls_back_to_the_api_key(monkeypatch, tmp_path: Path, capsys):
+    """A revoked grant must not strand a caller who also has a usable key."""
+    from sference_cli.device_auth import DeviceAuthError
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_warned", set())
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    _write_device_creds(tmp_path / "credentials.json")
+
+    def revoked(*_a, **_k):
+        raise DeviceAuthError("invalid_grant", "This grant was revoked — sign in again")
+
+    monkeypatch.setattr(cli_main, "refresh_tokens", revoked)
+
+    assert cli_main._recover_from_unauthorized() == "sk_from_the_environment"
+    err = capsys.readouterr().err
+    assert "no longer signed in" in err
+    assert "Continuing with SFERENCE_API_KEY" in err
+    # The dead grant stops shadowing the key for the rest of the command.
+    assert cli_main._device_grant_dead is True
+    assert cli_main._read_token() == "sk_from_the_environment"
+
+
+def test_revoked_grant_without_a_key_gives_up_once(monkeypatch, tmp_path: Path):
+    """No key to fall back to: say so, and do not re-refresh on every later call."""
+    from sference_cli.device_auth import DeviceAuthError
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_warned", set())
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    _write_device_creds(tmp_path / "credentials.json")
+
+    attempts: list[int] = []
+
+    def revoked(*_a, **_k):
+        attempts.append(1)
+        raise DeviceAuthError("invalid_grant", "This grant was revoked — sign in again")
+
+    monkeypatch.setattr(cli_main, "refresh_tokens", revoked)
+
+    assert cli_main._recover_from_unauthorized() is None
+    assert cli_main._recover_from_unauthorized() is None
+    assert len(attempts) == 1, "a grant known to be dead is not retried"
+
+
+def test_api_key_only_callers_get_no_recovery_hook(monkeypatch, tmp_path: Path):
+    """An sk_ key that 401s is simply wrong — retrying would repeat the request."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    assert cli_main._client()._on_unauthorized is None
+
+    _write_device_creds(tmp_path / "credentials.json")
+    assert cli_main._client()._on_unauthorized is not None
+
+
+def test_call_api_401_hint_suppressed_for_dead_grant(monkeypatch, capsys):
+    """The recovery hook already said the device is signed out, in specific
+    terms; the generic 401 hint would only repeat 'run sference auth login'."""
+    import typer
+
+    def boom():
+        raise ApiError("401: {'detail': 'Unauthorized'}")
+
+    monkeypatch.setattr(cli_main, "_device_grant_dead", True)
+    try:
+        cli_main._call_api(boom)
+    except typer.Exit as exc:
+        assert exc.exit_code == 1
+    assert "Unauthorized (401)" not in capsys.readouterr().err
+
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    try:
+        cli_main._call_api(boom)
+    except typer.Exit as exc:
+        assert exc.exit_code == 1
+    assert "Unauthorized (401)" in capsys.readouterr().err
