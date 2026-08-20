@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import sys
 import time
 import webbrowser
@@ -19,7 +20,15 @@ from sference_cli import __version__ as _CLI_VERSION
 from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 
 from . import stream_cache as stream_cache_mod
-from .launch import register_launch_commands
+from .device_auth import (
+    CLIENT_ID_SFERENCE_CLI,
+    EXPIRY_SKEW_SECONDS,
+    DeviceAuthError,
+    poll_for_tokens,
+    refresh_tokens,
+    start_device_login,
+)
+from .launch import register_launch_commands, resolve_api_base_url
 
 _T = TypeVar("_T")
 
@@ -43,43 +52,203 @@ register_launch_commands(app)
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
 
-DEFAULT_CONSOLE_URL = "https://app.sference.com"
 
-
-def _write_token(token: str) -> None:
-    # The credential file holds an API key; keep it owner-only (0700 dir / 0600 file)
-    # so other local users cannot read it. chmod is a no-op on Windows.
+def _write_credentials_payload(payload: dict) -> None:
+    # The credential file holds an API key or OAuth tokens; keep it owner-only
+    # (0700 dir / 0600 file) so other local users cannot read it. chmod is a
+    # no-op on Windows.
     CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(CREDENTIALS_PATH.parent, 0o700)
     except OSError:
         pass
-    CREDENTIALS_PATH.write_text(json.dumps({"token": token}), encoding="utf-8")
+    CREDENTIALS_PATH.write_text(json.dumps(payload), encoding="utf-8")
     try:
         os.chmod(CREDENTIALS_PATH, 0o600)
     except OSError:
         pass
 
 
-def _read_token() -> str | None:
-    env = os.environ.get("SFERENCE_API_KEY")
-    if env:
-        return env.strip() or None
+def _write_token(token: str) -> None:
+    _write_credentials_payload({"token": token})
+
+
+def _write_device_credentials(tokens: dict) -> None:
+    """Persist a device-flow token response (v2 credentials).
+
+    Stores an absolute ``expires_at`` (not the wire ``expires_in``) so readers
+    never have to know when the file was written. The refresh token rotates on
+    every refresh — the file must always hold the newest pair.
+    """
+    _write_credentials_payload(
+        {
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+            "expires_at": time.time() + float(tokens["expires_in"]),
+        }
+    )
+
+
+def _read_credentials_file() -> dict | None:
     if not CREDENTIALS_PATH.exists():
         return None
     try:
         payload = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
-        tok = payload.get("token")
-        return tok.strip() if isinstance(tok, str) else None
     except Exception:
         return None
+    return payload if isinstance(payload, dict) else None
 
 
-def _client(base_url: Optional[str] = None, *, timeout: float | None = None) -> SferenceClient:
+def _device_flow_base_url() -> str:
+    return resolve_api_base_url(None)
+
+
+def _read_device_credentials() -> dict | None:
+    """v2 credentials ``{access_token, refresh_token, expires_at}``, refreshing first.
+
+    Returns None when the file holds no usable device grant (legacy ``{"token"}``
+    shape, malformed, or the refresh failed — e.g. the grant was revoked, which
+    is also how reuse detection surfaces here). A successful refresh rewrites
+    the file with the rotated pair before returning.
+    """
+    payload = _read_credentials_file()
+    if payload is None:
+        return None
+    access_token = payload.get("access_token")
+    refresh_token = payload.get("refresh_token")
+    expires_at = payload.get("expires_at")
+    if not isinstance(access_token, str) or not isinstance(refresh_token, str):
+        return None
+    if not isinstance(expires_at, (int, float)):
+        return None
+    if time.time() < expires_at - EXPIRY_SKEW_SECONDS:
+        return {"access_token": access_token, "refresh_token": refresh_token, "expires_at": expires_at}
+    try:
+        tokens = refresh_tokens(_device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token)
+    except DeviceAuthError as exc:
+        typer.echo(
+            f"Device login could not be refreshed ({exc.description}).\n"
+            "Run `sference auth login` to sign in again.",
+            err=True,
+        )
+        return None
+    _write_device_credentials(tokens)
+    return _read_credentials_file()
+
+
+_warned: set[str] = set()
+
+
+def _warn_once(message: str) -> None:
+    """Credential resolution runs several times per command; say it once."""
+    if message not in _warned:
+        _warned.add(message)
+        typer.echo(message, err=True)
+
+
+def _has_device_grant() -> bool:
+    """Whether the file holds a device pair — checked without refreshing it."""
+    payload = _read_credentials_file()
+    if payload is None:
+        return False
+    return isinstance(payload.get("access_token"), str) and isinstance(payload.get("refresh_token"), str)
+
+
+def _env_api_key() -> str | None:
+    env = os.environ.get("SFERENCE_API_KEY")
+    return env.strip() if env and env.strip() else None
+
+
+# Set once a refresh has proved the grant is gone, so the rest of the command
+# stops presenting a credential the server has already rejected.
+_device_grant_dead = False
+
+
+def _recover_from_unauthorized() -> str | None:
+    """SDK 401 hook: the access token was rejected — try to replace it.
+
+    The cached token is used until it nears expiry, so a grant revoked (or
+    reuse-detected) server-side is invisible locally until something 401s. That
+    is the moment to refresh: either the token had simply gone stale and the
+    grant is fine, or the refresh fails and the grant really is dead — in which
+    case an API key, if the caller has one, is the credential to continue on.
+    """
+    global _device_grant_dead
+    if _device_grant_dead or not _has_device_grant():
+        return None
+    payload = _read_credentials_file() or {}
+    refresh_token = payload.get("refresh_token")
+    if not isinstance(refresh_token, str):
+        return None
+    try:
+        tokens = refresh_tokens(_device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token)
+    except DeviceAuthError as exc:
+        _device_grant_dead = True
+        _warn_once(
+            f"This device is no longer signed in ({exc.description}).\n"
+            "Run `sference auth login` to sign in again."
+        )
+        env_key = _env_api_key()
+        if env_key is not None:
+            _warn_once("Continuing with SFERENCE_API_KEY.")
+        return env_key
+    _write_device_credentials(tokens)
+    return str(tokens["access_token"])
+
+
+def _read_token() -> str | None:
+    """Resolve the credential to send, device login first.
+
+    `sference auth login` is the CLI's own way in, so a signed-in device beats
+    ``SFERENCE_API_KEY``: an sk_ key is meant for non-interactive product
+    integrations (litellm, CI) that never run the device flow. The env var used
+    to win outright, which meant a key left over in a shell silently swallowed a
+    login the user had just completed — including the validation step right
+    after it, which then reported a bare 401.
+    """
+    env_key = _env_api_key()
+
+    if _has_device_grant() and not _device_grant_dead:
+        if env_key is not None:
+            _warn_once(
+                "Note: SFERENCE_API_KEY is set, but this device is signed in — using the "
+                "device login. Unset SFERENCE_API_KEY to use the API key instead."
+            )
+        creds = _read_device_credentials()
+        if creds is not None:
+            return creds["access_token"]
+        # The grant is gone (revoked, expired, reuse-detected). _read_device_credentials
+        # has already said so; fall through so a usable key still works.
+    if env_key is not None:
+        return env_key
+    payload = _read_credentials_file()
+    if payload is None:
+        return None
+    tok = payload.get("token")  # legacy API-key shape (CI / --api-key)
+    return tok.strip() if isinstance(tok, str) and tok.strip() else None
+
+
+# The client the running command built. One invocation runs one command and
+# builds one client, so this is unambiguous — it is what _call_api re-credentials
+# when a device token turns out to be stale.
+_active_client: SferenceClient | None = None
+
+
+def _client(
+    base_url: Optional[str] = None,
+    *,
+    timeout: float | None = None,
+    token: Optional[str] = None,
+) -> SferenceClient:
+    """Build a client. ``token`` pins the credential instead of resolving one —
+    used right after a login, which must validate what it just minted rather
+    than whatever ``_read_token`` would pick."""
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
         base_url = env_base_url
-    return SferenceClient(base_url=base_url, api_key=_read_token(), timeout=timeout)
+    global _active_client
+    _active_client = SferenceClient(base_url=base_url, api_key=token or _read_token(), timeout=timeout)
+    return _active_client
 
 
 def _ensure_api_credential() -> None:
@@ -100,13 +269,28 @@ def _call_api(fn: Callable[[], _T]) -> _T:
     except ApiError as exc:
         err = str(exc)
         if err.startswith("401:"):
-            typer.echo(
-                "Unauthorized (401). Create a key in Console → API Keys (while signed in), then run:\n"
-                "  sference auth login --api-key 'sk_...'\n"
-                "If SFERENCE_API_KEY is set, it overrides ~/.sference/credentials.json.\n"
-                "If you already saved a key, it may be revoked or not registered for this API/database.",
-                err=True,
-            )
+            # The cached access token is used until it nears expiry, so a grant
+            # refreshed, revoked or reuse-detected server-side surfaces only
+            # here. Retrying is safe because a 401 means the handler never ran,
+            # so nothing can be repeated — this is not a general-purpose retry.
+            replacement = _recover_from_unauthorized()
+            if replacement and _active_client is not None:
+                _active_client.set_api_key(replacement)
+                try:
+                    return fn()
+                except ApiError as retry_exc:
+                    err = str(retry_exc)
+        if err.startswith("401:"):
+            # A dead grant has already been explained by the recovery step, in
+            # more specific terms than this generic hint — don't say it twice.
+            if not _device_grant_dead:
+                typer.echo(
+                    "Unauthorized (401). Run `sference auth login` to sign in again.\n"
+                    "CI/non-interactive: sference auth login --api-key 'sk_...' "
+                    "(create a key in Console → API Keys while signed in).\n"
+                    "SFERENCE_API_KEY is used only when this device is not signed in.",
+                    err=True,
+                )
             raise typer.Exit(code=1) from None
         typer.echo(err, err=True)
         if err.startswith(("504:", "408:")):
@@ -137,10 +321,10 @@ def _get_batch_or_missing(client: SferenceClient, batch_id: str) -> Any | None:
             return None
         if err.startswith("401:"):
             typer.echo(
-                "Unauthorized (401). Create a key in Console → API Keys (while signed in), then run:\n"
-                "  sference auth login --api-key 'sk_...'\n"
-                "If SFERENCE_API_KEY is set, it overrides ~/.sference/credentials.json.\n"
-                "If you already saved a key, it may be revoked or not registered for this API/database.",
+                "Unauthorized (401). Run `sference auth login` to sign in again.\n"
+                "CI/non-interactive: sference auth login --api-key 'sk_...' "
+                "(create a key in Console → API Keys while signed in).\n"
+                "SFERENCE_API_KEY is used only when this device is not signed in.",
                 err=True,
             )
             raise typer.Exit(code=1) from None
@@ -354,15 +538,27 @@ def auth_login(
         "--validate/--no-validate",
         help="Validate the credential by calling GET /v1/auth/me and print the authenticated user.",
     ),
+    base_url: Optional[str] = typer.Option(
+        None,
+        "--base-url",
+        envvar="SFERENCE_BASE_URL",
+        help="Sference API base URL for the device flow (default: https://api.sference.com).",
+    ),
     console_url: Optional[str] = typer.Option(
         None,
         "--console-url",
         envvar="SFERENCE_CONSOLE_URL",
-        help="Console base URL for the browser step (default: https://app.sference.com).",
+        help="Override the console URL the browser opens (default: the server-provided verification URI).",
     ),
-    no_browser: bool = typer.Option(False, "--no-browser", help="Do not open a browser; print the URL and prompt only."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not open a browser; print the URL and code only."),
 ) -> None:
-    """Authenticate: store an API key for API requests (Baseten-style: optional --api-key for non-interactive)."""
+    """Authenticate this device: approve a code in the console (RFC 8628 device flow).
+
+    Interactive subscribers never handle an API key: the CLI holds a 24 h access
+    token plus a 30 d rotating refresh token in ~/.sference/credentials.json and
+    refreshes it automatically. ``--api-key`` keeps the non-interactive path
+    (CI) unchanged.
+    """
     if api_key is not None:
         key = api_key.strip()
         if not key:
@@ -371,7 +567,7 @@ def auth_login(
         _write_token(key)
         typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
         if validate:
-            client = _client(None)
+            client = _client(None, token=key)
             me = _call_api(client.get_me)
             if as_json:
                 _print(me, True)
@@ -382,31 +578,52 @@ def auth_login(
                     typer.echo(f"Authenticated. {me}")
         return
 
-    base = (console_url or DEFAULT_CONSOLE_URL).rstrip("/")
-    login_url = f"{base}/login"
-    api_keys_url = f"{base}/api-keys"
+    api_base = resolve_api_base_url(base_url)
+    try:
+        device_label = platform.node() or None
+    except Exception:
+        device_label = None
+    try:
+        start = start_device_login(api_base, CLIENT_ID_SFERENCE_CLI, device_label)
+    except DeviceAuthError as exc:
+        typer.echo(f"Could not start device login ({exc.description}).", err=True)
+        raise typer.Exit(code=1) from None
+
+    user_code = str(start["user_code"])
+    verification_uri = str(start["verification_uri"])
+    if console_url:
+        # Local dev / port-forwards: point the browser at the overridden console
+        # rather than the server-configured one.
+        verification_uri = f"{console_url.rstrip('/')}/device"
+    approve_url = f"{verification_uri}?code={user_code}"
 
     if not no_browser:
-        typer.echo(f"Opening {login_url} in your browser...")
+        typer.echo(f"Opening {approve_url} in your browser...")
         try:
-            webbrowser.open(login_url)
+            webbrowser.open(approve_url)
         except Exception:
             typer.echo("Could not open the browser automatically.")
+    typer.echo("")
+    typer.echo(f"Approve this device at: {approve_url}")
+    typer.echo(f"Code: {user_code}")
+    typer.echo("Waiting for approval...")
 
-    typer.echo("")
-    typer.echo("After signing in:")
-    typer.echo(f"  1. Open {api_keys_url}")
-    typer.echo("  2. Create an API key")
-    typer.echo("  3. Paste it below")
-    typer.echo("")
-    token = typer.prompt("API key", hide_input=True)
-    if not token.strip():
-        typer.echo("No API key provided.", err=True)
-        raise typer.Exit(code=1)
-    _write_token(token.strip())
+    try:
+        tokens = poll_for_tokens(
+            api_base,
+            CLIENT_ID_SFERENCE_CLI,
+            str(start["device_code"]),
+            interval=float(start["interval"]),
+            expires_in=float(start["expires_in"]),
+        )
+    except DeviceAuthError as exc:
+        typer.echo(f"Device login failed ({exc.description}).", err=True)
+        raise typer.Exit(code=1) from None
+
+    _write_device_credentials(tokens)
     typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
     if validate:
-        client = _client(None)
+        client = _client(api_base, token=str(tokens["access_token"]))
         me = _call_api(client.get_me)
         if as_json:
             _print(me, True)

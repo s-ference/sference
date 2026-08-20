@@ -695,3 +695,20 @@ def test_get_results_indexed_via_mock_transport() -> None:
     assert isinstance(by_id["r1"], BatchResultRow)
     assert by_id["r1"].completion_text == "ok"
 
+
+
+def test_set_api_key_swaps_the_credential_without_rebuilding() -> None:
+    """A key rotated mid-session applies to subsequent requests on the same
+    client, so callers keep their connection pool."""
+    seen: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("authorization"))
+        return httpx.Response(status_code=200, json={"username": "dev", "role": "admin"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="old") as client:
+        client.get_me()
+        client.set_api_key("new")
+        client.get_me()
+
+    assert seen == ["Bearer old", "Bearer new"]

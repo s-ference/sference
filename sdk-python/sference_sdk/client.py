@@ -61,6 +61,15 @@ class SferenceClient:
             transport=transport,
         )
 
+    def set_api_key(self, api_key: str | None) -> None:
+        """Swap the credential used for subsequent requests.
+
+        For callers whose key changes while a client is alive — a rotated key in
+        a long-running integration, for instance — so they need not rebuild the
+        client and its connection pool.
+        """
+        self._token = api_key
+
     def close(self) -> None:
         self._client.close()
 
