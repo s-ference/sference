@@ -320,6 +320,78 @@ def test_read_token_expired_device_credentials_refresh(monkeypatch, tmp_path: Pa
     assert data["refresh_token"] == "rt_new"
 
 
+def _write_device_creds(path: Path, **overrides) -> None:
+    import time as _time
+
+    payload = {"access_token": "jwt_device", "refresh_token": "rt_device", "expires_at": _time.time() + 3600}
+    payload.update(overrides)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_device_login_beats_api_key_env_var(monkeypatch, tmp_path: Path, capsys):
+    """A signed-in device wins over SFERENCE_API_KEY: an sk_ key left in a shell
+    used to swallow a login the user had just completed."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_warned", set())
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    _write_device_creds(tmp_path / "credentials.json")
+
+    assert cli_main._read_token() == "jwt_device"
+    err = capsys.readouterr().err
+    assert "SFERENCE_API_KEY is set" in err
+    # Credential resolution runs repeatedly per command; the notice is not a spam source.
+    cli_main._read_token()
+    assert "SFERENCE_API_KEY is set" not in capsys.readouterr().err
+
+
+def test_api_key_env_var_still_used_without_a_device_login(monkeypatch, tmp_path: Path):
+    """Product integrations (litellm, CI) never run the device flow — the key
+    remains the credential when there is no grant to prefer."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    assert cli_main._read_token() == "sk_from_the_environment"
+
+
+def test_api_key_env_var_is_the_fallback_when_the_grant_is_dead(monkeypatch, tmp_path: Path):
+    """A revoked grant must not strand a caller who also has a usable key."""
+    import time as _time
+
+    from sference_cli.device_auth import DeviceAuthError
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    _write_device_creds(tmp_path / "credentials.json", expires_at=_time.time() - 10)
+
+    def revoked(*_a, **_k):
+        raise DeviceAuthError("invalid_grant", "This grant was revoked — sign in again")
+
+    monkeypatch.setattr(cli_main, "refresh_tokens", revoked)
+    assert cli_main._read_token() == "sk_from_the_environment"
+
+
+def test_login_validates_the_credential_it_just_minted(monkeypatch, tmp_path: Path):
+    """The validation step must use the fresh token, not re-resolve one — an
+    env key made a successful login report a bare 401."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    monkeypatch.setattr(cli_main.webbrowser, "open", MagicMock())
+    monkeypatch.setattr(cli_main, "start_device_login", lambda *a, **k: _fake_device_start())
+    monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
+
+    seen: dict = {}
+
+    def fake_client(base_url=None, *, timeout=None, token=None):
+        seen["token"] = token
+        client = MagicMock()
+        client.get_me.return_value = {"username": "dev@example.com", "role": "admin"}
+        return client
+
+    monkeypatch.setattr(cli_main, "_client", fake_client)
+    result = runner.invoke(cli_main.app, ["auth", "login", "--no-browser"])
+    assert result.exit_code == 0, result.stdout
+    assert seen["token"] == "jwt_access_test"
+
+
 def test_read_token_refresh_invalid_grant_returns_none(monkeypatch, tmp_path: Path):
     import time as _time
 

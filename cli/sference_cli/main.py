@@ -136,25 +136,70 @@ def _read_device_credentials() -> dict | None:
     return _read_credentials_file()
 
 
+_warned: set[str] = set()
+
+
+def _warn_once(message: str) -> None:
+    """Credential resolution runs several times per command; say it once."""
+    if message not in _warned:
+        _warned.add(message)
+        typer.echo(message, err=True)
+
+
+def _has_device_grant() -> bool:
+    """Whether the file holds a device pair — checked without refreshing it."""
+    payload = _read_credentials_file()
+    if payload is None:
+        return False
+    return isinstance(payload.get("access_token"), str) and isinstance(payload.get("refresh_token"), str)
+
+
 def _read_token() -> str | None:
+    """Resolve the credential to send, device login first.
+
+    `sference auth login` is the CLI's own way in, so a signed-in device beats
+    ``SFERENCE_API_KEY``: an sk_ key is meant for non-interactive product
+    integrations (litellm, CI) that never run the device flow. The env var used
+    to win outright, which meant a key left over in a shell silently swallowed a
+    login the user had just completed — including the validation step right
+    after it, which then reported a bare 401.
+    """
     env = os.environ.get("SFERENCE_API_KEY")
-    if env:
-        return env.strip() or None
+    env_key = env.strip() if env and env.strip() else None
+
+    if _has_device_grant():
+        if env_key is not None:
+            _warn_once(
+                "Note: SFERENCE_API_KEY is set, but this device is signed in — using the "
+                "device login. Unset SFERENCE_API_KEY to use the API key instead."
+            )
+        creds = _read_device_credentials()
+        if creds is not None:
+            return creds["access_token"]
+        # The grant is gone (revoked, expired, reuse-detected). _read_device_credentials
+        # has already said so; fall through so a usable key still works.
+    if env_key is not None:
+        return env_key
     payload = _read_credentials_file()
     if payload is None:
         return None
     tok = payload.get("token")  # legacy API-key shape (CI / --api-key)
-    if isinstance(tok, str) and tok.strip():
-        return tok.strip()
-    creds = _read_device_credentials()
-    return creds["access_token"] if creds else None
+    return tok.strip() if isinstance(tok, str) and tok.strip() else None
 
 
-def _client(base_url: Optional[str] = None, *, timeout: float | None = None) -> SferenceClient:
+def _client(
+    base_url: Optional[str] = None,
+    *,
+    timeout: float | None = None,
+    token: Optional[str] = None,
+) -> SferenceClient:
+    """Build a client. ``token`` pins the credential instead of resolving one —
+    used right after a login, which must validate what it just minted rather
+    than whatever ``_read_token`` would pick."""
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
         base_url = env_base_url
-    return SferenceClient(base_url=base_url, api_key=_read_token(), timeout=timeout)
+    return SferenceClient(base_url=base_url, api_key=token or _read_token(), timeout=timeout)
 
 
 def _ensure_api_credential() -> None:
@@ -179,7 +224,7 @@ def _call_api(fn: Callable[[], _T]) -> _T:
                 "Unauthorized (401). Run `sference auth login` to sign in again.\n"
                 "CI/non-interactive: sference auth login --api-key 'sk_...' "
                 "(create a key in Console → API Keys while signed in).\n"
-                "If SFERENCE_API_KEY is set, it overrides ~/.sference/credentials.json.",
+                "SFERENCE_API_KEY is used only when this device is not signed in.",
                 err=True,
             )
             raise typer.Exit(code=1) from None
@@ -215,7 +260,7 @@ def _get_batch_or_missing(client: SferenceClient, batch_id: str) -> Any | None:
                 "Unauthorized (401). Run `sference auth login` to sign in again.\n"
                 "CI/non-interactive: sference auth login --api-key 'sk_...' "
                 "(create a key in Console → API Keys while signed in).\n"
-                "If SFERENCE_API_KEY is set, it overrides ~/.sference/credentials.json.",
+                "SFERENCE_API_KEY is used only when this device is not signed in.",
                 err=True,
             )
             raise typer.Exit(code=1) from None
@@ -458,7 +503,7 @@ def auth_login(
         _write_token(key)
         typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
         if validate:
-            client = _client(None)
+            client = _client(None, token=key)
             me = _call_api(client.get_me)
             if as_json:
                 _print(me, True)
@@ -514,7 +559,7 @@ def auth_login(
     _write_device_credentials(tokens)
     typer.echo(f"Credentials saved to {CREDENTIALS_PATH}")
     if validate:
-        client = _client(None)
+        client = _client(api_base, token=str(tokens["access_token"]))
         me = _call_api(client.get_me)
         if as_json:
             _print(me, True)
