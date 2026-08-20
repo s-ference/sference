@@ -6,7 +6,7 @@ import os
 import time
 import warnings
 from pathlib import Path
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any, AsyncIterator, BinaryIO
 
 import httpx
@@ -44,14 +44,9 @@ class AsyncSferenceClient:
         api_key: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float | None = None,
-        on_unauthorized: Callable[[], str | None] | None = None,
     ) -> None:
-        """``on_unauthorized`` mirrors :class:`SferenceClient`: consulted once on
-        a 401 for a replacement credential to retry with, ``None`` to let the
-        401 stand."""
         self.base_url = base_url or os.getenv("SFERENCE_BASE_URL", "https://api.sference.com")
         self._token = api_key or os.getenv("SFERENCE_API_KEY")
-        self._on_unauthorized = on_unauthorized
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=30.0 if timeout is None else timeout,
@@ -73,22 +68,6 @@ class AsyncSferenceClient:
             headers["authorization"] = f"Bearer {self._token}"
         return headers
 
-    async def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
-        """Issue the request, retrying once with a fresh credential on 401.
-
-        Safe to retry because a 401 means the handler never ran — no side effect
-        can be repeated. This is not a general-purpose retry.
-        """
-        response = await self._client.request(method, path, headers=self._headers(), **kwargs)
-        if response.status_code == 401 and self._on_unauthorized is not None:
-            replacement = self._on_unauthorized()
-            if replacement:
-                self._token = replacement
-                response = await self._client.request(
-                    method, path, headers=self._headers(), **kwargs
-                )
-        return response
-
     async def _request(
         self,
         method: str,
@@ -97,7 +76,9 @@ class AsyncSferenceClient:
         *,
         params: Mapping[str, Any] | None = None,
     ) -> Any:
-        response = await self._send(method, path, json=json_body, params=params)
+        response = await self._client.request(
+            method, path, headers=self._headers(), json=json_body, params=params
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()
@@ -109,7 +90,7 @@ class AsyncSferenceClient:
     async def _request_response(
         self, method: str, path: str, json_body: dict[str, Any] | None = None
     ) -> httpx.Response:
-        response = await self._send(method, path, json=json_body)
+        response = await self._client.request(method, path, headers=self._headers(), json=json_body)
         if response.status_code >= 400:
             try:
                 payload = response.json()
@@ -338,7 +319,12 @@ class AsyncSferenceClient:
             params["starting_after"] = starting_after
         if ending_before is not None:
             params["ending_before"] = ending_before
-        response = await self._send("GET", "/v1/responses/events", params=params)
+        response = await self._client.request(
+            "GET",
+            "/v1/responses/events",
+            headers=self._headers(),
+            params=params,
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()

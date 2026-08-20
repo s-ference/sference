@@ -6,7 +6,7 @@ import os
 import time
 import warnings
 from contextlib import contextmanager
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -52,22 +52,23 @@ class SferenceClient:
         api_key: str | None = None,
         transport: httpx.BaseTransport | None = None,
         timeout: float | None = None,
-        on_unauthorized: Callable[[], str | None] | None = None,
     ) -> None:
-        """``on_unauthorized`` is consulted once when a request comes back 401:
-        return a replacement credential to retry with, or ``None`` to let the
-        401 surface. Lets a caller holding a short-lived token (the CLI's device
-        grant) recover from a credential that expired or was revoked mid-session
-        instead of failing the command. Omitted by default — an API key has
-        nothing to refresh to."""
         self.base_url = base_url or os.getenv("SFERENCE_BASE_URL", "https://api.sference.com")
         self._token = api_key or os.getenv("SFERENCE_API_KEY")
-        self._on_unauthorized = on_unauthorized
         self._client = httpx.Client(
             base_url=self.base_url,
             timeout=30.0 if timeout is None else timeout,
             transport=transport,
         )
+
+    def set_api_key(self, api_key: str | None) -> None:
+        """Swap the credential used for subsequent requests.
+
+        For callers whose key changes while a client is alive — a rotated key in
+        a long-running integration, for instance — so they need not rebuild the
+        client and its connection pool.
+        """
+        self._token = api_key
 
     def close(self) -> None:
         self._client.close()
@@ -111,30 +112,6 @@ class SferenceClient:
             headers.update(extra)
         return headers
 
-    def _send(
-        self,
-        method: str,
-        path: str,
-        *,
-        extra_headers: Mapping[str, str] | None = None,
-        **kwargs: Any,
-    ) -> httpx.Response:
-        """Issue the request, retrying once with a fresh credential on 401.
-
-        Retrying is safe precisely because the server rejected the caller at
-        authentication: a 401 means the handler never ran, so no side effect can
-        be repeated — this is not a general-purpose retry.
-        """
-        response = self._client.request(method, path, headers=self._headers(extra_headers), **kwargs)
-        if response.status_code == 401 and self._on_unauthorized is not None:
-            replacement = self._on_unauthorized()
-            if replacement:
-                self._token = replacement
-                response = self._client.request(
-                    method, path, headers=self._headers(extra_headers), **kwargs
-                )
-        return response
-
     def _request(
         self,
         method: str,
@@ -144,10 +121,10 @@ class SferenceClient:
         params: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
     ) -> Any:
-        response = self._send(
+        response = self._client.request(
             method,
             path,
-            extra_headers=extra_headers,
+            headers=self._headers(extra_headers),
             json=json_body,
             params=params,
         )
@@ -167,7 +144,9 @@ class SferenceClient:
         *,
         extra_headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
-        response = self._send(method, path, extra_headers=extra_headers, json=json_body)
+        response = self._client.request(
+            method, path, headers=self._headers(extra_headers), json=json_body
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()
@@ -405,7 +384,12 @@ class SferenceClient:
             params["starting_after"] = starting_after
         if ending_before is not None:
             params["ending_before"] = ending_before
-        response = self._send("GET", "/v1/responses/events", params=params)
+        response = self._client.request(
+            "GET",
+            "/v1/responses/events",
+            headers=self._headers(),
+            params=params,
+        )
         if response.status_code >= 400:
             try:
                 payload = response.json()

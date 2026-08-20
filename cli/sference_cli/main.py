@@ -228,6 +228,12 @@ def _read_token() -> str | None:
     return tok.strip() if isinstance(tok, str) and tok.strip() else None
 
 
+# The client the running command built. One invocation runs one command and
+# builds one client, so this is unambiguous — it is what _call_api re-credentials
+# when a device token turns out to be stale.
+_active_client: SferenceClient | None = None
+
+
 def _client(
     base_url: Optional[str] = None,
     *,
@@ -240,15 +246,9 @@ def _client(
     env_base_url = os.environ.get("SFERENCE_BASE_URL")
     if env_base_url and (base_url is None or base_url == "https://api.sference.com"):
         base_url = env_base_url
-    # Only a device grant has anything to recover to; an sk_ key that 401s is
-    # simply wrong, and retrying it would just repeat the request.
-    on_unauthorized = _recover_from_unauthorized if _has_device_grant() else None
-    return SferenceClient(
-        base_url=base_url,
-        api_key=token or _read_token(),
-        timeout=timeout,
-        on_unauthorized=on_unauthorized,
-    )
+    global _active_client
+    _active_client = SferenceClient(base_url=base_url, api_key=token or _read_token(), timeout=timeout)
+    return _active_client
 
 
 def _ensure_api_credential() -> None:
@@ -269,7 +269,19 @@ def _call_api(fn: Callable[[], _T]) -> _T:
     except ApiError as exc:
         err = str(exc)
         if err.startswith("401:"):
-            # A dead grant has already been explained by the recovery hook, in
+            # The cached access token is used until it nears expiry, so a grant
+            # refreshed, revoked or reuse-detected server-side surfaces only
+            # here. Retrying is safe because a 401 means the handler never ran,
+            # so nothing can be repeated — this is not a general-purpose retry.
+            replacement = _recover_from_unauthorized()
+            if replacement and _active_client is not None:
+                _active_client.set_api_key(replacement)
+                try:
+                    return fn()
+                except ApiError as retry_exc:
+                    err = str(retry_exc)
+        if err.startswith("401:"):
+            # A dead grant has already been explained by the recovery step, in
             # more specific terms than this generic hint — don't say it twice.
             if not _device_grant_dead:
                 typer.echo(

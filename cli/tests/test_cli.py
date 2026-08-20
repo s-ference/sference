@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from typer.testing import CliRunner
 
 from sference_sdk import ApiError
@@ -1857,14 +1858,90 @@ def test_revoked_grant_without_a_key_gives_up_once(monkeypatch, tmp_path: Path):
     assert len(attempts) == 1, "a grant known to be dead is not retried"
 
 
-def test_api_key_only_callers_get_no_recovery_hook(monkeypatch, tmp_path: Path):
-    """An sk_ key that 401s is simply wrong — retrying would repeat the request."""
-    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
-    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
-    assert cli_main._client()._on_unauthorized is None
+def test_api_key_401_is_not_retried(monkeypatch, tmp_path: Path):
+    """An sk_ key that 401s is simply wrong — there is nothing to recover to, so
+    retrying would only repeat the request."""
+    import typer
 
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
+    monkeypatch.setattr(cli_main, "_active_client", MagicMock())
+
+    calls: list[int] = []
+
+    def boom():
+        calls.append(1)
+        raise ApiError("401: {'detail': 'Unauthorized'}")
+
+    with pytest.raises(typer.Exit):
+        cli_main._call_api(boom)
+    assert len(calls) == 1
+
+
+def test_stale_token_401_is_retried_with_the_refreshed_credential(monkeypatch, tmp_path: Path):
+    """The whole point: a command that 401s on a stale device token refreshes
+    and succeeds, instead of dying and telling the user to log in again."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_warned", set())
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
     _write_device_creds(tmp_path / "credentials.json")
-    assert cli_main._client()._on_unauthorized is not None
+    monkeypatch.setattr(
+        cli_main,
+        "refresh_tokens",
+        lambda *a, **k: {
+            "access_token": "jwt_recovered",
+            "token_type": "bearer",
+            "expires_in": 86400,
+            "refresh_token": "rt_recovered",
+        },
+    )
+    client = MagicMock()
+    monkeypatch.setattr(cli_main, "_active_client", client)
+
+    attempts: list[int] = []
+
+    def flaky():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise ApiError("401: {'detail': 'Unauthorized'}")
+        return {"username": "dev", "role": "admin"}
+
+    assert cli_main._call_api(flaky) == {"username": "dev", "role": "admin"}
+    assert len(attempts) == 2
+    client.set_api_key.assert_called_once_with("jwt_recovered")
+
+
+def test_retry_that_401s_again_does_not_loop(monkeypatch, tmp_path: Path):
+    import typer
+
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_warned", set())
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    _write_device_creds(tmp_path / "credentials.json")
+    monkeypatch.setattr(
+        cli_main,
+        "refresh_tokens",
+        lambda *a, **k: {
+            "access_token": "jwt_still_bad",
+            "token_type": "bearer",
+            "expires_in": 86400,
+            "refresh_token": "rt_new",
+        },
+    )
+    monkeypatch.setattr(cli_main, "_active_client", MagicMock())
+
+    attempts: list[int] = []
+
+    def always_401():
+        attempts.append(1)
+        raise ApiError("401: {'detail': 'Unauthorized'}")
+
+    with pytest.raises(typer.Exit):
+        cli_main._call_api(always_401)
+    assert len(attempts) == 2, "one retry, then the 401 stands"
 
 
 def test_call_api_401_hint_suppressed_for_dead_grant(monkeypatch, capsys):
