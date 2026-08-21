@@ -241,7 +241,7 @@ def my_flow() -> None:
 
 Run: `uv run python examples/prefect/ai_data_analyst_batch_responses.py` — add `--serve` for a Prefect deployment. Details: **[examples/prefect/README.md](examples/prefect/README.md)**.
 
-**Other frameworks** (batch `submit_batch` unless noted): Dagster, Ray Data, Hugging Face Datasets, PySpark, Airflow, LangChain, LlamaIndex, Label Studio, Argilla — see **[examples/README.md](examples/README.md)**.
+**Other frameworks** (batch `submit_batch` unless noted): Dagster, Ray Data, Hugging Face Datasets, PySpark, Airflow, LangChain, LlamaIndex, Label Studio, Argilla, promptfoo (evals — `create_response` per row) — see **[examples/README.md](examples/README.md)**.
 
 **Why not in-process LLMs in the flow?** Background responses decouple orchestration from GPU work: workers stay thin, failed **wait** tasks can retry without re-submitting, and `completion_window` matches batch SLA semantics.
 
