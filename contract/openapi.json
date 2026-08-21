@@ -6965,91 +6965,6 @@
         ],
         "title": "AuditLogResponse"
       },
-      "AutoTopupPaymentMethod": {
-        "properties": {
-          "brand": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "last4": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [],
-        "title": "AutoTopupPaymentMethod"
-      },
-      "AutoTopupSettingsResponse": {
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "threshold_micros": {
-            "type": "integer"
-          },
-          "topup_amount_micros": {
-            "type": "integer"
-          },
-          "payment_method": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/AutoTopupPaymentMethod"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "consecutive_failures": {
-            "type": "integer"
-          },
-          "paused": {
-            "type": "boolean"
-          }
-        },
-        "type": "object",
-        "required": [
-          "consecutive_failures",
-          "enabled",
-          "paused",
-          "threshold_micros",
-          "topup_amount_micros"
-        ],
-        "title": "AutoTopupSettingsResponse"
-      },
-      "AutoTopupUpdateRequest": {
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "threshold_usd": {
-            "type": "string"
-          },
-          "amount_usd": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "amount_usd",
-          "enabled",
-          "threshold_usd"
-        ],
-        "title": "AutoTopupUpdateRequest"
-      },
       "BatchCreateRequest": {
         "properties": {
           "window": {
@@ -8460,54 +8375,6 @@
         ],
         "title": "DeploymentResponse"
       },
-      "DeviceApproveRequest": {
-        "properties": {
-          "user_code": {
-            "type": "string",
-            "maxLength": 16
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_code"
-        ],
-        "title": "DeviceApproveRequest"
-      },
-      "DeviceAuthorizationResponse": {
-        "properties": {
-          "user_code": {
-            "type": "string"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "device_label": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expires_at": {
-            "type": "string"
-          },
-          "approved": {
-            "type": "boolean"
-          }
-        },
-        "type": "object",
-        "required": [
-          "approved",
-          "client_id",
-          "device_label",
-          "expires_at",
-          "user_code"
-        ],
-        "title": "DeviceAuthorizationResponse"
-      },
       "DeviceCodeRequest": {
         "properties": {
           "client_id": {
@@ -9725,68 +9592,6 @@
         ],
         "title": "OAuthCompleteRequest"
       },
-      "OAuthGrantItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "device_label": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "last_refreshed_at": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expires_at": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "client_id",
-          "created_at",
-          "device_label",
-          "expires_at",
-          "id",
-          "last_refreshed_at"
-        ],
-        "title": "OAuthGrantItem"
-      },
-      "OAuthGrantListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/OAuthGrantItem"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "OAuthGrantListResponse"
-      },
       "OrgApiKeyItem": {
         "properties": {
           "id": {
@@ -10088,22 +9893,6 @@
         "type": "object",
         "required": [],
         "title": "OrganizationUpdateRequest"
-      },
-      "PaymentMethodSetupResponse": {
-        "properties": {
-          "stripe_session_id": {
-            "type": "string"
-          },
-          "setup_url": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "setup_url",
-          "stripe_session_id"
-        ],
-        "title": "PaymentMethodSetupResponse"
       },
       "PricingInfo": {
         "properties": {
