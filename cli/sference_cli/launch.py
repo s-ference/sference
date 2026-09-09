@@ -18,6 +18,15 @@ from .proxy import fetch_sference_model_entries, fetch_sference_models, launch_c
 DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
+# Thinking-effort variants stamped on every Sference model entry in the opencode
+# config. The levels are a subset of OpenAI's ReasoningEffort enum that the platform
+# accepts (``reasoning_effort`` on chat completions); ``none`` disables thinking, the
+# rest enable it and each model's chat template decides what the level means. The AI
+# SDK openai-compatible provider forwards the variant's ``reasoningEffort`` option as
+# ``reasoning_effort`` in the request body. On models the catalog marks non-thinking
+# the effort is a server-side no-op, so stamping every fetched model is safe.
+OPENCODE_THINKING_VARIANTS = ("none", "medium", "high", "xhigh")
+
 
 def resolve_api_base_url(explicit: Optional[str]) -> str:
     if explicit:
@@ -330,8 +339,12 @@ def _write_opencode_config(*, base_url: str, model: str, models: set[str]) -> Pa
     user's opencode config.
 
     All models in ``models`` are written to the provider's ``models`` block so
-    they appear in opencode's model picker. ``model`` is the default — set as
-    the top-level ``model`` key so opencode uses Sference by default on startup.
+    they appear in opencode's model picker, each with the thinking-effort
+    variants in ``OPENCODE_THINKING_VARIANTS`` (selectable as
+    ``sference/<model>@<level>`` or via opencode's variant switcher; no variant
+    means the server-side catalog default decides). ``model`` is the default —
+    set as the top-level ``model`` key so opencode uses Sference by default on
+    startup.
 
     The API key is referenced as ``{env:SFERENCE_API_KEY}`` so no secret is
     stored on disk; ``launch_opencode`` injects the resolved key into the
@@ -366,7 +379,13 @@ def _write_opencode_config(*, base_url: str, model: str, models: set[str]) -> Pa
             "apiKey": "{env:SFERENCE_API_KEY}",
         },
         "models": {
-            m: {"name": m}
+            m: {
+                "name": m,
+                "variants": {
+                    level: {"options": {"reasoningEffort": level}}
+                    for level in OPENCODE_THINKING_VARIANTS
+                },
+            }
             for m in sorted(all_models)
         },
     }

@@ -1371,6 +1371,23 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
         assert m in provider["models"]
 
 
+def test_opencode_writes_thinking_variants(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    config_path = tmp_path / "opencode.json"
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
+    runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
+    data = json.loads(config_path.read_text())
+    models = data["provider"]["sference"]["models"]
+    assert models, "expected at least one model entry"
+    for entry in models.values():
+        variants = entry["variants"]
+        assert set(variants) == {"none", "medium", "high", "xhigh"}
+        for level, variant in variants.items():
+            assert variant == {"options": {"reasoningEffort": level}}
+
+
 def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
