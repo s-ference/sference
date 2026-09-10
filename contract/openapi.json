@@ -4475,6 +4475,7 @@
                     {
                       "$ref": "#/components/schemas/ResponseItem"
                     },
+                    {},
                     {}
                   ]
                 }
@@ -4687,6 +4688,7 @@
                       "additionalProperties": {},
                       "type": "object"
                     },
+                    {},
                     {}
                   ]
                 }
@@ -4850,6 +4852,7 @@
                       "additionalProperties": {},
                       "type": "object"
                     },
+                    {},
                     {}
                   ]
                 }
@@ -6637,6 +6640,19 @@
                 "type": "null"
               }
             ]
+          },
+          "max_queue_wait_s": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 300,
+            "minimum": 5,
+            "description": "Maximum projected wait behind already-queued work, in seconds (pending time already spent counts against it). Your own prompt's prefill time is not counted \u2014 the bound is on congestion, not prompt size. Admission control, best effort \u2014 an admitted request is served to completion."
           }
         },
         "type": "object",
@@ -6964,91 +6980,6 @@
           "items"
         ],
         "title": "AuditLogResponse"
-      },
-      "AutoTopupPaymentMethod": {
-        "properties": {
-          "brand": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "last4": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [],
-        "title": "AutoTopupPaymentMethod"
-      },
-      "AutoTopupSettingsResponse": {
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "threshold_micros": {
-            "type": "integer"
-          },
-          "topup_amount_micros": {
-            "type": "integer"
-          },
-          "payment_method": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/AutoTopupPaymentMethod"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "consecutive_failures": {
-            "type": "integer"
-          },
-          "paused": {
-            "type": "boolean"
-          }
-        },
-        "type": "object",
-        "required": [
-          "consecutive_failures",
-          "enabled",
-          "paused",
-          "threshold_micros",
-          "topup_amount_micros"
-        ],
-        "title": "AutoTopupSettingsResponse"
-      },
-      "AutoTopupUpdateRequest": {
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "threshold_usd": {
-            "type": "string"
-          },
-          "amount_usd": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "amount_usd",
-          "enabled",
-          "threshold_usd"
-        ],
-        "title": "AutoTopupUpdateRequest"
       },
       "BatchCreateRequest": {
         "properties": {
@@ -7753,6 +7684,19 @@
               }
             ],
             "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly. A flex request that cannot complete in time fails with 408 (OpenAI SDKs retry it automatically). All other accepted values (`auto`, `default`, `scale`, `priority`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
+          },
+          "max_queue_wait_s": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 300,
+            "minimum": 5,
+            "description": "Maximum projected wait behind already-queued work, in seconds (pending time already spent counts against it). Your own prompt's prefill time is not counted \u2014 the bound is on congestion, not prompt size. Admission control, best effort \u2014 an admitted request is served to completion. Flex-tier requests count their deliberate dispatch hold against the bound."
           }
         },
         "type": "object",
@@ -8459,54 +8403,6 @@
           "updated_at"
         ],
         "title": "DeploymentResponse"
-      },
-      "DeviceApproveRequest": {
-        "properties": {
-          "user_code": {
-            "type": "string",
-            "maxLength": 16
-          }
-        },
-        "type": "object",
-        "required": [
-          "user_code"
-        ],
-        "title": "DeviceApproveRequest"
-      },
-      "DeviceAuthorizationResponse": {
-        "properties": {
-          "user_code": {
-            "type": "string"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "device_label": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expires_at": {
-            "type": "string"
-          },
-          "approved": {
-            "type": "boolean"
-          }
-        },
-        "type": "object",
-        "required": [
-          "approved",
-          "client_id",
-          "device_label",
-          "expires_at",
-          "user_code"
-        ],
-        "title": "DeviceAuthorizationResponse"
       },
       "DeviceCodeRequest": {
         "properties": {
@@ -9725,68 +9621,6 @@
         ],
         "title": "OAuthCompleteRequest"
       },
-      "OAuthGrantItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "client_id": {
-            "type": "string"
-          },
-          "device_label": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "last_refreshed_at": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "expires_at": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "client_id",
-          "created_at",
-          "device_label",
-          "expires_at",
-          "id",
-          "last_refreshed_at"
-        ],
-        "title": "OAuthGrantItem"
-      },
-      "OAuthGrantListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/OAuthGrantItem"
-            },
-            "type": "array"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items"
-        ],
-        "title": "OAuthGrantListResponse"
-      },
       "OrgApiKeyItem": {
         "properties": {
           "id": {
@@ -10089,22 +9923,6 @@
         "required": [],
         "title": "OrganizationUpdateRequest"
       },
-      "PaymentMethodSetupResponse": {
-        "properties": {
-          "stripe_session_id": {
-            "type": "string"
-          },
-          "setup_url": {
-            "type": "string"
-          }
-        },
-        "type": "object",
-        "required": [
-          "setup_url",
-          "stripe_session_id"
-        ],
-        "title": "PaymentMethodSetupResponse"
-      },
       "PricingInfo": {
         "properties": {
           "model": {
@@ -10355,6 +10173,19 @@
               }
             ],
             "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly, or use `background: true` and poll. All other accepted values (`auto`, `default`, `scale`, `priority`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
+          },
+          "max_queue_wait_s": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 300,
+            "minimum": 5,
+            "description": "Maximum projected wait behind already-queued work, in seconds (pending time already spent counts against it). Your own prompt's prefill time is not counted \u2014 the bound is on congestion, not prompt size. Admission control, best effort \u2014 an admitted request is served to completion. Incompatible with `background: true` (background rows queue by design); flex-tier requests count their deliberate dispatch hold against the bound."
           },
           "metadata": {
             "$ref": "#/components/schemas/ResponseMetadata"
