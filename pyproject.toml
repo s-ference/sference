@@ -12,6 +12,7 @@ dependencies = [
 members = [
     "sdk-python",
     "cli",
+    "mcp-server",
 ]
 
 [tool.uv.sources]
