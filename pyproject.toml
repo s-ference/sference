@@ -36,7 +36,7 @@ examples = [
 ]
 examples-test = [
     { include-group = "examples" },
-    "apache-airflow>=3.0",
+    "apache-airflow>=3.3.0",  # >=3.3.0: CVE fixes (Dependabot); examples-test only
 ]
 examples-spark = [
     "pyspark>=3.5",
