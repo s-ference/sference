@@ -10694,6 +10694,17 @@
               }
             ]
           },
+          "team_invite_token": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 256
+          },
           "phone_number": {
             "oneOf": [
               {
