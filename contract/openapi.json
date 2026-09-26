@@ -6687,6 +6687,26 @@
           },
           "capabilities": {
             "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "alias_of": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retires_on": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -7343,6 +7363,16 @@
               }
             ]
           },
+          "alias_of": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "input_per_million_usd": {
             "oneOf": [
               {
@@ -7395,7 +7425,8 @@
             "type": "string",
             "enum": [
               "platform",
-              "custom"
+              "custom",
+              "byom"
             ],
             "default": "platform"
           },
@@ -7647,6 +7678,9 @@
             "oneOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -9956,6 +9990,9 @@
                 "type": "string"
               },
               {
+                "type": "integer"
+              },
+              {
                 "type": "null"
               }
             ]
@@ -11873,6 +11910,26 @@
             ]
           },
           "released": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alias_of": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retires_on": {
             "oneOf": [
               {
                 "type": "string"
