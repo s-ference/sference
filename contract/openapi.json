@@ -6091,6 +6091,74 @@
         },
         "deprecated": false
       }
+    },
+    "/v1/decisions": {
+      "post": {
+        "summary": "Decide",
+        "operationId": "createDecision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
     }
   },
   "components": {
@@ -7807,6 +7875,59 @@
         ],
         "title": "ChatMessage"
       },
+      "ChoiceAnswer": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "choice"
+          },
+          "choice": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0
+          },
+          "probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "choice",
+          "confidence",
+          "probabilities",
+          "type"
+        ],
+        "title": "ChoiceAnswer"
+      },
+      "ChoiceQuestion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "choice"
+          },
+          "instructions": {
+            "default": ""
+          },
+          "criteria": {
+            "additionalProperties": {},
+            "type": "object",
+            "maxProperties": 32,
+            "minProperties": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "criteria",
+          "type"
+        ],
+        "title": "ChoiceQuestion"
+      },
       "CreateEmbeddingRequest": {
         "properties": {
           "model": {
@@ -8041,6 +8162,92 @@
           "total_tokens"
         ],
         "title": "DailyUsage"
+      },
+      "DecisionRequest": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "state": {},
+          "questions": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ChoiceQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/ScoreQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/NoulQuestion"
+                }
+              ]
+            },
+            "type": "object",
+            "maxProperties": 16,
+            "minProperties": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "questions",
+          "state"
+        ],
+        "title": "DecisionRequest"
+      },
+      "DecisionResponse": {
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "answers": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ChoiceAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/ScoreAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/NoulAnswer"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/DecisionUsage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "model",
+          "usage"
+        ],
+        "title": "DecisionResponse"
+      },
+      "DecisionUsage": {
+        "properties": {
+          "input_tokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "const": 0,
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "input_tokens"
+        ],
+        "title": "DecisionUsage"
       },
       "DepartmentCreateRequest": {
         "properties": {
@@ -9609,6 +9816,52 @@
         ],
         "title": "ModelUsageSummary"
       },
+      "NoulAnswer": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "noul"
+          },
+          "noul": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "noul",
+          "type"
+        ],
+        "title": "NoulAnswer"
+      },
+      "NoulQuestion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "noul"
+          },
+          "instructions": {
+            "default": ""
+          },
+          "criteria": {
+            "oneOf": [
+              {
+                "additionalProperties": {},
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "NoulQuestion"
+      },
       "OAuthCompleteRequest": {
         "properties": {
           "provider": {
@@ -10668,6 +10921,65 @@
           "total_tokens"
         ],
         "title": "ResponseUsage"
+      },
+      "ScoreAnswer": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "score"
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0
+          },
+          "legend": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confidence",
+          "legend",
+          "probabilities",
+          "score",
+          "type"
+        ],
+        "title": "ScoreAnswer"
+      },
+      "ScoreQuestion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "score"
+          },
+          "instructions": {
+            "default": ""
+          },
+          "criteria": {
+            "items": {},
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "criteria",
+          "type"
+        ],
+        "title": "ScoreQuestion"
       },
       "SignupRequest": {
         "properties": {
@@ -11883,7 +12195,8 @@
             "type": "string",
             "enum": [
               "text_generation",
-              "text_embedding"
+              "text_embedding",
+              "decisions"
             ],
             "default": "text_generation"
           },
