@@ -4873,7 +4873,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds 128 KiB",
+            "description": "Request body exceeds 1 MiB",
             "content": {
               "application/json": {
                 "schema": {
