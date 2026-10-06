@@ -57,7 +57,7 @@ Use `api_key`/env, **not** `client.login()`, in agent-generated code.
 
 **Async** workloads use the **`"24h"`** completion window (the only supported value). Set via `metadata={"completion_window": ...}` on background responses, and via `window=` on `create_stream` and `submit_batch`.
 
-**Realtime** sync endpoints (`POST /v1/chat/completions`, `POST /v1/messages`, blocking `POST /v1/responses` without `background: true`) do not take a completion window — they return when inference finishes.
+**Realtime** sync endpoints (`POST /v1/chat/completions`, `POST /v1/messages`, blocking `POST /v1/responses` without `background: true`, `POST /v1/decisions`) do not take a completion window — they return when inference finishes.
 
 ## Default: Responses API (background)
 
@@ -176,6 +176,7 @@ asyncio.run(main())
 | Responses (default) | `create_response` (set `background=True`), `wait_for_response`, `get_response`, `cancel_response`, `list_responses` |
 | Completion events | `list_responses_events` (`stream_id`, `starting_after`, `wait_ms` long-poll); `iter_responses_events` (`stream_id`, `checkpoint`, `from_latest`) |
 | Streams | `create_stream(name, window=)`, `get_stream`, `list_streams`, `cancel_stream`, `archive_stream` |
+| Decisions (realtime classification) | `create_decision(model=, state=, questions=)`; questions are `ChoiceQuestion` / `ScoreQuestion` / `NoulQuestion` or dicts with `type` |
 | Batches | `submit_batch`, `wait_for_completion`, `get_results`, `download_results_jsonl`, `get_batch`, `list_batches`, `cancel_batch` |
 
 `create_response` / `submit_batch` / `create_stream` / `*_events` take **keyword arguments**. Response status: `in_progress → completed | failed | cancelled`. Batch status: `pending → running → completed | failed | cancelled`.

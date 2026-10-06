@@ -150,6 +150,19 @@ Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provid
 | `sference responses result` | Poll until terminal state (`--id`, `--poll-ms`) |
 | `sference responses tail` | Print completion events as JSONL via `GET /v1/responses/events` (optional `--stream-id` to scope to a stream; omit for non-stream completions). Flags: `--consumer`, `--from-latest`, `--no-checkpoint`, `--poll-ms` |
 
+### Decisions (`/v1/decisions`)
+
+| Command | Description |
+|---------|-------------|
+| `sference decisions create` | Answer up to 16 questions about one state in a single realtime call (`--model`, `--questions` JSON or `@file`, and `--state` text or `--state-json` JSON / `@file` / `@-`). Prints one line per answer; `--json` prints the full response |
+
+```bash
+sference decisions create --model Cloudflare/clef \
+  --state "I was charged twice, please refund me" \
+  --questions '{"route": {"type": "choice", "criteria": {"billing": "Payments", "support": "Other"}},
+                "refund": {"type": "noul"}}'
+```
+
 ### Stream (first-class streams API)
 
 Long-lived **streams** are separate from **batches**: you create a stream, submit **responses** tied to it over time (`POST /v1/responses` with `metadata.stream_id`), and consume **completion events** with cursor-based pagination on **`GET /v1/responses/events`** (pass **`stream_id`** when scoping to a stream). Authenticate with your **secret API key** like other `/v1` calls.
