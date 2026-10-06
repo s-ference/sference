@@ -152,6 +152,13 @@ class FakeClient:
     def list_models(self):
         return json.loads((FIXTURES / "V1ModelsListModels" / "200.json").read_text(encoding="utf-8"))
 
+    def create_decision(self, **kwargs):
+        self.decision_kwargs = kwargs
+        from sference_sdk.models import DecisionResponse
+
+        raw = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
+        return DecisionResponse.model_validate(raw)
+
     def create_embeddings(self, **kwargs):
         _ = kwargs
         return FakeResult(
@@ -457,6 +464,82 @@ def test_embeddings_create_json(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["object"] == "list"
     assert payload["data"][0]["embedding"] == [0.1]
+
+
+_DECISION_QUESTIONS = json.dumps(
+    {
+        "route": {"type": "choice", "criteria": {"billing": "Payments", "support": "Other"}},
+        "urgency": {"type": "score", "criteria": ["Low", "High"]},
+        "refund": {"type": "noul"},
+    }
+)
+
+
+def test_decisions_create_prints_answers(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    fake = FakeClient()
+    monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "decisions", "create", "--model", "Cloudflare/clef",
+            "--state", "charged twice", "--questions", _DECISION_QUESTIONS,
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert fake.decision_kwargs["state"] == "charged twice"
+    assert set(fake.decision_kwargs["questions"]) == {"route", "urgency", "refund"}
+    assert "billing (confidence 0.80)" in result.stdout
+    assert "0.75 (confidence 0.75)" in result.stdout
+    assert "p(true)=0.90" in result.stdout
+    assert "input_tokens: 512" in result.stdout
+
+
+def test_decisions_create_reads_json_state_and_questions_from_files(monkeypatch, tmp_path):
+    _with_fake_credential(monkeypatch)
+    fake = FakeClient()
+    monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
+    questions = tmp_path / "questions.json"
+    questions.write_text(_DECISION_QUESTIONS, encoding="utf-8")
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "decisions", "create", "--model", "Cloudflare/clef", "--json",
+            "--state-json", "@-", "--questions", f"@{questions}",
+        ],
+        input='{"ticket": "charged twice"}',
+    )
+    assert result.exit_code == 0, result.output
+    assert fake.decision_kwargs["state"] == {"ticket": "charged twice"}
+    assert json.loads(result.stdout)["answers"]["route"]["choice"] == "billing"
+
+
+@pytest.mark.parametrize(
+    "args, message",
+    [
+        (["--questions", "{}"], "exactly one of --state or --state-json"),
+        (["--state", "x", "--state-json", "1", "--questions", "{}"], "exactly one of --state or --state-json"),
+        (["--state", "x", "--questions", "[1]"], "must be a JSON object"),
+        (["--state", "x", "--questions", "{nope"], "not valid JSON"),
+        (["--state", "x", "--questions", '{"q": {"type": "rank"}}'], "Invalid --questions"),
+    ],
+)
+def test_decisions_create_rejects_bad_input(monkeypatch, args, message):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: _RealDecisionClient())
+    result = runner.invoke(cli_main.app, ["decisions", "create", "--model", "Cloudflare/clef", *args])
+    assert result.exit_code == 1
+    assert message in result.output
+
+
+class _RealDecisionClient:
+    """Runs the SDK's own payload validation without any HTTP."""
+
+    def create_decision(self, **kwargs):
+        from sference_sdk.models import CreateDecisionPayload
+
+        CreateDecisionPayload.model_validate(kwargs)
+        raise AssertionError("invalid input must not reach the API")
 
 
 def test_batch_list_json(monkeypatch):

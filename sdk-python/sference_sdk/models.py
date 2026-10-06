@@ -352,3 +352,79 @@ class CreateEmbeddingPayload(BaseModel):
     encoding_format: EmbeddingEncodingFormat = "float"
     dimensions: int | None = None
     user: str | None = None
+
+
+# Decisions (POST /v1/decisions): classify one ``state`` against up to 16 questions.
+class ChoiceQuestion(BaseModel):
+    """Pick one of ``criteria`` (label -> description)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["choice"] = "choice"
+    instructions: Any = ""
+    criteria: dict[str, Any]
+
+
+class ScoreQuestion(BaseModel):
+    """Rate on the ordinal scale ``criteria`` (index 0 = lowest)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["score"] = "score"
+    instructions: Any = ""
+    criteria: list[Any]
+
+
+class NoulQuestion(BaseModel):
+    """Yes/no probability; ``criteria`` may describe the ``"true"``/``"false"`` cases."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["noul"] = "noul"
+    instructions: Any = ""
+    criteria: dict[Literal["true", "false"], Any] | None = None
+
+
+DecisionQuestion = Annotated[ChoiceQuestion | ScoreQuestion | NoulQuestion, Field(discriminator="type")]
+
+
+class CreateDecisionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model: str
+    state: Any
+    questions: dict[str, DecisionQuestion]
+
+
+class ChoiceAnswer(BaseModel):
+    type: Literal["choice"] = "choice"
+    choice: str
+    confidence: float
+    probabilities: dict[str, float]
+
+
+class ScoreAnswer(BaseModel):
+    type: Literal["score"] = "score"
+    score: float
+    confidence: float
+    legend: dict[str, Any]
+    probabilities: dict[str, float]
+
+
+class NoulAnswer(BaseModel):
+    type: Literal["noul"] = "noul"
+    noul: float
+
+
+DecisionAnswer = Annotated[ChoiceAnswer | ScoreAnswer | NoulAnswer, Field(discriminator="type")]
+
+
+class DecisionUsage(BaseModel):
+    input_tokens: int
+    output_tokens: int = 0
+
+
+class DecisionResponse(BaseModel):
+    model: str
+    answers: dict[str, DecisionAnswer]
+    usage: DecisionUsage

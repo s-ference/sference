@@ -1,0 +1,9 @@
+{
+  "model": "Cloudflare/clef",
+  "answers": {
+    "route": {"type": "choice", "choice": "billing", "confidence": 0.8, "probabilities": {"billing": 0.8, "support": 0.2}},
+    "urgency": {"type": "score", "score": 0.75, "confidence": 0.75, "legend": {"0": "Low", "1": "High"}, "probabilities": {"0": 0.25, "1": 0.75}},
+    "refund": {"type": "noul", "noul": 0.9}
+  },
+  "usage": {"input_tokens": 512, "output_tokens": 0}
+}

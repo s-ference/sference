@@ -102,6 +102,31 @@ row = client.get_response(created.id)
 
 For a stream, add `stream_id` inside `metadata` next to `completion_window`.
 
+### Decisions (realtime classification)
+
+`POST /v1/decisions` answers up to 16 questions about one `state` (text or any JSON value) in a single call. Pick a model with `modality == "decisions"` from `list_models()`. Question types: `choice` (pick one label), `score` (ordinal scale, index 0 = lowest) and `noul` (probability of true). Billed on input tokens only.
+
+```python
+from sference_sdk import ChoiceQuestion, NoulQuestion, ScoreQuestion, SferenceClient
+
+client = SferenceClient(api_key="sk_...")
+
+decision = client.create_decision(
+    model="Cloudflare/clef",
+    state="I was charged twice this month, please refund me.",
+    questions={
+        "route": ChoiceQuestion(criteria={"billing": "Payments and invoices", "support": "Everything else"}),
+        "urgency": ScoreQuestion(criteria=["Low", "Medium", "High"]),
+        "refund": NoulQuestion(instructions="Does the customer ask for a refund?"),
+    },
+)
+decision.answers["route"].choice      # "billing"
+decision.answers["urgency"].score     # 0..2, expected value over the scale
+decision.answers["refund"].noul       # probability of true
+```
+
+Questions may also be plain dicts (`{"type": "noul"}`). `429` means no decision capacity right now and is safe to retry; `504` means the deadline passed and nothing was charged.
+
 ### OpenAI Python SDK (`openai` package)
 
 If you already use the official OpenAI client, point it at sference’s **`/v1`** endpoint and the same API key (with `responses:read` and `responses:write`).

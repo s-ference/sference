@@ -488,6 +488,52 @@ def test_create_embeddings_single_string_input() -> None:
     assert resp.usage.prompt_tokens == 4
 
 
+def test_create_decision_posts_questions_and_parses_answers() -> None:
+    from sference_sdk.models import ChoiceQuestion
+
+    captured_json: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_json
+        if request.method == "POST" and request.url.path == "/v1/decisions":
+            captured_json = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                status_code=200,
+                json=json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8")),
+            )
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.create_decision(
+            model="Cloudflare/clef",
+            state="I was charged twice, please refund me",
+            questions={
+                "route": ChoiceQuestion(criteria={"billing": "Payments", "support": "Everything else"}),
+                "urgency": {"type": "score", "criteria": ["Low", "High"]},
+                "refund": {"type": "noul", "instructions": "Does the customer ask for a refund?"},
+            },
+        )
+
+    assert captured_json["model"] == "Cloudflare/clef"
+    assert captured_json["state"] == "I was charged twice, please refund me"
+    assert captured_json["questions"]["route"]["type"] == "choice"
+    assert captured_json["questions"]["urgency"]["criteria"] == ["Low", "High"]
+    assert captured_json["questions"]["refund"]["instructions"] == "Does the customer ask for a refund?"
+    assert resp.answers["route"].choice == "billing"
+    assert resp.answers["urgency"].score == 0.75
+    assert resp.answers["refund"].noul == 0.9
+    assert resp.usage.input_tokens == 512
+
+
+def test_create_decision_rejects_unknown_question_type() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("must not reach the API")
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        with pytest.raises(ValueError):
+            client.create_decision(model="Cloudflare/clef", state="x", questions={"q": {"type": "rank"}})
+
+
 def test_checkpoint_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 

@@ -100,3 +100,22 @@ def test_mock_fixtures_validate_against_openapi_contract() -> None:
         schema = _schema_for(openapi, operation_id, status_code)
         jsonschema.validate(instance=instance, schema=schema)
 
+
+
+def test_decision_request_payload_validates_against_openapi_contract() -> None:
+    """The SDK serialises its own request body; keep it inside the DecisionRequest schema."""
+    from sference_sdk.models import ChoiceQuestion, CreateDecisionPayload, NoulQuestion, ScoreQuestion
+
+    openapi = _load_openapi()
+    schema = _deref_schema(openapi, {"$ref": "#/components/schemas/DecisionRequest"})
+    payload = CreateDecisionPayload(
+        model="Cloudflare/clef",
+        state={"ticket": "I was charged twice"},
+        questions={
+            "route": ChoiceQuestion(criteria={"billing": "Payments", "support": "Everything else"}),
+            "urgency": ScoreQuestion(criteria=["Low", "Medium", "High"], instructions="How urgent?"),
+            "refund": NoulQuestion(),
+            "fraud": NoulQuestion(criteria={"true": "Unauthorised charge", "false": "Customer error"}),
+        },
+    )
+    jsonschema.validate(instance=payload.model_dump(mode="json"), schema=schema)

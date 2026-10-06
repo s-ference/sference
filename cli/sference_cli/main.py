@@ -42,12 +42,14 @@ stream_app = typer.Typer(help="Stream commands", invoke_without_command=True)
 responses_app = typer.Typer(help="Responses commands", invoke_without_command=True)
 models_app = typer.Typer(help="List models (GET /v1/models)", invoke_without_command=True)
 embeddings_app = typer.Typer(help="Embeddings commands", invoke_without_command=True)
+decisions_app = typer.Typer(help="Realtime decisions (POST /v1/decisions)", invoke_without_command=True)
 app.add_typer(auth_app, name="auth")
 app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
 app.add_typer(responses_app, name="responses")
 app.add_typer(models_app, name="models")
 app.add_typer(embeddings_app, name="embeddings")
+app.add_typer(decisions_app, name="decisions")
 register_launch_commands(app)
 
 CREDENTIALS_PATH = Path.home() / ".sference" / "credentials.json"
@@ -523,6 +525,73 @@ def embeddings_create(
         )
     )
     _print(resp.model_dump(), as_json or True)
+
+
+def _read_json_option(raw: str, option: str) -> object:
+    """Parse a JSON option value; ``@path`` reads the file and ``@-`` reads stdin."""
+    if raw.startswith("@"):
+        source = raw[1:]
+        raw = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        typer.echo(f"{option} is not valid JSON: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
+def _format_answer(answer: dict) -> str:
+    kind = answer.get("type")
+    if kind == "choice":
+        return f"{answer['choice']} (confidence {answer['confidence']:.2f})"
+    if kind == "score":
+        return f"{answer['score']:.2f} (confidence {answer['confidence']:.2f})"
+    if kind == "noul":
+        return f"p(true)={answer['noul']:.2f}"
+    return json.dumps(answer)
+
+
+@decisions_app.command("create")
+def decisions_create(
+    model: str = typer.Option(..., "--model", help="Decisions model id (modality=decisions in `sference models`)."),
+    questions: str = typer.Option(
+        ...,
+        "--questions",
+        help='JSON object {name: {"type": "choice"|"score"|"noul", ...}}; @path reads a file, @- stdin.',
+    ),
+    state: Optional[str] = typer.Option(None, "--state", help="Text to decide about."),
+    state_json: Optional[str] = typer.Option(
+        None, "--state-json", help="State as a JSON value instead of text; @path reads a file, @- stdin."
+    ),
+    timeout: float = typer.Option(30.0, "--timeout", help="HTTP read timeout in seconds."),
+    base_url: str = typer.Option("https://api.sference.com"),
+    as_json: bool = typer.Option(False, "--json", help="Print the full POST /v1/decisions response."),
+) -> None:
+    """Answer up to 16 questions about one state in a single realtime call (POST /v1/decisions)."""
+    _ensure_api_credential()
+    if (state is None) == (state_json is None):
+        typer.echo("Pass exactly one of --state or --state-json.", err=True)
+        raise typer.Exit(code=1)
+    state_value = state if state is not None else _read_json_option(state_json, "--state-json")
+    parsed_questions = _read_json_option(questions, "--questions")
+    if not isinstance(parsed_questions, dict):
+        typer.echo("--questions must be a JSON object keyed by question name.", err=True)
+        raise typer.Exit(code=1)
+    client = _client(base_url, timeout=timeout)
+    try:
+        resp = _call_api(
+            lambda: client.create_decision(model=model, state=state_value, questions=parsed_questions)
+        )
+    except ValueError as exc:
+        typer.echo(f"Invalid --questions: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    payload = resp.model_dump()
+    if as_json:
+        _print(payload, True)
+        return
+    width = max(len(name) for name in payload["answers"])
+    for name, answer in payload["answers"].items():
+        typer.echo(f"{name.ljust(width)}  {_format_answer(answer)}")
+    typer.echo(f"input_tokens: {payload['usage']['input_tokens']}")
 
 
 @auth_app.command("login")

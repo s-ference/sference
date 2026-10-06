@@ -176,3 +176,21 @@ async def test_async_get_results_via_mock_transport() -> None:
     async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
         res = await client.get_results("batch_1")
         assert res.batch_id == "batch_1"
+
+
+@pytest.mark.asyncio
+async def test_async_create_decision_via_mock_transport() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/v1/decisions":
+            body = json.loads(request.content.decode("utf-8"))
+            assert body["questions"]["refund"] == {"type": "noul", "instructions": "", "criteria": None}
+            payload = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
+            return httpx.Response(status_code=200, json=payload)
+        return httpx.Response(status_code=404, json={"detail": "not found"})
+
+    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = await client.create_decision(
+            model="Cloudflare/clef", state={"message": "refund please"}, questions={"refund": {"type": "noul"}}
+        )
+
+    assert resp.answers["refund"].noul == 0.9

@@ -20,7 +20,10 @@ from .models import (
     BatchList,
     BatchResultRow,
     BatchResults,
+    CreateDecisionPayload,
     CreateEmbeddingPayload,
+    DecisionQuestion,
+    DecisionResponse,
     EmbeddingInput,
     EmbeddingEncodingFormat,
     EmbeddingResponse,
@@ -184,6 +187,24 @@ class SferenceClient:
         )
         response = self._request("POST", "/v1/embeddings", payload.model_dump(exclude_none=True))
         return EmbeddingResponse.model_validate(response)
+
+    def create_decision(
+        self,
+        *,
+        model: str,
+        state: Any,
+        questions: Mapping[str, DecisionQuestion | Mapping[str, Any]],
+    ) -> DecisionResponse:
+        """Answer up to 16 questions about ``state`` in one realtime call (POST /v1/decisions).
+
+        ``state`` is any JSON value (text or an object). Questions may be model
+        instances or plain dicts with a ``type`` of ``choice``, ``score`` or ``noul``.
+        """
+        payload = CreateDecisionPayload.model_validate(
+            {"model": model, "state": state, "questions": dict(questions)}
+        )
+        response = self._request("POST", "/v1/decisions", payload.model_dump(mode="json"))
+        return DecisionResponse.model_validate(response)
 
     def submit_batch(
         self,
