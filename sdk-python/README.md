@@ -104,7 +104,7 @@ For a stream, add `stream_id` inside `metadata` next to `completion_window`.
 
 ### Decisions (realtime classification)
 
-`POST /v1/decisions` answers up to 16 questions about one `state` (text or any JSON value) in a single call. Pick a model with `modality == "decisions"` from `list_models()`. Question types: `choice` (pick one label), `score` (ordinal scale, index 0 = lowest) and `noul` (probability of true). Billed on input tokens only.
+`POST /v1/decisions` answers up to 64 questions about one `state` (text or any JSON value) in a single call. Pick a model with `modality == "decisions"` from `list_models()`. Question types: `choice` (pick one label), `score` (ordinal scale, index 0 = lowest) and `noul` (probability of true). Billed on input tokens only.
 
 ```python
 from sference_sdk import ChoiceQuestion, NoulQuestion, ScoreQuestion, SferenceClient

@@ -139,7 +139,7 @@ class AsyncSferenceClient:
         state: Any,
         questions: Mapping[str, DecisionQuestion | Mapping[str, Any]],
     ) -> DecisionResponse:
-        """Answer up to 16 questions about ``state`` in one realtime call (POST /v1/decisions).
+        """Answer up to 64 questions about ``state`` in one realtime call (POST /v1/decisions).
 
         ``state`` is any JSON value (text or an object). Questions may be model
         instances or plain dicts with a ``type`` of ``choice``, ``score`` or ``noul``.

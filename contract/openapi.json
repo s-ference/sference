@@ -8238,7 +8238,7 @@
               ]
             },
             "type": "object",
-            "maxProperties": 16,
+            "maxProperties": 64,
             "minProperties": 1
           }
         },

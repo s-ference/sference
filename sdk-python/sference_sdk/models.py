@@ -354,7 +354,7 @@ class CreateEmbeddingPayload(BaseModel):
     user: str | None = None
 
 
-# Decisions (POST /v1/decisions): classify one ``state`` against up to 16 questions.
+# Decisions (POST /v1/decisions): classify one ``state`` against up to 64 questions.
 class ChoiceQuestion(BaseModel):
     """Pick one of ``criteria`` (label -> description)."""
 
