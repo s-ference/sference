@@ -1412,14 +1412,31 @@ def test_pi_requires_credential(monkeypatch, tmp_path: Path):
     assert "No API credential" in out
 
 
-_FAKE_OPENCODE_MODELS = {"zai-org/GLM-5.2", "moonshotai/Kimi-K3", "Qwen/Qwen3.6-35B-A3B"}
+def _opencode_entry(model_id: str, *, thinking: bool = True, alias_of: str | None = None) -> dict:
+    """A ``GET /v1/models`` item as the API serves it (the fields the launcher reads)."""
+    return {
+        "id": model_id,
+        "modality": "text_generation",
+        "alias_of": alias_of,
+        "capabilities": {"thinking": {"supported": thinking}},
+    }
+
+
+# GLM-5.2 is an alias served by GLM-5.3 weights (always reasons); Kimi-K3 can turn
+# thinking off; clef is not a thinking model.
+_FAKE_OPENCODE_ENTRIES = [
+    _opencode_entry("zai-org/GLM-5.2", alias_of="zai-org/GLM-5.3"),
+    _opencode_entry("moonshotai/Kimi-K3"),
+    _opencode_entry("Cloudflare/clef", thinking=False),
+]
+_FAKE_OPENCODE_MODELS = {e["id"] for e in _FAKE_OPENCODE_ENTRIES}
 
 
 def test_opencode_dry_run_prints_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json")
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
     result = runner.invoke(
         cli_main.app,
         ["launch", "opencode", "--dry-run", "--model", "moonshotai/Kimi-K2.6"],
@@ -1437,7 +1454,7 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
     config_path = tmp_path / "opencode.json"
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
     runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     assert config_path.exists()
     data = json.loads(config_path.read_text())
@@ -1459,16 +1476,44 @@ def test_opencode_writes_thinking_variants(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
     config_path = tmp_path / "opencode.json"
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
     runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     data = json.loads(config_path.read_text())
     models = data["provider"]["sference"]["models"]
-    assert models, "expected at least one model entry"
-    for entry in models.values():
-        variants = entry["variants"]
-        assert set(variants) == {"none", "medium", "high", "xhigh"}
-        for level, variant in variants.items():
-            assert variant == {"options": {"reasoningEffort": level}}
+    # opencode merges a variant's keys straight into the model options; the
+    # openai-compatible provider only forwards a TOP-LEVEL reasoningEffort. A nested
+    # {"options": {...}} variant (0.3.1) was read by nothing and sent the default.
+    for model_id in ("zai-org/GLM-5.2", "moonshotai/Kimi-K3"):
+        for level, variant in models[model_id]["variants"].items():
+            assert variant == {"reasoningEffort": level}
+    # Kimi-K3 can turn thinking off, so it offers every level including none.
+    assert set(models["moonshotai/Kimi-K3"]["variants"]) == {"none", "medium", "high", "xhigh"}
+    # GLM-5.2 is served by GLM-5.3 weights, which cannot turn thinking off: the API
+    # 400s reasoning_effort=none, so no none variant.
+    assert set(models["zai-org/GLM-5.2"]["variants"]) == {"medium", "high", "xhigh"}
+    # A non-thinking model gets no variants at all.
+    assert "variants" not in models["Cloudflare/clef"]
+
+
+def test_opencode_variants_without_model_list_omit_none(monkeypatch, tmp_path: Path):
+    """Fetch failed (offline): the launcher cannot tell whether a model can turn
+    thinking off, so it offers the levels every thinking model accepts, never none."""
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    config_path = tmp_path / "opencode.json"
+    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+
+    def offline(*_a):
+        raise OSError("offline")
+
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", offline)
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    models = json.loads(config_path.read_text())["provider"]["sference"]["models"]
+    assert set(models) == {"zai-org/GLM-5.2"}  # just the default model
+    assert models["zai-org/GLM-5.2"]["variants"] == {
+        level: {"reasoningEffort": level} for level in ("medium", "high", "xhigh")
+    }
 
 
 def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
@@ -1487,7 +1532,7 @@ def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
         encoding="utf-8",
     )
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
     result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run", "--model", "Qwen/Qwen3.6-35B-A3B"])
     assert result.exit_code == 0
     data = json.loads(config_path.read_text())
@@ -1531,7 +1576,7 @@ def test_opencode_forwards_extra_args(monkeypatch, tmp_path: Path):
         raise SystemExit(0)
 
     monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_models", lambda *a: _FAKE_OPENCODE_MODELS)
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
     result = runner.invoke(cli_main.app, ["launch", "opencode", "--", "/path/to/project"])
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/opencode"
