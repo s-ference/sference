@@ -18,13 +18,16 @@ from .proxy import fetch_sference_model_entries, fetch_sference_models, launch_c
 DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
-# Thinking-effort variants stamped on every Sference model entry in the opencode
-# config. The levels are a subset of OpenAI's ReasoningEffort enum that the platform
-# accepts (``reasoning_effort`` on chat completions); ``none`` disables thinking, the
-# rest enable it and each model's chat template decides what the level means. The AI
-# SDK openai-compatible provider forwards the variant's ``reasoningEffort`` option as
-# ``reasoning_effort`` in the request body. On models the catalog marks non-thinking
-# the effort is a server-side no-op, so stamping every fetched model is safe.
+# Thinking-effort variants stamped on Sference model entries in the opencode config.
+# The levels are a subset of OpenAI's ReasoningEffort enum that the platform accepts
+# (``reasoning_effort`` on chat completions); ``none`` disables thinking, the rest
+# enable it and each model's chat template decides what the level means.
+#
+# opencode merges a variant's keys straight into the model options, and the AI SDK
+# openai-compatible provider forwards a top-level ``reasoningEffort`` option as
+# ``reasoning_effort`` in the request body. So a variant is the flat
+# ``{"reasoningEffort": level}`` — nesting it under ``"options"`` (as 0.3.1 did) leaves
+# ``reasoningEffort`` unread and every variant sends the catalog default.
 OPENCODE_THINKING_VARIANTS = ("none", "medium", "high", "xhigh")
 
 
@@ -327,7 +330,48 @@ def _opencode_config_path() -> Path:
     return Path.home() / ".config" / "opencode" / "opencode.json"
 
 
-def _write_opencode_config(*, base_url: str, model: str, models: set[str]) -> Path:
+def _thinks_always(entry: dict) -> bool:
+    """Whether *entry* is served by a checkpoint that cannot turn thinking off.
+
+    The GLM-5.3 family's chat template always opens a reasoning channel, so the API
+    rejects ``reasoning_effort: "none"`` for it with a 400. ``/v1/models`` carries no
+    field for that today, so mirror the API's own rule: the public id, then the id an
+    alias dispatches to (``zai-org/GLM-5.2`` is an alias served by GLM-5.3 weights).
+    """
+    ids = (entry.get("id") or "", entry.get("alias_of") or "")
+    return any("glm-5.3" in i.lower() for i in ids)
+
+
+def _opencode_variants(entry: Optional[dict]) -> dict:
+    """The thinking-effort variants for one model entry (empty: no variants).
+
+    No entry (the model list could not be fetched, or the model was typed but not
+    returned) → every level but ``none``: an effort level is accepted by any thinking
+    model, while ``none`` 400s on one that cannot turn thinking off.
+    """
+    if entry is not None:
+        thinking = (entry.get("capabilities") or {}).get("thinking") or {}
+        if thinking.get("supported") is False:
+            return {}
+    levels = [
+        level
+        for level in OPENCODE_THINKING_VARIANTS
+        if level != "none" or (entry is not None and not _thinks_always(entry))
+    ]
+    return {level: {"reasoningEffort": level} for level in levels}
+
+
+def _opencode_model_entry(model_id: str, entry: Optional[dict]) -> dict:
+    config: dict = {"name": model_id}
+    variants = _opencode_variants(entry)
+    if variants:
+        config["variants"] = variants
+    return config
+
+
+def _write_opencode_config(
+    *, base_url: str, model: str, models: set[str], entries: Optional[dict[str, dict]] = None
+) -> Path:
     """Merge a ``sference`` OpenAI-compatible provider into the opencode config.
 
     Reads ``~/.config/opencode/opencode.json`` (creating it if absent), sets
@@ -340,9 +384,10 @@ def _write_opencode_config(*, base_url: str, model: str, models: set[str]) -> Pa
 
     All models in ``models`` are written to the provider's ``models`` block so
     they appear in opencode's model picker, each with the thinking-effort
-    variants in ``OPENCODE_THINKING_VARIANTS`` (selectable as
-    ``sference/<model>@<level>`` or via opencode's variant switcher; no variant
-    means the server-side catalog default decides). ``model`` is the default —
+    variants that model accepts (``_opencode_variants``, from its ``/v1/models``
+    entry in ``entries``; selectable as ``sference/<model>@<level>`` or via
+    opencode's variant switcher; no variant means the server-side catalog
+    default decides). ``model`` is the default —
     set as the top-level ``model`` key so opencode uses Sference by default on
     startup.
 
@@ -379,13 +424,7 @@ def _write_opencode_config(*, base_url: str, model: str, models: set[str]) -> Pa
             "apiKey": "{env:SFERENCE_API_KEY}",
         },
         "models": {
-            m: {
-                "name": m,
-                "variants": {
-                    level: {"options": {"reasoningEffort": level}}
-                    for level in OPENCODE_THINKING_VARIANTS
-                },
-            }
+            m: _opencode_model_entry(m, (entries or {}).get(m))
             for m in sorted(all_models)
         },
     }
@@ -427,12 +466,14 @@ def launch_opencode(
     # just the chosen model if the fetch fails (e.g. offline) so the launch
     # still works.
     try:
-        fetched = fetch_sference_models(base_url, api_key)
+        entries = {e["id"]: e for e in fetch_sference_model_entries(base_url, api_key)}
     except Exception:
-        fetched = set()
-    models = fetched if fetched else set()
+        entries = {}
+    models = set(entries)
 
-    config_path = _write_opencode_config(base_url=base_url, model=model, models=models)
+    config_path = _write_opencode_config(
+        base_url=base_url, model=model, models=models, entries=entries
+    )
     env = os.environ.copy()
     # The config references {env:SFERENCE_API_KEY}; inject the resolved key so
     # no secret is persisted to disk.
