@@ -111,7 +111,9 @@ Both clients accept `images=["data:image/png;base64,..."]` or
 `sference_sdk.DecisionImage`). Images precede the state in array order and travel
 inline without separate uploads. Clef accepts up to 4 PNG/JPEG/WebP images,
 4 MiB and 16 megapixels each, 8 MiB total decoded bytes, with a 13 MiB request
-body limit. Remote URLs are not accepted.
+body limit. Remote URLs are not accepted. Accepted images are EXIF-oriented and
+downscaled to at most 2,097,152 pixels before inference; usage counts the resulting
+image tokens. The 16-megapixel limit applies to the original uploaded image.
 
 ```python
 from sference_sdk import ChoiceQuestion, NoulQuestion, ScoreQuestion, SferenceClient

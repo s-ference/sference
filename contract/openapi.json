@@ -8277,7 +8277,7 @@
             },
             "type": "array",
             "maxItems": 4,
-            "description": "Embedded PNG/JPEG/WebP images placed before state: up to 4 images, 4 MiB and 16 megapixels each, 8 MiB total decoded. Request body limit: 13 MiB. No remote URLs."
+            "description": "Embedded PNG/JPEG/WebP images placed before state: up to 4 images, 4 MiB and 16 megapixels each, 8 MiB total decoded. Request body limit: 13 MiB. No remote URLs. The worker applies EXIF orientation and downscales to at most 2,097,152 pixels before inference."
           }
         },
         "type": "object",
