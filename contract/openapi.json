@@ -4873,7 +4873,7 @@
             }
           },
           "413": {
-            "description": "Request body exceeds 1 MiB",
+            "description": "Request body exceeds 13 MiB",
             "content": {
               "application/json": {
                 "schema": {
@@ -8215,6 +8215,29 @@
         ],
         "title": "DailyUsage"
       },
+      "DecisionImage": {
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp"
+            ]
+          },
+          "base64": {
+            "type": "string",
+            "maxLength": 5592408,
+            "minLength": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "base64",
+          "content_type"
+        ],
+        "title": "DecisionImage"
+      },
       "DecisionRequest": {
         "properties": {
           "model": {
@@ -8240,6 +8263,24 @@
             "type": "object",
             "maxProperties": 64,
             "minProperties": 1
+          },
+          "images": {
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "maxLength": 5592440,
+                  "pattern": "^[Dd][Aa][Tt][Aa]:",
+                  "description": "Base64 data URL containing a PNG, JPEG, or WebP image. Remote URLs are not accepted."
+                },
+                {
+                  "$ref": "#/components/schemas/DecisionImage"
+                }
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "description": "Embedded PNG/JPEG/WebP images placed before state: up to 4 images, 4 MiB and 16 megapixels each, 8 MiB total decoded. Request body limit: 13 MiB. No remote URLs. The worker applies EXIF orientation and downscales to at most 2,097,152 pixels before inference."
           }
         },
         "type": "object",

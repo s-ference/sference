@@ -388,12 +388,22 @@ class NoulQuestion(BaseModel):
 DecisionQuestion = Annotated[ChoiceQuestion | ScoreQuestion | NoulQuestion, Field(discriminator="type")]
 
 
+class DecisionImage(BaseModel):
+    """Embedded PNG, JPEG, or WebP. Image bytes are base64-encoded, never uploaded separately."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    content_type: Literal["image/png", "image/jpeg", "image/webp"]
+    base64: str
+
+
 class CreateDecisionPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     model: str
     state: Any
     questions: dict[str, DecisionQuestion]
+    images: list[str | DecisionImage] = Field(default_factory=list, max_length=4)
 
 
 class ChoiceAnswer(BaseModel):
