@@ -1642,9 +1642,8 @@ def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
         "model_providers.sference.env_key": '"SFERENCE_API_KEY"',
         "model_providers.sference.wire_api": '"responses"',
         "model_reasoning_effort": '"medium"',
-        # /v1/responses only accepts function tools; these add other tool types.
+        # /v1/responses takes no hosted tools. Sub-agents (multi_agent) stay on.
         "web_search": '"disabled"',
-        "features.multi_agent": "false",
         "model_context_window": "202752",
     }
     assert captured["env"]["SFERENCE_API_KEY"] == "sk_fake_for_tests"
@@ -1676,6 +1675,25 @@ def test_codex_dry_run_redacts_key(monkeypatch):
     assert "base_url: https://api.sference.com/v1" in result.stdout
     assert "command: /usr/local/bin/codex -c model_provider=" in result.stdout
     assert "sk_fake_for_tests" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("config", "warned"),
+    [
+        ('model = "gpt-6-sol"\n[agents]\ndefault_subagent_model = "gpt-6-luna"\n', True),
+        ('agents.default_subagent_model = "gpt-6-luna"\n', True),
+        ('model = "gpt-6-sol"\n[agents]\nmax_depth = 2\n', False),
+    ],
+)
+def test_codex_warns_on_pinned_subagent_model(monkeypatch, tmp_path: Path, config: str, warned: bool):
+    _with_fake_credential(monkeypatch)
+    (tmp_path / "config.toml").write_text(config, encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: [])
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
+    assert result.exit_code == 0
+    assert ("default_subagent_model" in result.output) is warned
 
 
 def test_codex_missing_binary_exits(monkeypatch):

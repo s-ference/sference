@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -522,10 +523,15 @@ def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -
     (OpenAI) sessions, and ``env_key`` keeps the API key off disk.
 
     Codex speaks only the Responses wire API, served by Sference's
-    ``/v1/responses``. That endpoint accepts ``type: "function"`` tools only, so
-    the Codex defaults that add other tool types are switched off: the hosted
-    ``web_search`` tool and the ``multi_agent`` feature (sent as a ``namespace``
-    tool). Without these every request 400s.
+    ``/v1/responses``, which takes function and ``namespace`` tools (Codex sends
+    sub-agents and MCP servers as namespaces) but no hosted tools, so Codex's
+    hosted ``web_search`` tool is switched off.
+
+    ``model_provider`` applies to the whole session, so sub-agents spawned with
+    ``spawn_agent`` also run on Sference, inheriting ``model``. There is no
+    override for the sub-agent model: Codex validates
+    ``agents.default_subagent_model`` against its own (OpenAI) model list and
+    rejects a Sference id.
     """
     overrides = {
         "model_provider": "sference",
@@ -535,7 +541,6 @@ def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -
         "model_providers.sference.wire_api": "responses",
         "model_reasoning_effort": CODEX_DEFAULT_REASONING_EFFORT,
         "web_search": "disabled",
-        "features.multi_agent": False,
     }
     # Codex has no metadata for Sference models and falls back to a generic
     # context window; give it the real one so auto-compaction fires in time.
@@ -545,6 +550,25 @@ def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -
     for key, value in overrides.items():
         args += ["-c", f"{key}={_toml_value(value)}"]
     return [*args, "--model", model]
+
+
+def _codex_config_path() -> Path:
+    home = os.environ.get("CODEX_HOME")
+    return Path(home) / "config.toml" if home else Path.home() / ".codex" / "config.toml"
+
+
+def _codex_pins_subagent_model() -> bool:
+    """Whether the user's Codex config sets ``agents.default_subagent_model``.
+
+    That model is always an OpenAI id (Codex rejects anything off its own list),
+    and with the Sference provider it 400s every sub-agent. A line scan rather than
+    a TOML parse: ``tomllib`` needs Python 3.11 and this only drives a warning.
+    """
+    try:
+        text = _codex_config_path().read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return re.search(r"^\s*(agents\.)?default_subagent_model\s*=", text, re.MULTILINE) is not None
 
 
 def launch_codex(
@@ -569,6 +593,14 @@ def launch_codex(
         entries = {e["id"]: e for e in fetch_sference_model_entries(base_url, api_key)}
     except Exception:
         entries = {}
+
+    if _codex_pins_subagent_model():
+        typer.echo(
+            f"warning: {_codex_config_path()} sets agents.default_subagent_model, an OpenAI "
+            "model Sference cannot serve; sub-agents will fail. Remove it to have "
+            f"sub-agents inherit {model}.",
+            err=True,
+        )
 
     env = os.environ.copy()
     # model_providers.sference.env_key names this var; inject the resolved key

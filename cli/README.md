@@ -139,9 +139,9 @@ Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provid
 | `sference launch codex -- exec "fix the bug"` | Forward Codex args (here: non-interactive `codex exec`) |
 | `sference launch codex -- -c model_reasoning_effort=high` | Override the reasoning effort (default `medium`) |
 
-Requires `codex` on `PATH`. The `sference` model provider is passed as `codex -c` overrides, so `~/.codex/config.toml` is never modified and your normal Codex sessions are unaffected; the API key reaches Codex through the `SFERENCE_API_KEY` env var, never on disk. The launcher also disables Codex's hosted `web_search` tool and the `multi_agent` feature, because Sference's `/v1/responses` accepts only function tools, and it sets `model_context_window` from the live catalog so auto-compaction triggers at the model's real limit.
+Requires `codex` on `PATH`. The `sference` model provider is passed as `codex -c` overrides, so `~/.codex/config.toml` is never modified and your normal Codex sessions are unaffected; the API key reaches Codex through the `SFERENCE_API_KEY` env var, never on disk. The launcher disables Codex's hosted `web_search` tool (Sference's `/v1/responses` serves function tools, including Codex's `namespace` tool groups, but no hosted tools) and sets `model_context_window` from the live catalog so auto-compaction triggers at the model's real limit.
 
-> **Known limitation:** Codex sends tools from configured MCP servers and plugins as `namespace` tools, which `/v1/responses` does not accept yet — requests fail with an invalid-tool-definition 400 while any MCP server or MCP-backed plugin is enabled. A stock Codex install with no MCP servers works.
+**Sub-agents and MCP servers** work: the Sference provider applies to the whole session, so agents Codex spawns run on Sference too and inherit the launched model. Codex only accepts sub-agent model names from its own (OpenAI) model list, so two things fail with a 400 from Sference: an `agents.default_subagent_model` in your Codex config (the launcher warns about it) and a model that asks `spawn_agent` for a specific GPT model.
 
 ### Batch
 
