@@ -6,7 +6,7 @@ import os
 import time
 import warnings
 from contextlib import contextmanager
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -23,6 +23,7 @@ from .models import (
     CreateDecisionPayload,
     CreateEmbeddingPayload,
     DecisionQuestion,
+    DecisionImage,
     DecisionResponse,
     EmbeddingInput,
     EmbeddingEncodingFormat,
@@ -194,16 +195,19 @@ class SferenceClient:
         model: str,
         state: Any,
         questions: Mapping[str, DecisionQuestion | Mapping[str, Any]],
+        images: Sequence[str | DecisionImage | Mapping[str, Any]] | None = None,
     ) -> DecisionResponse:
         """Answer up to 64 questions about ``state`` in one realtime call (POST /v1/decisions).
 
         ``state`` is any JSON value (text or an object). Questions may be model
         instances or plain dicts with a ``type`` of ``choice``, ``score`` or ``noul``.
+        ``images`` accepts up to four PNG/JPEG/WebP data URLs or objects with
+        ``content_type`` and ``base64``. Limits: 4 MiB/16 MP each, 8 MiB total.
         """
         payload = CreateDecisionPayload.model_validate(
-            {"model": model, "state": state, "questions": dict(questions)}
+            {"model": model, "state": state, "questions": dict(questions), "images": list(images) if images is not None else []}
         )
-        response = self._request("POST", "/v1/decisions", payload.model_dump(mode="json"))
+        response = self._request("POST", "/v1/decisions", payload.model_dump(mode="json", exclude={"images"} if images is None else set()))
         return DecisionResponse.model_validate(response)
 
     def submit_batch(

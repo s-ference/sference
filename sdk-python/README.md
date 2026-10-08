@@ -104,7 +104,14 @@ For a stream, add `stream_id` inside `metadata` next to `completion_window`.
 
 ### Decisions (realtime classification)
 
-`POST /v1/decisions` answers up to 64 questions about one `state` (text or any JSON value) in a single call. Pick a model with `modality == "decisions"` from `list_models()`. Question types: `choice` (pick one label), `score` (ordinal scale, index 0 = lowest) and `noul` (probability of true). Billed on input tokens only.
+`POST /v1/decisions` answers up to 64 questions about one `state` (text or any JSON value) in a single call. Pick a model with `modality == "decisions"` from `list_models()`. Question types: `choice` (pick one label), `score` (ordinal scale, index 0 = lowest) and `noul` (probability of true). Billed on input tokens only, including image tokens.
+
+Both clients accept `images=["data:image/png;base64,..."]` or
+`images=[{"content_type": "image/jpeg", "base64": "..."}]` (also available as
+`sference_sdk.DecisionImage`). Images precede the state in array order and travel
+inline without separate uploads. Clef accepts up to 4 PNG/JPEG/WebP images,
+4 MiB and 16 megapixels each, 8 MiB total decoded bytes, with a 13 MiB request
+body limit. Remote URLs are not accepted.
 
 ```python
 from sference_sdk import ChoiceQuestion, NoulQuestion, ScoreQuestion, SferenceClient

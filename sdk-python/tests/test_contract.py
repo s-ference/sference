@@ -111,6 +111,7 @@ def test_decision_request_payload_validates_against_openapi_contract() -> None:
     payload = CreateDecisionPayload(
         model="Cloudflare/clef",
         state={"ticket": "I was charged twice"},
+        images=["data:image/png;base64,eA==", {"content_type": "image/jpeg", "base64": "eA=="}],
         questions={
             "route": ChoiceQuestion(criteria={"billing": "Payments", "support": "Everything else"}),
             "urgency": ScoreQuestion(criteria=["Low", "Medium", "High"], instructions="How urgent?"),
