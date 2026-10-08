@@ -566,7 +566,7 @@ def decisions_create(
     base_url: str = typer.Option("https://api.sference.com"),
     as_json: bool = typer.Option(False, "--json", help="Print the full POST /v1/decisions response."),
 ) -> None:
-    """Answer up to 16 questions about one state in a single realtime call (POST /v1/decisions)."""
+    """Answer up to 64 questions about one state in a single realtime call (POST /v1/decisions)."""
     _ensure_api_credential()
     if (state is None) == (state_json is None):
         typer.echo("Pass exactly one of --state or --state-json.", err=True)

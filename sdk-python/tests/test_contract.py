@@ -111,6 +111,7 @@ def test_decision_request_payload_validates_against_openapi_contract() -> None:
     payload = CreateDecisionPayload(
         model="Cloudflare/clef",
         state={"ticket": "I was charged twice"},
+        images=["data:image/png;base64,eA==", {"content_type": "image/jpeg", "base64": "eA=="}],
         questions={
             "route": ChoiceQuestion(criteria={"billing": "Payments", "support": "Everything else"}),
             "urgency": ScoreQuestion(criteria=["Low", "Medium", "High"], instructions="How urgent?"),
@@ -119,3 +120,16 @@ def test_decision_request_payload_validates_against_openapi_contract() -> None:
         },
     )
     jsonschema.validate(instance=payload.model_dump(mode="json"), schema=schema)
+
+
+def test_decision_image_data_url_contract_preserves_constraints() -> None:
+    schema = _deref_schema(_load_openapi(), {"$ref": "#/components/schemas/DecisionRequest"})
+    images = schema["properties"]["images"]
+    string = next(item for item in images["items"]["oneOf"] if item.get("type") == "string")
+    assert string["pattern"] == r"^[Dd][Aa][Tt][Aa]:"
+    assert string["maxLength"] == 5_592_440
+    validator = jsonschema.Draft202012Validator(images)
+    assert validator.is_valid(["data:image/png;base64,eA==", "DATA:image/png;base64,eA==",
+                               {"content_type": "image/png", "base64": "eA=="}])
+    assert not validator.is_valid(["https://example.com/image.png"])
+    assert not validator.is_valid(["data:" + "x" * (5_592_440 - 4)])

@@ -488,7 +488,8 @@ def test_create_embeddings_single_string_input() -> None:
     assert resp.usage.prompt_tokens == 4
 
 
-def test_create_decision_posts_questions_and_parses_answers() -> None:
+@pytest.mark.parametrize("images", [None, ["data:image/png;base64,eA==", {"content_type": "image/jpeg", "base64": "eA=="}]])
+def test_create_decision_posts_questions_and_parses_answers(images) -> None:
     from sference_sdk.models import ChoiceQuestion
 
     captured_json: dict[str, Any] = {}
@@ -507,6 +508,7 @@ def test_create_decision_posts_questions_and_parses_answers() -> None:
         resp = client.create_decision(
             model="Cloudflare/clef",
             state="I was charged twice, please refund me",
+            images=images,
             questions={
                 "route": ChoiceQuestion(criteria={"billing": "Payments", "support": "Everything else"}),
                 "urgency": {"type": "score", "criteria": ["Low", "High"]},
@@ -515,6 +517,10 @@ def test_create_decision_posts_questions_and_parses_answers() -> None:
         )
 
     assert captured_json["model"] == "Cloudflare/clef"
+    if images is None:
+        assert "images" not in captured_json
+    else:
+        assert captured_json["images"] == images
     assert captured_json["state"] == "I was charged twice, please refund me"
     assert captured_json["questions"]["route"]["type"] == "choice"
     assert captured_json["questions"]["urgency"]["criteria"] == ["Low", "High"]

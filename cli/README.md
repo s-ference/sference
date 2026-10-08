@@ -154,7 +154,7 @@ Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provid
 
 | Command | Description |
 |---------|-------------|
-| `sference decisions create` | Answer up to 16 questions about one state in a single realtime call (`--model`, `--questions` JSON or `@file`, and `--state` text or `--state-json` JSON / `@file` / `@-`). Prints one line per answer; `--json` prints the full response |
+| `sference decisions create` | Answer up to 64 questions about one state in a single realtime call (`--model`, `--questions` JSON or `@file`, and `--state` text or `--state-json` JSON / `@file` / `@-`). Prints one line per answer; `--json` prints the full response |
 
 ```bash
 sference decisions create --model Cloudflare/clef \

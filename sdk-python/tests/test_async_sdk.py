@@ -179,18 +179,23 @@ async def test_async_get_results_via_mock_transport() -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_create_decision_via_mock_transport() -> None:
+@pytest.mark.parametrize("images", [None, ["data:image/png;base64,eA==", {"content_type": "image/jpeg", "base64": "eA=="}]])
+async def test_async_create_decision_via_mock_transport(images) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST" and request.url.path == "/v1/decisions":
             body = json.loads(request.content.decode("utf-8"))
             assert body["questions"]["refund"] == {"type": "noul", "instructions": "", "criteria": None}
+            if images is None:
+                assert "images" not in body
+            else:
+                assert body["images"] == images
             payload = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
             return httpx.Response(status_code=200, json=payload)
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
     async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
         resp = await client.create_decision(
-            model="Cloudflare/clef", state={"message": "refund please"}, questions={"refund": {"type": "noul"}}
+            model="Cloudflare/clef", state={"message": "refund please"}, questions={"refund": {"type": "noul"}}, images=images,
         )
 
     assert resp.answers["refund"].noul == 0.9
