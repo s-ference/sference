@@ -8268,7 +8268,10 @@
             "items": {
               "oneOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 5592440,
+                  "pattern": "^[Dd][Aa][Tt][Aa]:",
+                  "description": "Base64 data URL containing a PNG, JPEG, or WebP image. Remote URLs are not accepted."
                 },
                 {
                   "$ref": "#/components/schemas/DecisionImage"
