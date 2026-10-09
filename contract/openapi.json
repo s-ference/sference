@@ -6816,7 +6816,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Set when this id is an alias: the model that serves its requests. An alias keeps accepting requests after its `retires_on` date; migrate to this model. Null for ordinary models."
           },
           "retires_on": {
             "oneOf": [
@@ -6826,7 +6827,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Date (YYYY-MM-DD) this model is retired. An ordinary model is withdrawn on this date; an alias (`alias_of` set) keeps working after it, served by its target. Null when no retirement is scheduled."
           }
         },
         "type": "object",
@@ -12344,7 +12346,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Set when this id is an alias: the model that serves its requests. An alias keeps accepting requests after its `retires_on` date; migrate to this model. Null for ordinary models."
           },
           "retires_on": {
             "oneOf": [
@@ -12354,7 +12357,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Date (YYYY-MM-DD) this model is retired. An ordinary model is withdrawn on this date; an alias (`alias_of` set) keeps working after it, served by its target. Null when no retirement is scheduled."
           }
         },
         "type": "object",
