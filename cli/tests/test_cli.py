@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -8,6 +9,7 @@ from typer.testing import CliRunner
 from sference_sdk import ApiError
 from sference_sdk.models import StreamEventList
 
+import sference_cli.launch as launch_mod
 import sference_cli.main as cli_main
 from sference_cli.stream_cache import cache_key_from_file, get_cached_batch_id, set_cached_batch
 
@@ -1629,6 +1631,8 @@ def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
     entries = [{**_opencode_entry("zai-org/GLM-5.2"), "context_tokens": 202752}]
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
+    # No readable bundled catalog: the provider overrides alone (catalog tests below).
+    monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: None)
     captured = _capture_codex_exec(monkeypatch)
     result = runner.invoke(cli_main.app, ["launch", "codex", "--", "exec", "fix the bug"])
     assert result.exit_code == 0, result.output
@@ -1642,9 +1646,8 @@ def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
         "model_providers.sference.env_key": '"SFERENCE_API_KEY"',
         "model_providers.sference.wire_api": '"responses"',
         "model_reasoning_effort": '"medium"',
-        # /v1/responses only accepts function tools; these add other tool types.
+        # /v1/responses takes no hosted tools. Sub-agents (multi_agent) stay on.
         "web_search": '"disabled"',
-        "features.multi_agent": "false",
         "model_context_window": "202752",
     }
     assert captured["env"]["SFERENCE_API_KEY"] == "sk_fake_for_tests"
@@ -1676,6 +1679,146 @@ def test_codex_dry_run_redacts_key(monkeypatch):
     assert "base_url: https://api.sference.com/v1" in result.stdout
     assert "command: /usr/local/bin/codex -c model_provider=" in result.stdout
     assert "sk_fake_for_tests" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("config", "warned"),
+    [
+        ('model = "gpt-6-sol"\n[agents]\ndefault_subagent_model = "gpt-6-luna"\n', True),
+        ('agents.default_subagent_model = "gpt-6-luna"\n', True),
+        ('model = "gpt-6-sol"\n[agents]\nmax_depth = 2\n', False),
+    ],
+)
+def test_codex_warns_on_pinned_subagent_model(monkeypatch, tmp_path: Path, config: str, warned: bool):
+    _with_fake_credential(monkeypatch)
+    (tmp_path / "config.toml").write_text(config, encoding="utf-8")
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: [])
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
+    assert result.exit_code == 0
+    assert ("default_subagent_model" in result.output) is warned
+
+
+# Shapes from `codex debug models --bundled` (Codex 0.161): GPT-6 entries run in
+# responses-lite / code mode; gpt-5.5 is the plain entry the launcher templates from.
+_CODEX_LITE_ENTRY = {
+    "slug": "gpt-6-luna",
+    "use_responses_lite": True,
+    "tool_mode": "code_mode_only",
+    "multi_agent_version": "v2",
+    "apply_patch_tool_type": "freeform",
+}
+_CODEX_PLAIN_ENTRY = {
+    "slug": "gpt-5.5",
+    "display_name": "GPT-5.5",
+    "use_responses_lite": False,
+    "tool_mode": None,
+    "multi_agent_version": None,
+    "apply_patch_tool_type": "freeform",
+    "prefer_websockets": True,
+    "supports_search_tool": True,
+    "service_tiers": [{"id": "priority"}],
+    "model_messages": {"instructions_template": "You are Codex."},
+    "context_window": 272000,
+}
+
+
+def test_codex_catalog_template_skips_gpt_only_entries():
+    assert launch_mod.codex_catalog_template([_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY]) is _CODEX_PLAIN_ENTRY
+    assert launch_mod.codex_catalog_template([_CODEX_LITE_ENTRY]) is None
+
+
+def test_codex_model_catalog_lists_sference_models():
+    entries = [
+        {**_opencode_entry("zai-org/GLM-5.3"), "display_name": "GLM-5.3", "context_tokens": 202752},
+        {**_opencode_entry("moonshotai/Kimi-K3"), "capabilities": {"image_input": {"supported": True}}},
+    ]
+    catalog = launch_mod.build_codex_model_catalog(_CODEX_PLAIN_ENTRY, entries)
+    glm, kimi = catalog["models"]
+    assert [glm["slug"], kimi["slug"]] == ["zai-org/GLM-5.3", "moonshotai/Kimi-K3"]
+    assert glm["display_name"] == "GLM-5.3"
+    assert (glm["context_window"], glm["max_context_window"]) == (202752, 202752)
+    # No context_tokens: the template's window is kept.
+    assert kimi["context_window"] == 272000
+    assert glm["input_modalities"] == ["text"]
+    assert kimi["input_modalities"] == ["text", "image"]
+    for model in catalog["models"]:
+        # The modes /v1/responses can't serve are off whatever the template says.
+        assert model["use_responses_lite"] is False
+        assert model["apply_patch_tool_type"] is None
+        assert model["prefer_websockets"] is False
+        assert model["supports_search_tool"] is False
+        assert model["service_tiers"] == []
+        # Codex's own instructions are kept.
+        assert model["model_messages"] == {"instructions_template": "You are Codex."}
+    # The template itself is not mutated.
+    assert _CODEX_PLAIN_ENTRY["apply_patch_tool_type"] == "freeform"
+
+
+def test_codex_writes_catalog_and_passes_it(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    entries = [_opencode_entry("zai-org/GLM-5.2"), _opencode_entry("moonshotai/Kimi-K3")]
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
+    monkeypatch.setattr(
+        "sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY]
+    )
+    captured = _capture_codex_exec(monkeypatch)
+    result = runner.invoke(cli_main.app, ["launch", "codex"])
+    assert result.exit_code == 0, result.output
+    path = tmp_path / ".sference" / "codex" / "models.json"
+    assert _codex_overrides(captured["args"])["model_catalog_json"] == json.dumps(str(path))
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert [m["slug"] for m in written["models"]] == ["zai-org/GLM-5.2", "moonshotai/Kimi-K3"]
+    assert not (tmp_path / ".codex").exists()
+
+
+def test_codex_dry_run_does_not_write_catalog(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: [_opencode_entry("zai-org/GLM-5.2")]
+    )
+    monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_PLAIN_ENTRY])
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "model_catalog_json:" in result.output and "(1 Sference models)" in result.output
+    assert not (tmp_path / ".sference" / "codex").exists()
+
+
+def test_codex_warns_without_bundled_catalog(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: [_opencode_entry("zai-org/GLM-5.2")]
+    )
+    monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_LITE_ENTRY])
+    captured = _capture_codex_exec(monkeypatch)
+    result = runner.invoke(cli_main.app, ["launch", "codex"])
+    assert result.exit_code == 0, result.output
+    assert "could not read Codex's model catalog" in result.output
+    assert "model_catalog_json" not in _codex_overrides(captured["args"])
+
+
+def test_bundled_codex_catalog_handles_failures(monkeypatch):
+    def boom(*_a, **_k):
+        raise subprocess.CalledProcessError(2, "codex")
+
+    monkeypatch.setattr("sference_cli.launch.subprocess.run", boom)
+    assert launch_mod.bundled_codex_catalog("codex") is None
+
+    class Proc:
+        stdout = "not json"
+
+    monkeypatch.setattr("sference_cli.launch.subprocess.run", lambda *a, **k: Proc())
+    assert launch_mod.bundled_codex_catalog("codex") is None
+
+    Proc.stdout = json.dumps({"models": [_CODEX_PLAIN_ENTRY]})
+    assert launch_mod.bundled_codex_catalog("codex") == [_CODEX_PLAIN_ENTRY]
 
 
 def test_codex_missing_binary_exits(monkeypatch):
