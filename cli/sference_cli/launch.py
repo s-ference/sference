@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -515,7 +516,106 @@ def _toml_value(value: object) -> str:
     return json.dumps(value)
 
 
-def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -> list[str]:
+# Fields of a Codex catalog entry that switch on modes Sference's /v1/responses
+# cannot serve. Set on every generated entry, whatever the template says:
+# responses-lite moves the tools into an ``additional_tools`` input item, a
+# freeform ``apply_patch`` is a non-function (custom) tool, and websockets,
+# hosted search and service tiers are OpenAI-only.
+_CODEX_CATALOG_ENTRY_OVERRIDES: dict = {
+    "use_responses_lite": False,
+    "apply_patch_tool_type": None,
+    "prefer_websockets": False,
+    "supports_search_tool": False,
+    "service_tiers": [],
+    "additional_speed_tiers": [],
+    "default_service_tier": None,
+    "upgrade": None,
+    "availability_nux": None,
+    "visibility": "list",
+}
+
+
+def bundled_codex_catalog(codex_bin: str) -> Optional[list[dict]]:
+    """The model catalog shipped with the installed Codex, or None if unavailable.
+
+    Read from ``codex debug models --bundled`` at launch rather than vendored, so the
+    generated entries always match the schema of the Codex version being launched.
+    """
+    try:
+        proc = subprocess.run(
+            [codex_bin, "debug", "models", "--bundled"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        models = json.loads(proc.stdout).get("models")
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
+        return None
+    return models if isinstance(models, list) else None
+
+
+def codex_catalog_template(models: list[dict]) -> Optional[dict]:
+    """The first bundled entry Codex doesn't run in a GPT-only mode, or None."""
+    for entry in models:
+        if (
+            isinstance(entry, dict)
+            and not entry.get("use_responses_lite")
+            and not entry.get("tool_mode")
+            and not entry.get("multi_agent_version")
+        ):
+            return entry
+    return None
+
+
+def build_codex_model_catalog(template: dict, entries: list[dict]) -> dict:
+    """A Codex ``model_catalog_json`` listing only the Sference models in ``entries``.
+
+    Without it Codex offers ``spawn_agent`` its bundled OpenAI models, and a sub-agent
+    started on one of them (e.g. ``gpt-6-luna``) sends Sference a model id and a
+    responses-lite request shape it cannot serve. Each entry is a copy of
+    ``template`` (Codex's own entry, for its base instructions and tool settings)
+    with the GPT-only modes switched off and the Sference model's name, context
+    window and image input filled in.
+    """
+    models = []
+    for priority, entry in enumerate(entries, start=1):
+        caps = entry.get("capabilities") or {}
+        image_in = bool((caps.get("image_input") or {}).get("supported", False))
+        name = entry.get("display_name") or entry["id"]
+        model = {
+            **copy.deepcopy(template),
+            **_CODEX_CATALOG_ENTRY_OVERRIDES,
+            "slug": entry["id"],
+            "display_name": name,
+            "description": f"{name} on Sference",
+            "input_modalities": ["text", "image"] if image_in else ["text"],
+            "priority": priority,
+        }
+        if entry.get("context_tokens"):
+            model["context_window"] = int(entry["context_tokens"])
+            model["max_context_window"] = int(entry["context_tokens"])
+        models.append(model)
+    return {"models": models}
+
+
+def codex_catalog_path() -> Path:
+    return Path.home() / ".sference" / "codex" / "models.json"
+
+
+def write_codex_catalog(catalog: dict) -> Path:
+    """Write the catalog atomically (concurrent launches share the path)."""
+    path = codex_catalog_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(catalog), encoding="utf-8")
+    os.replace(tmp, path)
+    return path
+
+
+def build_codex_overrides(
+    *, base_url: str, model: str, entry: Optional[dict], model_catalog: Optional[Path] = None
+) -> list[str]:
     """``-c`` overrides that point Codex at Sference for this process only.
 
     Passing the provider on the command line instead of editing
@@ -528,10 +628,10 @@ def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -
     hosted ``web_search`` tool is switched off.
 
     ``model_provider`` applies to the whole session, so sub-agents spawned with
-    ``spawn_agent`` also run on Sference, inheriting ``model``. There is no
-    override for the sub-agent model: Codex validates
-    ``agents.default_subagent_model`` against its own (OpenAI) model list and
-    rejects a Sference id.
+    ``spawn_agent`` also run on Sference. ``model_catalog`` (see
+    :func:`build_codex_model_catalog`) replaces Codex's OpenAI model list with the
+    Sference models, so a sub-agent either inherits ``model`` or picks another
+    Sference model.
     """
     overrides = {
         "model_provider": "sference",
@@ -546,6 +646,8 @@ def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -
     # context window; give it the real one so auto-compaction fires in time.
     if entry is not None and entry.get("context_tokens"):
         overrides["model_context_window"] = int(entry["context_tokens"])
+    if model_catalog is not None:
+        overrides["model_catalog_json"] = str(model_catalog)
     args: list[str] = []
     for key, value in overrides.items():
         args += ["-c", f"{key}={_toml_value(value)}"]
@@ -590,9 +692,23 @@ def launch_codex(
         raise typer.Exit(code=1)
 
     try:
-        entries = {e["id"]: e for e in fetch_sference_model_entries(base_url, api_key)}
+        entry_list = fetch_sference_model_entries(base_url, api_key)
     except Exception:
-        entries = {}
+        entry_list = []
+    entries = {e["id"]: e for e in entry_list}
+
+    catalog: Optional[dict] = None
+    if entry_list:
+        bundled = bundled_codex_catalog(codex_bin)
+        template = codex_catalog_template(bundled) if bundled else None
+        if template is not None:
+            catalog = build_codex_model_catalog(template, entry_list)
+        else:
+            typer.echo(
+                "warning: could not read Codex's model catalog (`codex debug models --bundled`); "
+                "sub-agents may be offered OpenAI models that Sference cannot serve.",
+                err=True,
+            )
 
     if _codex_pins_subagent_model():
         typer.echo(
@@ -606,13 +722,22 @@ def launch_codex(
     # model_providers.sference.env_key names this var; inject the resolved key
     # so no secret is persisted to disk.
     env["SFERENCE_API_KEY"] = api_key
-    cmd = [codex_bin, *build_codex_overrides(base_url=base_url, model=model, entry=entries.get(model)), *codex_args]
+    # A dry run reports the catalog path without writing it.
+    catalog_path = None
+    if catalog is not None:
+        catalog_path = codex_catalog_path() if dry_run else write_codex_catalog(catalog)
+    overrides = build_codex_overrides(
+        base_url=base_url, model=model, entry=entries.get(model), model_catalog=catalog_path
+    )
+    cmd = [codex_bin, *overrides, *codex_args]
 
     if dry_run:
         typer.echo(f"base_url: {base_url}")
         typer.echo("wire_api: responses (/v1/responses)")
         typer.echo(f"model: {model}")
         typer.echo("apiKey: $SFERENCE_API_KEY (injected at launch)")
+        if catalog is not None:
+            typer.echo(f"model_catalog_json: {catalog_path} ({len(catalog['models'])} Sference models)")
         typer.echo(f"command: {' '.join(cmd)}")
         return
 
