@@ -1607,6 +1607,86 @@ def test_opencode_requires_credential(monkeypatch, tmp_path: Path):
     assert "No API credential" in out
 
 
+def _codex_overrides(args: list[str]) -> dict[str, str]:
+    """The ``-c key=value`` pairs in a codex argv, keyed by config path."""
+    return dict(args[i + 1].split("=", 1) for i, a in enumerate(args) if a == "-c")
+
+
+def _capture_codex_exec(monkeypatch) -> dict:
+    captured: dict = {}
+
+    def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
+        captured.update(path=path, args=args, env=env)
+        raise SystemExit(0)
+
+    monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
+    return captured
+
+
+def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    entries = [{**_opencode_entry("zai-org/GLM-5.2"), "context_tokens": 202752}]
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
+    captured = _capture_codex_exec(monkeypatch)
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--", "exec", "fix the bug"])
+    assert result.exit_code == 0, result.output
+    args = captured["args"]
+    assert args[0] == "/usr/local/bin/codex"
+    assert args[-4:] == ["--model", "zai-org/GLM-5.2", "exec", "fix the bug"]
+    assert _codex_overrides(args) == {
+        "model_provider": '"sference"',
+        "model_providers.sference.name": '"Sference"',
+        "model_providers.sference.base_url": '"https://api.sference.com/v1"',
+        "model_providers.sference.env_key": '"SFERENCE_API_KEY"',
+        "model_providers.sference.wire_api": '"responses"',
+        "model_reasoning_effort": '"medium"',
+        # /v1/responses only accepts function tools; these add other tool types.
+        "web_search": '"disabled"',
+        "features.multi_agent": "false",
+        "model_context_window": "202752",
+    }
+    assert captured["env"]["SFERENCE_API_KEY"] == "sk_fake_for_tests"
+    # Nothing written to the user's Codex config.
+    assert not (tmp_path / ".codex").exists()
+
+
+def test_codex_offline_omits_context_window(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+
+    def offline(*_a):
+        raise OSError("offline")
+
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", offline)
+    captured = _capture_codex_exec(monkeypatch)
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--model", "moonshotai/Kimi-K3"])
+    assert result.exit_code == 0, result.output
+    assert "model_context_window" not in _codex_overrides(captured["args"])
+    assert captured["args"][-2:] == ["--model", "moonshotai/Kimi-K3"]
+
+
+def test_codex_dry_run_redacts_key(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: [])
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
+    assert result.exit_code == 0
+    assert "base_url: https://api.sference.com/v1" in result.stdout
+    assert "command: /usr/local/bin/codex -c model_provider=" in result.stdout
+    assert "sk_fake_for_tests" not in result.stdout
+
+
+def test_codex_missing_binary_exits(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: None)
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "not found on PATH" in out
+
+
 # ── launch claude proxy mode (default) ────────────────────────────────────────
 
 from sference_cli._proxy_routing import (  # noqa: E402

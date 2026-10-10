@@ -495,6 +495,101 @@ def launch_opencode(
     os.execvpe(opencode_bin, cmd, env)
 
 
+def find_codex_executable() -> str | None:
+    return shutil.which("codex")
+
+
+# Codex's own config may pin an effort Sference rejects (e.g. a level only
+# OpenAI models accept), so the launcher always sets one. Forwarded
+# ``-c model_reasoning_effort=...`` args come later on the command line and win.
+CODEX_DEFAULT_REASONING_EFFORT = "medium"
+
+
+def _toml_value(value: object) -> str:
+    """Render a ``codex -c key=value`` value; Codex parses the right-hand side as TOML.
+
+    A JSON string literal is a valid TOML basic string (and JSON ``true``/``false``
+    and integers are valid TOML), so ``json.dumps`` covers every value we pass.
+    """
+    return json.dumps(value)
+
+
+def build_codex_overrides(*, base_url: str, model: str, entry: Optional[dict]) -> list[str]:
+    """``-c`` overrides that point Codex at Sference for this process only.
+
+    Passing the provider on the command line instead of editing
+    ``~/.codex/config.toml`` leaves the user's Codex setup untouched for normal
+    (OpenAI) sessions, and ``env_key`` keeps the API key off disk.
+
+    Codex speaks only the Responses wire API, served by Sference's
+    ``/v1/responses``. That endpoint accepts ``type: "function"`` tools only, so
+    the Codex defaults that add other tool types are switched off: the hosted
+    ``web_search`` tool and the ``multi_agent`` feature (sent as a ``namespace``
+    tool). Without these every request 400s.
+    """
+    overrides = {
+        "model_provider": "sference",
+        "model_providers.sference.name": "Sference",
+        "model_providers.sference.base_url": base_url,
+        "model_providers.sference.env_key": "SFERENCE_API_KEY",
+        "model_providers.sference.wire_api": "responses",
+        "model_reasoning_effort": CODEX_DEFAULT_REASONING_EFFORT,
+        "web_search": "disabled",
+        "features.multi_agent": False,
+    }
+    # Codex has no metadata for Sference models and falls back to a generic
+    # context window; give it the real one so auto-compaction fires in time.
+    if entry is not None and entry.get("context_tokens"):
+        overrides["model_context_window"] = int(entry["context_tokens"])
+    args: list[str] = []
+    for key, value in overrides.items():
+        args += ["-c", f"{key}={_toml_value(value)}"]
+    return [*args, "--model", model]
+
+
+def launch_codex(
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+    codex_args: list[str],
+    dry_run: bool,
+) -> None:
+    codex_bin = find_codex_executable()
+    if codex_bin is None:
+        typer.echo(
+            "Codex CLI not found on PATH.\n"
+            "Install from https://developers.openai.com/codex/cli "
+            "(e.g. `npm i -g @openai/codex`) and ensure the `codex` command is available.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        entries = {e["id"]: e for e in fetch_sference_model_entries(base_url, api_key)}
+    except Exception:
+        entries = {}
+
+    env = os.environ.copy()
+    # model_providers.sference.env_key names this var; inject the resolved key
+    # so no secret is persisted to disk.
+    env["SFERENCE_API_KEY"] = api_key
+    cmd = [codex_bin, *build_codex_overrides(base_url=base_url, model=model, entry=entries.get(model)), *codex_args]
+
+    if dry_run:
+        typer.echo(f"base_url: {base_url}")
+        typer.echo("wire_api: responses (/v1/responses)")
+        typer.echo(f"model: {model}")
+        typer.echo("apiKey: $SFERENCE_API_KEY (injected at launch)")
+        typer.echo(f"command: {' '.join(cmd)}")
+        return
+
+    if sys.platform == "win32":
+        raise SystemExit(subprocess.call(cmd, env=env))
+
+    os.execvpe(codex_bin, cmd, env)
+
+
 def register_launch_commands(app: typer.Typer) -> None:
     launch_app = typer.Typer(help="Launch external tools configured for Sference.", invoke_without_command=True)
 
@@ -744,6 +839,59 @@ def register_launch_commands(app: typer.Typer) -> None:
             base_url=resolve_openai_base_url(base_url),
             model=resolve_launch_model(model),
             opencode_args=forwarded,
+            dry_run=dry_run,
+        )
+
+    @launch_app.command(
+        "codex",
+        context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+        help="Launch OpenAI Codex CLI with Sference Responses-API routing.",
+    )
+    def codex(
+        ctx: typer.Context,
+        model: Optional[str] = typer.Option(
+            None,
+            "--model",
+            "-m",
+            help=f"Catalog model id (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+        ),
+        base_url: Optional[str] = typer.Option(
+            None,
+            "--base-url",
+            envvar="SFERENCE_BASE_URL",
+            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
+        ),
+        dry_run: bool = typer.Option(
+            False,
+            "--dry-run",
+            help="Print provider config and command without launching Codex.",
+        ),
+    ) -> None:
+        """Run ``codex`` with Sference credentials.
+
+        Defines a ``sference`` model provider (``/v1/responses``) through
+        ``codex -c`` overrides, so ``~/.codex/config.toml`` is never modified.
+        The API key is injected via the ``SFERENCE_API_KEY`` env var. Unknown
+        options and trailing args are forwarded to Codex, e.g.
+        ``sference launch codex -- exec "fix the bug"`` or
+        ``sference launch codex -- -c model_reasoning_effort=high``.
+        """
+        from sference_cli.main import _ensure_api_credential, _read_token
+
+        _ensure_api_credential()
+        api_key = _read_token()
+        if api_key is None:
+            raise typer.Exit(code=1)
+
+        forwarded = list(ctx.args)
+        if forwarded and forwarded[0] == "--":
+            forwarded = forwarded[1:]
+
+        launch_codex(
+            api_key=api_key,
+            base_url=resolve_openai_base_url(base_url),
+            model=resolve_launch_model(model),
+            codex_args=forwarded,
             dry_run=dry_run,
         )
 

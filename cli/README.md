@@ -129,6 +129,20 @@ Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moons
 
 Requires the [Pi CLI](https://pi.dev/docs) on `PATH`. Writes a `sference` provider block to `~/.pi/agent/models.json` using pi's `openai-responses` API (the Sference `/v1/responses` endpoint) with `baseUrl`, `apiKey`, and the full list of Sference-provided models (fetched live from `GET /v1/models`), then execs `pi --provider sference --model <id> --models sference/**`. The `--models sference/**` flag scopes pi's `/model` picker (and Ctrl+P cycling) to Sference models only, so other configured providers are hidden by default (`**` is required because Sference model ids contain a slash and `*` would match nothing). All catalog models appear in the picker; `--model` selects the active one. Reasoning is driven by pi's native `reasoning.effort` (no per-model thinking-format config needed). If the catalog fetch fails (offline), only the chosen model is registered. Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.7-Code` (override with `--model` or `SFERENCE_MODEL`).
 
+#### `sference launch codex`
+
+| Command | Description |
+|---------|-------------|
+| `sference launch codex` | Launch the [Codex CLI](https://developers.openai.com/codex/cli) against Sference's `/v1/responses` |
+| `sference launch codex --dry-run` | Print provider config and command without launching Codex |
+| `sference launch codex --model moonshotai/Kimi-K3` | Override catalog model |
+| `sference launch codex -- exec "fix the bug"` | Forward Codex args (here: non-interactive `codex exec`) |
+| `sference launch codex -- -c model_reasoning_effort=high` | Override the reasoning effort (default `medium`) |
+
+Requires `codex` on `PATH`. The `sference` model provider is passed as `codex -c` overrides, so `~/.codex/config.toml` is never modified and your normal Codex sessions are unaffected; the API key reaches Codex through the `SFERENCE_API_KEY` env var, never on disk. The launcher also disables Codex's hosted `web_search` tool and the `multi_agent` feature, because Sference's `/v1/responses` accepts only function tools, and it sets `model_context_window` from the live catalog so auto-compaction triggers at the model's real limit.
+
+> **Known limitation:** Codex sends tools from configured MCP servers and plugins as `namespace` tools, which `/v1/responses` does not accept yet — requests fail with an invalid-tool-definition 400 while any MCP server or MCP-backed plugin is enabled. A stock Codex install with no MCP servers works.
+
 ### Batch
 
 | Command | Description |
