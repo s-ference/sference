@@ -476,6 +476,74 @@
         "deprecated": false
       }
     },
+    "/control/v1/auth/resend-verification": {
+      "post": {
+        "summary": "ResendVerification",
+        "operationId": "ControlV1AuthResendVerificationResendVerification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendVerificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/auth/reset-password": {
       "post": {
         "summary": "ResetPassword",
@@ -10360,6 +10428,34 @@
         "required": [],
         "title": "ReasoningConfig"
       },
+      "ResendVerificationRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "captcha_token": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ResendVerificationRequest"
+      },
+      "ResendVerificationResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "default": "If that account needs email verification, a new link was sent."
+          }
+        },
+        "type": "object",
+        "required": [],
+        "title": "ResendVerificationResponse"
+      },
       "ResetPasswordRequest": {
         "properties": {
           "token": {
@@ -10614,6 +10710,16 @@
           },
           "name": {
             "type": "string"
+          },
+          "namespace": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "arguments": {
             "type": "string",
