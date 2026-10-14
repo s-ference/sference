@@ -49,7 +49,7 @@ results = client.get_results(done.id)
 ```
 
 ```bash
-sference auth login --api-key 'sk_...'
+sference auth login   # browser device flow; --api-key 'sk_...' for CI
 sference batch submit --input-file workload.jsonl --model Qwen/Qwen3.6-35B-A3B --window 24h
 sference batch wait --batch-id <id>
 ```
