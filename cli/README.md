@@ -38,11 +38,13 @@ sference --help
 
 ## Authentication
 
-1. **Interactive (browser):** `sference auth login` — opens the console login page, then prompts for an API key from **Console → API keys**.
-2. **Non-interactive / CI:** `sference auth login --api-key 'sk_...'`
+1. **Interactive (browser):** `sference auth login` signs in with the OAuth 2.0 device flow (RFC 8628). The CLI opens the console approval page and shows a short code; confirm it matches, approve the device, and the CLI finishes on its own. No API key is involved. Pass `--no-browser` on a remote or headless machine to print the URL and code instead.
+2. **Non-interactive / CI:** `sference auth login --api-key 'sk_...'` saves an API key from **Console → API keys** without opening a browser.
 3. **Environment variable:** `SFERENCE_API_KEY` overrides the saved credential file.
 
-Credentials are stored in `~/.sference/credentials.json` unless `SFERENCE_API_KEY` is set.
+Credentials are stored in `~/.sference/credentials.json` unless `SFERENCE_API_KEY` is set. A device login stores a 24 h access token and a 30 d rotating refresh token; the CLI refreshes the access token automatically when you run a command, and `sference launch claude` also refreshes it mid-session through its proxy. Codex, opencode, and Pi sessions run on the token issued at launch. Signed-in devices are listed, and can be revoked, under **Profile → Signed-in devices** in the console.
+
+For local development, `--base-url` (or `SFERENCE_BASE_URL`) points the device flow at another API and `--console-url` (or `SFERENCE_CONSOLE_URL`) overrides the approval page the browser opens.
 
 Verify the current credential:
 
@@ -81,7 +83,8 @@ sference responses tail --stream-id <stream_id>
 
 | Variable | Purpose |
 |----------|---------|
-| `SFERENCE_API_KEY` | API key (or JWT); overrides `~/.sference/credentials.json` |
+| `SFERENCE_API_KEY` | API key (or access token); overrides `~/.sference/credentials.json` |
+| `SFERENCE_CONSOLE_URL` | Console URL the device-flow approval page opens on (default: server-provided) |
 | `SFERENCE_MODEL` | Default catalog model for `sference launch` (overrides built-in default) |
 | `SFERENCE_STREAM_CACHE` | Optional path to the stream resumable-cache file (default `~/.sference/stream_cache.json`) |
 | `SFERENCE_STREAM_CHECKPOINTS` | Optional path for **`responses tail`** event checkpoints (default `~/.sference/stream_checkpoints.json`) |
@@ -92,7 +95,7 @@ sference responses tail --stream-id <stream_id>
 
 | Command | Description |
 |---------|-------------|
-| `sference auth login` | Store an API key (optional `--api-key`, `--no-browser`) |
+| `sference auth login` | Sign in with the browser device flow (`--no-browser` prints the URL and code; `--api-key` saves an API key for CI) |
 | `sference auth me` | Show current user (`--json` for machine-readable output) |
 
 ### Launch
