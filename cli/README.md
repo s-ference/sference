@@ -97,26 +97,20 @@ sference responses tail --stream-id <stream_id>
 
 ### Launch
 
-#### `sference launch claude` (default: transparent proxy)
+#### `sference launch claude`
 
-By default, `sference launch claude` starts a local [mitmproxy](https://mitmproxy.org) forward proxy and launches Claude Code with `HTTPS_PROXY` pointing at it (and `ANTHROPIC_BASE_URL` *unset*, so Claude Code's first-party detection stays on). Sference models are routed to Sference's native `/v1/messages` endpoint (body passed through untranslated) and appear in Claude Code's `/model` picker; real Claude models pass through to Anthropic. Hybrid routing — use both Sference and Claude models in one session.
+`sference launch claude` points Claude Code at Sference's native `/v1/messages` endpoint via `ANTHROPIC_BASE_URL` and enables gateway model discovery: the live catalog is primed into Claude Code's picker cache before launch, so `/model` lists every Sference model the account can serve. No proxy, no mitmproxy.
 
 | Command | Description |
-|---------|-------------|
-| `sference launch claude` | Start the proxy and launch Claude Code (default). Sference models appear in `/model`; Claude models pass through. |
-| `sference launch claude --dry-run` | Print the proxy config + command without launching |
-| `sference launch claude --model zai-org/GLM-5.2` | Inject this model into the `/model` picker (default: live `GET /v1/models`) |
-| `sference launch claude --models a,b` | Inject a comma-separated set of models into the picker |
-| `sference launch claude --proxy-port 8082` | Use a fixed local mitmproxy port (default: auto-pick) |
+| --- | --- |
+| `sference launch claude` | Launch Claude Code against Sference; catalog primed into `/model` |
+| `sference launch claude --dry-run` | Print the env config + command without launching |
+| `sference launch claude --model zai-org/GLM-5.2` | Pin a different default model |
+| `sference launch claude --models a,b` | Override the primed picker set (default: live `GET /v1/models`) |
+| `sference launch claude --enable-tool-search` | Set `ENABLE_TOOL_SEARCH=true` |
 | `sference launch claude -- --model zai-org/GLM-5.2 -p "hi"` | Forward Claude Code flags/args after `--` |
-| `sference launch claude --no-anthropic` | Disable the proxy; route everything directly to Sference via `ANTHROPIC_BASE_URL` (the previous behavior — no hybrid routing, no `/model` picker) |
-| `sference launch claude --no-anthropic --enable-tool-search` | Direct mode: set `ENABLE_TOOL_SEARCH=true` on a custom host |
 
-Proxy mode requires `mitmproxy` (`mitmdump` on `PATH`) and the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code). The installer (`install.sh` / `install.ps1`) installs mitmproxy alongside the CLI; to add it to an existing install: `uv tool install mitmproxy`. If mitmproxy is missing, proxy mode errors with a `--no-anthropic` suggestion.
-
-> **Security note:** the proxy uses mitmproxy's local CA cert (`~/.mitmproxy/mitmproxy-ca-cert.pem`), scoped to the Claude Code process via `NODE_EXTRA_CA_CERTS` — it is **not** added to system trust. The CA can sign certs for any host; only the Claude Code process trusts it for this session.
-
-Uses `~/.sference/credentials.json` or `SFERENCE_API_KEY`. Default model: `moonshotai/Kimi-K2.7-Code` (override with `--model` or `SFERENCE_MODEL`).
+Requires only the [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code). Device-flow credentials are refreshed at launch so long sessions start on a fresh 24 h token. `--no-anthropic` and `--proxy-port` are accepted as deprecated no-ops for older scripts.
 
 #### `sference launch pi`
 
