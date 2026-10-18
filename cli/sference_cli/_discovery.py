@@ -85,8 +85,7 @@ def prime_picker_cache(entries: list[dict[str, Any]], base_url: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".gateway-models-", suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            os.chmod(tmp, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:  # mkstemp is already 0600
             f.write(json.dumps(body) + "\n")
         os.replace(tmp, path)
     except BaseException:

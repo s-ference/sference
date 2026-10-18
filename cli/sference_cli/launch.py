@@ -127,10 +127,13 @@ def build_claude_settings_json(env: dict[str, str]) -> str:
     by sference-switch's ``claude on``) beats the process environment per key,
     so a switch-managed machine would silently re-route the session through
     the switch. ``--settings`` loads AFTER user settings and wins per key.
+
+    ANTHROPIC_AUTH_TOKEN is deliberately EXCLUDED: argv is visible to every
+    process on the machine (``ps``), and nothing in a settings.json env block
+    competes for that key — the process env carries it safely alone.
     """
     keys = (
         "ANTHROPIC_BASE_URL",
-        "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_MODEL",
         "ANTHROPIC_DEFAULT_OPUS_MODEL",
         "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -193,10 +196,7 @@ def launch_claude_code(
         typer.echo(f"picker cache: {len(model_entries)} model(s) to prime")
         if enable_tool_search:
             typer.echo("ENABLE_TOOL_SEARCH=true")
-        typer.echo(
-            "--settings "
-            + settings_json.replace(env["ANTHROPIC_AUTH_TOKEN"], "<redacted>")
-        )
+        typer.echo(f"--settings {settings_json}")
         typer.echo(f"command: {claude_bin} --settings <json> {' '.join(claude_args)}")
         return
 
@@ -882,6 +882,7 @@ def register_launch_commands(app: typer.Typer) -> None:
         )
 
         _ensure_api_credential()
+        resolved_base = resolve_api_base_url(base_url)
         # Device-flow (v2) credentials: refresh the 24 h access token at launch
         # so long sessions start on a fresh grant. Skipped when SFERENCE_API_KEY
         # overrides the file — the env token is not the file's grant, and
@@ -892,7 +893,7 @@ def register_launch_commands(app: typer.Typer) -> None:
                 from sference_cli.device_auth import CLIENT_ID_SFERENCE_CLI, refresh_tokens
 
                 tokens = refresh_tokens(
-                    resolve_api_base_url(base_url), CLIENT_ID_SFERENCE_CLI, device_creds["refresh_token"]
+                    resolved_base, CLIENT_ID_SFERENCE_CLI, device_creds["refresh_token"]
                 )
                 _write_device_credentials(tokens)
             except Exception:  # noqa: BLE001 (best-effort; the current token may still be valid)
@@ -917,8 +918,6 @@ def register_launch_commands(app: typer.Typer) -> None:
         forwarded = list(ctx.args)
         if forwarded and forwarded[0] == "--":
             forwarded = forwarded[1:]
-
-        resolved_base = resolve_api_base_url(base_url)
 
         # Resolve the picker model set.
         if models:

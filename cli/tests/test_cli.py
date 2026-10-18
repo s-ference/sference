@@ -1178,7 +1178,8 @@ def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
     assert captured["args"][1] == "--settings"
     launch_settings = json.loads(captured["args"][2])
     assert launch_settings["env"]["ANTHROPIC_BASE_URL"] == "https://api.sference.com"
-    assert launch_settings["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
+    # The token must NOT be in argv (ps-visible); env carries it.
+    assert "ANTHROPIC_AUTH_TOKEN" not in launch_settings["env"]
     assert launch_settings["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
     assert launch_settings["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert captured["args"][3:] == ["--resume", "abc"]
