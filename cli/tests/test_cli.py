@@ -1,5 +1,6 @@
 import json
 import subprocess
+import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -32,6 +33,32 @@ def test_cli_version_flag() -> None:
 def _with_fake_credential(monkeypatch) -> None:
     """auth me / batch commands require a stored credential before calling the API."""
     monkeypatch.setattr(cli_main, "_read_token", lambda: "sk_fake_for_tests")
+
+
+_FAKE_ENTRIES = [
+    {"id": "zai-org/GLM-5.2", "display_name": "GLM 5.2", "modality": "text_generation", "context_tokens": 1048576},
+    {"id": "moonshotai/Kimi-K3", "display_name": "Kimi K3", "modality": "text_generation", "context_tokens": 1048576},
+]
+
+
+def _mock_launch_net(monkeypatch, tmp_path: Path) -> dict:
+    """Keep launch claude hermetic: no live catalog fetch, no device-flow
+    refresh, and the picker cache prime lands in a temp dir."""
+    monkeypatch.setattr(cli_main, "_read_device_credentials", lambda: None)
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda base, key: list(_FAKE_ENTRIES)
+    )
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    calls: dict = {"primed": None}
+
+    def fake_prime(entries, base_url):
+        calls["primed"] = (entries, base_url)
+        from sference_cli._discovery import prime_picker_cache as real_prime
+
+        return real_prime(entries, base_url)
+
+    monkeypatch.setattr("sference_cli.launch.prime_picker_cache", fake_prime)
+    return calls
 
 
 class FakeResult:
@@ -1096,8 +1123,9 @@ def test_launch_still_invocable() -> None:
     assert "opencode" in result.stdout
 
 
-def test_launch_uses_sference_model_env(monkeypatch):
+def test_launch_uses_sference_model_env(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
+    _mock_launch_net(monkeypatch, tmp_path)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     monkeypatch.setenv("SFERENCE_MODEL", "Qwen/Qwen3.6-35B-A3B")
     result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
@@ -1105,8 +1133,9 @@ def test_launch_uses_sference_model_env(monkeypatch):
     assert "ANTHROPIC_MODEL=Qwen/Qwen3.6-35B-A3B" in result.stdout
 
 
-def test_claude_dry_run_prints_env(monkeypatch):
+def test_claude_dry_run_prints_env(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
+    _mock_launch_net(monkeypatch, tmp_path)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     result = runner.invoke(
         cli_main.app,
@@ -1122,11 +1151,16 @@ def test_claude_dry_run_prints_env(monkeypatch):
     assert "CLAUDE_CODE_SUBAGENT_MODEL=moonshotai/Kimi-K2.6" in result.stdout
     assert "ANTHROPIC_AUTH_TOKEN=<redacted>" in result.stdout
     assert "ENABLE_TOOL_SEARCH=true" in result.stdout
+    assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1" in result.stdout
+    assert "CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1" in result.stdout
+    assert "CLAUDE_CODE_AUTO_COMPACT_WINDOW=950000" in result.stdout
+    assert "picker cache: 2 model(s) to prime" in result.stdout
     assert "command: /usr/local/bin/claude" in result.stdout
 
 
-def test_claude_forwards_extra_args(monkeypatch):
+def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
+    _mock_launch_net(monkeypatch, tmp_path)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     captured: dict = {}
 
@@ -1140,19 +1174,30 @@ def test_claude_forwards_extra_args(monkeypatch):
     result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--resume", "abc"])
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/claude"
-    assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
+    assert captured["args"][0] == "/usr/local/bin/claude"
+    assert captured["args"][1] == "--settings"
+    launch_settings = json.loads(captured["args"][2])
+    assert launch_settings["env"]["ANTHROPIC_BASE_URL"] == "https://api.sference.com"
+    # The token must NOT be in argv (ps-visible); env carries it.
+    assert "ANTHROPIC_AUTH_TOKEN" not in launch_settings["env"]
+    assert launch_settings["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
+    assert launch_settings["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
+    assert captured["args"][3:] == ["--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
-    assert captured["env"]["ANTHROPIC_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
+    assert captured["env"]["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] == "1"
 
 
-def test_claude_missing_binary_exits(monkeypatch):
+def test_claude_missing_binary_exits(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
+    _mock_launch_net(monkeypatch, tmp_path)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: None)
     result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
     assert result.exit_code == 1
@@ -1830,330 +1875,6 @@ def test_codex_missing_binary_exits(monkeypatch):
     assert "not found on PATH" in out
 
 
-# ── launch claude proxy mode (default) ────────────────────────────────────────
-
-from sference_cli._proxy_routing import (  # noqa: E402
-    BOOTSTRAP,
-    PASSTHROUGH,
-    SFERENCE,
-    build_allow_hosts_regex,
-    decide_routing,
-    inject_models_into_bootstrap,
-    parse_models_env,
-    rewrite_request_for_sference,
-    strip_unsigned_thinking_blocks,
-)
-
-
-def test_claude_proxy_dry_run_prints_config(monkeypatch):
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(
-        "sference_cli.proxy.shutil.which",
-        lambda b: "/usr/local/bin/mitmdump" if b == "mitmdump" else "/usr/local/bin/claude",
-    )
-    result = runner.invoke(
-        cli_main.app, ["launch", "claude", "--model", "zai-org/GLM-5.2", "--dry-run"]
-    )
-    assert result.exit_code == 0
-    assert "mitmdump on 127.0.0.1:" in result.stdout
-    assert "Models (1): zai-org/GLM-5.2" in result.stdout
-    assert "HTTPS_PROXY=http://127.0.0.1:" in result.stdout
-    assert "NODE_EXTRA_CA_CERTS=" in result.stdout
-    assert "ANTHROPIC_BASE_URL=<unset>" in result.stdout
-    assert "command: /usr/local/bin/claude" in result.stdout
-    # log lives at a stable, discoverable path (not the ephemeral temp dir)
-    assert "claude_proxy.log" in result.stdout
-
-
-def test_claude_proxy_missing_mitmproxy_exits(monkeypatch):
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.proxy.shutil.which", lambda b: None)
-    result = runner.invoke(
-        cli_main.app, ["launch", "claude", "--model", "zai-org/GLM-5.2", "--dry-run"]
-    )
-    assert result.exit_code == 1
-    out = (result.stdout or "") + (result.stderr or "")
-    assert "mitmproxy not found" in out
-    assert "--no-anthropic" in out
-
-
-def test_claude_proxy_launches_through_mitmproxy(monkeypatch, tmp_path: Path):
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(
-        "sference_cli.proxy.shutil.which",
-        lambda b: "/usr/local/bin/mitmdump" if b == "mitmdump" else "/usr/local/bin/claude",
-    )
-    monkeypatch.setattr("sference_cli.proxy._extract_addon_files", lambda: (tmp_path, tmp_path / "_proxy_addon.py"))
-    monkeypatch.setattr("sference_cli.proxy.MITM_CA_CERT", tmp_path / "ca.pem")
-    (tmp_path / "ca.pem").write_text("FAKE CA", encoding="utf-8")
-    monkeypatch.setattr("sference_cli.proxy.port_in_use", lambda port: True)
-    monkeypatch.setattr("sference_cli.proxy.time.sleep", lambda *_a: None)
-    monkeypatch.setattr("sference_cli.proxy.signal.signal", lambda *_a: None)
-
-    launches: list = []
-
-    class FakeProc:
-        def __init__(self, cmd, env):
-            self.cmd = cmd
-            self.env = env
-            launches.append(self)
-
-        def poll(self):  # mitmproxy "running"
-            return None
-
-        def wait(self, timeout=None):
-            return 0
-
-        @property
-        def returncode(self):
-            return 0
-
-        def terminate(self):
-            pass
-
-        def kill(self):
-            pass
-
-    def fake_popen(cmd, **kwargs):
-        return FakeProc(cmd, kwargs.get("env"))
-
-    monkeypatch.setattr("sference_cli.proxy.subprocess.Popen", fake_popen)
-
-    result = runner.invoke(
-        cli_main.app,
-        ["launch", "claude", "--model", "zai-org/GLM-5.2", "--", "-p", "hi"],
-    )
-    assert result.exit_code == 0
-    assert len(launches) == 2  # mitmproxy, then claude
-    assert launches[0].cmd[0] == "/usr/local/bin/mitmdump"
-    assert "-s" in launches[0].cmd
-    # TLS interception is scoped to only the hosts we route (see
-    # build_allow_hosts_regex) so other tools Claude Code spawns aren't broken.
-    allow_sets = [c for c in launches[0].cmd if isinstance(c, str) and c.startswith("allow_hosts=")]
-    assert allow_sets, f"no allow_hosts in {launches[0].cmd}"
-    # dots are escaped in the regex
-    assert "api\\.anthropic\\.com" in allow_sets[0]
-    assert "api\\.sference\\.com" in allow_sets[0]
-    assert launches[1].cmd[0] == "/usr/local/bin/claude"
-    assert launches[1].cmd[1:] == ["-p", "hi"]  # forwarded args
-    claude_env = launches[1].env
-    assert claude_env["HTTPS_PROXY"].startswith("http://127.0.0.1:")
-    assert "NODE_EXTRA_CA_CERTS" in claude_env
-    assert "ANTHROPIC_BASE_URL" not in claude_env
-    mitm_env = launches[0].env
-    assert mitm_env["SFERENCE_API_KEY"] == "sk_fake_for_tests"
-    assert "zai-org/GLM-5.2" in mitm_env["SFERENCE_PROXY_MODELS"]
-    assert mitm_env["SFERENCE_BASE_URL"] == "https://api.sference.com"
-
-
-def test_claude_proxy_enable_tool_search_is_noop_notice(monkeypatch):
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(
-        "sference_cli.proxy.shutil.which",
-        lambda b: "/usr/local/bin/mitmdump" if b == "mitmdump" else "/usr/local/bin/claude",
-    )
-    result = runner.invoke(
-        cli_main.app,
-        ["launch", "claude", "--model", "zai-org/GLM-5.2", "--enable-tool-search", "--dry-run"],
-    )
-    assert result.exit_code == 0
-    err = result.stderr or ""
-    assert "no-op in proxy mode" in err
-
-
-# ── pure routing helpers (no mitmproxy, no subprocess) ───────────────────────
-
-
-def test_decide_routing() -> None:
-    models = {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"}
-    assert decide_routing("downloads.claude.ai", "POST", "/v1/messages", {"model": "zai-org/GLM-5.2"}, models) == PASSTHROUGH
-    assert decide_routing("api.anthropic.com", "GET", "/api/claude_cli/bootstrap?entrypoint=sdk-cli", None, models) == BOOTSTRAP
-    assert decide_routing("api.anthropic.com", "POST", "/v1/messages?beta=true", {"model": "zai-org/GLM-5.2"}, models) == SFERENCE
-    # real Claude model -> passthrough
-    assert decide_routing("api.anthropic.com", "POST", "/v1/messages", {"model": "claude-sonnet-4-5"}, models) == PASSTHROUGH
-    # GET on /v1/messages -> passthrough
-    assert decide_routing("api.anthropic.com", "GET", "/v1/messages", None, models) == PASSTHROUGH
-    # no model -> passthrough
-    assert decide_routing("api.anthropic.com", "POST", "/v1/messages", {}, models) == PASSTHROUGH
-    # non-dict body -> passthrough
-    assert decide_routing("api.anthropic.com", "POST", "/v1/messages", None, models) == PASSTHROUGH
-
-
-def test_rewrite_request_for_sference() -> None:
-    url, set_h, remove_h = rewrite_request_for_sference(
-        "https://api.anthropic.com/v1/messages?beta=true", "https://api.sference.com", "sk_test"
-    )
-    assert url == "https://api.sference.com/v1/messages?beta=true"
-    assert set_h == {"x-api-key": "sk_test"}
-    assert remove_h == ["authorization"]
-    # accepts a base url that already has /v1 (strips it; path is preserved)
-    url2, _, _ = rewrite_request_for_sference(
-        "https://api.anthropic.com/v1/messages", "https://api.sference.com/v1", "sk_test"
-    )
-    assert url2 == "https://api.sference.com/v1/messages"
-
-
-def test_inject_models_into_bootstrap() -> None:
-    body = {"additional_model_options": [{"model": "claude-sonnet-4-5", "name": "Sonnet"}]}
-    out = inject_models_into_bootstrap(body, {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"})
-    opts = out["additional_model_options"]
-    rendered = {o["model"] for o in opts}
-    assert "claude-sonnet-4-5" in rendered  # existing preserved
-    assert {"zai-org/GLM-5.2", "Qwen/Qwen3.6-35B-A3B"} <= rendered  # added
-    sference_opt = next(o for o in opts if o["model"] == "zai-org/GLM-5.2")
-    assert sference_opt["name"] == "[Sference] zai-org/GLM-5.2"
-    # Claude-family display names for routed models; unknown ids get the fallback.
-    assert sference_opt["description"] == "Opus"
-    assert next(o for o in opts if o["model"] == "Qwen/Qwen3.6-35B-A3B")["description"] == (
-        "Sference (routed via local proxy)"
-    )
-    named = inject_models_into_bootstrap(
-        {}, {"moonshotai/Kimi-K3", "deepseek-ai/DeepSeek-V4-Flash"}
-    )["additional_model_options"]
-    assert {o["model"]: o["description"] for o in named} == {
-        "moonshotai/Kimi-K3": "Fable",
-        "deepseek-ai/DeepSeek-V4-Flash": "Sonnet",
-    }
-    # idempotent (dedup)
-    out2 = inject_models_into_bootstrap(out, {"zai-org/GLM-5.2"})
-    assert len(out2["additional_model_options"]) == len(opts)
-    # non-dict body returned unchanged
-    assert inject_models_into_bootstrap("not a dict", {"x"}) == "not a dict"
-    # missing options key -> created
-    out3 = inject_models_into_bootstrap({}, {"zai-org/GLM-5.2"})
-    assert out3["additional_model_options"][0]["model"] == "zai-org/GLM-5.2"
-
-
-def test_strip_unsigned_thinking_blocks() -> None:
-    # Sference-produced block (empty signature) is dropped; Anthropic-minted one stays.
-    body = {
-        "messages": [
-            {"role": "user", "content": "hi"},
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "thinking", "thinking": "unsigned", "signature": ""},
-                    {"type": "thinking", "thinking": "signed", "signature": "CAIS9Ag"},
-                    {"type": "text", "text": "answer"},
-                ],
-            },
-        ]
-    }
-    out, dropped = strip_unsigned_thinking_blocks(body)
-    assert dropped == 1
-    kept = out["messages"][1]["content"]
-    assert [b["type"] for b in kept] == ["thinking", "text"]
-    assert kept[0]["signature"] == "CAIS9Ag"  # signed reasoning preserved
-    # string content (no blocks) untouched
-    assert out["messages"][0]["content"] == "hi"
-
-    # a missing signature key counts as unsigned (sibling block keeps the
-    # message non-empty, so the strip is allowed to happen)
-    body2 = {
-        "messages": [
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "thinking", "thinking": "x"},
-                    {"type": "text", "text": "kept"},
-                ],
-            }
-        ]
-    }
-    _, dropped2 = strip_unsigned_thinking_blocks(body2)
-    assert dropped2 == 1
-
-    # nothing to strip -> reported as 0 so the caller skips re-serializing
-    body3 = {"messages": [{"role": "assistant", "content": [{"type": "text", "text": "a"}]}]}
-    _, dropped3 = strip_unsigned_thinking_blocks(body3)
-    assert dropped3 == 0
-
-    # counts across multiple messages
-    body4 = {
-        "messages": [
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "thinking", "thinking": "a", "signature": ""},
-                    {"type": "text", "text": "one"},
-                ],
-            },
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "thinking", "thinking": "b", "signature": ""},
-                    {"type": "text", "text": "two"},
-                ],
-            },
-        ]
-    }
-    _, dropped4 = strip_unsigned_thinking_blocks(body4)
-    assert dropped4 == 2
-
-    # a message that is ONLY unsigned thinking is left intact -- emitting an
-    # empty content array would be a 400 we caused, worse than the one we avoid
-    body5 = {
-        "messages": [
-            {"role": "assistant", "content": [{"type": "thinking", "thinking": "a", "signature": ""}]},
-            {
-                "role": "assistant",
-                "content": [
-                    {"type": "thinking", "thinking": "b", "signature": ""},
-                    {"type": "text", "text": "kept"},
-                ],
-            },
-        ]
-    }
-    out5, dropped5 = strip_unsigned_thinking_blocks(body5)
-    assert dropped5 == 1  # only the strippable one counted
-    assert len(out5["messages"][0]["content"]) == 1  # thinking-only left alone
-    assert [b["type"] for b in out5["messages"][1]["content"]] == ["text"]
-
-    # malformed shapes are returned unchanged rather than raising
-    assert strip_unsigned_thinking_blocks("not a dict") == ("not a dict", 0)
-    assert strip_unsigned_thinking_blocks({}) == ({}, 0)
-    assert strip_unsigned_thinking_blocks({"messages": "nope"}) == ({"messages": "nope"}, 0)
-
-
-def test_build_allow_hosts_regex() -> None:
-    import re as _re
-
-    rx = build_allow_hosts_regex("https://api.sference.com")
-    # mitmproxy's NextLayer._ignore_connection tests "host:port" strings ONLY
-    # (built from server.address / peername / Host header / SNI) -- never a
-    # bare hostname. Matching the port form is what makes interception happen
-    # at all; a hostname-anchored regex silently passes everything through.
-    assert _re.search(rx, "api.anthropic.com:443", _re.IGNORECASE)
-    assert _re.search(rx, "api.sference.com:443", _re.IGNORECASE)
-    assert _re.search(rx, "API.SFERENCE.COM:443", _re.IGNORECASE)  # case-insensitive
-    assert _re.search(rx, "api.sference.com:8443", _re.IGNORECASE)  # any port
-    # regression: a bare hostname must NOT be what we rely on -- if this ever
-    # becomes the only thing that matches, interception is broken (the addon
-    # stops seeing flows and Sference models vanish from the /model picker).
-    assert not _re.search(rx, "api.anthropic.com", _re.IGNORECASE)
-    # everything else bypasses interception
-    assert not _re.search(rx, "api.github.com:443", _re.IGNORECASE)
-    assert not _re.search(rx, "anthropic.com.evil.example:443", _re.IGNORECASE)
-    assert not _re.search(rx, "notapi.sference.com:443", _re.IGNORECASE)
-    # a base URL carrying a port or /v1 still yields just the host
-    rx2 = build_allow_hosts_regex("https://api.sference.com:8443/v1")
-    assert _re.search(rx2, "api.sference.com:443", _re.IGNORECASE)
-    assert not _re.search(rx2, "sference.com:443", _re.IGNORECASE)  # no subdomain bleed
-    # dots are escaped (literal match, not wildcard)
-    rx3 = build_allow_hosts_regex("https://apiXsferenceYcom")
-    assert _re.search(rx3, "apiXsferenceYcom:443")
-    assert not _re.search(rx3, "api.sference.com:443")
-
-
-def test_parse_models_env() -> None:
-    assert parse_models_env('["a", "b"]') == {"a", "b"}
-    assert parse_models_env("") == set()
-    assert parse_models_env("not json") == set()
-    assert parse_models_env('["", "c"]') == {"c"}  # empty strings dropped
-
-
-
-
 def test_stale_access_token_recovers_by_refreshing(monkeypatch, tmp_path: Path):
     """The cached token is used until it nears expiry, so a token invalidated
     server-side only shows up as a 401 — that is when the CLI refreshes."""
@@ -2333,3 +2054,85 @@ def test_call_api_401_hint_suppressed_for_dead_grant(monkeypatch, capsys):
     except typer.Exit as exc:
         assert exc.exit_code == 1
     assert "Unauthorized (401)" in capsys.readouterr().err
+
+
+# ── launch claude: gateway model discovery ────────────────────────────────────
+
+
+def test_claude_primes_picker_cache(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    calls = _mock_launch_net(monkeypatch, tmp_path)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setattr(
+        "sference_cli.launch.os.execvpe", lambda *_a: (_ for _ in ()).throw(SystemExit(0))
+    )
+    result = runner.invoke(cli_main.app, ["launch", "claude"])
+    assert result.exit_code == 0
+    entries, base_url = calls["primed"]
+    assert base_url == "https://api.sference.com"
+    assert [e["id"] for e in entries] == ["zai-org/GLM-5.2", "moonshotai/Kimi-K3"]
+    # The cache actually landed under the temp CLAUDE_CONFIG_DIR.
+    cache = json.loads((tmp_path / "cache" / "gateway-models.json").read_text())
+    assert cache["baseUrl"] == "https://api.sference.com"
+    assert [m["id"] for m in cache["models"]] == ["zai-org/GLM-5.2", "moonshotai/Kimi-K3"]
+    assert cache["models"][0]["display_name"] == "GLM 5.2 via Sference"
+    assert "1048k context" in cache["models"][0]["description"]
+
+
+def test_claude_models_option_overrides_picker(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    calls = _mock_launch_net(monkeypatch, tmp_path)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setattr(
+        "sference_cli.launch.os.execvpe", lambda *_a: (_ for _ in ()).throw(SystemExit(0))
+    )
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--models", "a/b, c/d"])
+    assert result.exit_code == 0
+    entries, _ = calls["primed"]
+    assert [e["id"] for e in entries] == ["a/b", "c/d"]
+
+
+def test_claude_prime_failure_is_warn_only(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "_read_device_credentials", lambda: None)
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda base, key: list(_FAKE_ENTRIES)
+    )
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "sference_cli.launch.prime_picker_cache",
+        lambda *_a: (_ for _ in ()).throw(OSError("disk full")),
+    )
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setattr(
+        "sference_cli.launch.os.execvpe", lambda *_a: (_ for _ in ()).throw(SystemExit(0))
+    )
+    result = runner.invoke(cli_main.app, ["launch", "claude"])
+    assert result.exit_code == 0
+    assert "could not prime" in (result.stderr or "")
+
+
+def test_claude_deprecated_flags_are_noops(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    _mock_launch_net(monkeypatch, tmp_path)
+    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--proxy-port", "9999", "--dry-run"])
+    assert result.exit_code == 0
+    err = result.stderr or ""
+    assert "--no-anthropic is deprecated" in err
+    assert "--proxy-port is deprecated" in err
+
+
+def test_claude_catalog_fetch_failure_exits(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setattr(cli_main, "_read_device_credentials", lambda: None)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
+
+    def boom(base, key):
+        raise urllib.error.URLError("nope")
+
+    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", boom)
+    result = runner.invoke(cli_main.app, ["launch", "claude", "--dry-run"])
+    assert result.exit_code == 1
+    out = (result.stdout or "") + (result.stderr or "")
+    assert "could not fetch models" in out

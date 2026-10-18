@@ -9,15 +9,27 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 from pathlib import Path
 from typing import Optional
 
 import typer
 
-from .proxy import fetch_sference_model_entries, fetch_sference_models, launch_claude_via_proxy
+from ._discovery import (
+    AUTO_COMPACT_WINDOW_ENV_KEY,
+    DEFAULT_AUTO_COMPACT_WINDOW,
+    DISCOVERY_ENV_KEY,
+    WINDOW_ENFORCEMENT_ENV_KEY,
+    fetch_sference_model_entries,
+    prime_picker_cache,
+)
 
 DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
+# Claude Code's default request shape is thinking-disabled, which GLM-5.3-served
+# models 400 on (verified vs the API). Kimi-K3 tolerates it and is the stronger
+# coding model — claude-only default; the other launchers keep GLM-5.2.
+CLAUDE_DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K3"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
 # Thinking-effort variants stamped on Sference model entries in the opencode config.
@@ -42,14 +54,14 @@ def resolve_api_base_url(explicit: Optional[str]) -> str:
     return DEFAULT_API_BASE_URL
 
 
-def resolve_launch_model(explicit: Optional[str]) -> str:
+def resolve_launch_model(explicit: Optional[str], *, default: str = DEFAULT_LAUNCH_MODEL) -> str:
     """Default catalog model for ``launch`` subcommands (--model overrides)."""
     if explicit:
         return explicit
     env = os.environ.get("SFERENCE_MODEL")
     if env and env.strip():
         return env.strip()
-    return DEFAULT_LAUNCH_MODEL
+    return default
 
 
 def resolve_openai_base_url(explicit: Optional[str]) -> str:
@@ -93,6 +105,14 @@ def build_claude_env(
     env["ANTHROPIC_SMALL_FAST_MODEL"] = model
     # Claude Code prefers AUTH_TOKEN; drop API_KEY to avoid precedence confusion.
     env.pop("ANTHROPIC_API_KEY", None)
+    # Gateway model discovery: the picker reads the primed cache (written
+    # before exec) without any further credential.
+    env[DISCOVERY_ENV_KEY] = "1"
+    # Sference catalog ids are "unknown" to Claude Code, which would clamp
+    # them to a 200k window; let the auto-compact window below apply instead
+    # (catalog models serve 1M).
+    env[WINDOW_ENFORCEMENT_ENV_KEY] = "1"
+    env.setdefault(AUTO_COMPACT_WINDOW_ENV_KEY, DEFAULT_AUTO_COMPACT_WINDOW)
     if enable_tool_search:
         env["ENABLE_TOOL_SEARCH"] = "true"
     else:
@@ -100,11 +120,41 @@ def build_claude_env(
     return env
 
 
+def build_claude_settings_json(env: dict[str, str]) -> str:
+    """The launcher's env block as a ``--settings`` JSON string.
+
+    Why not just the process env: a settings.json ``env`` entry (e.g. written
+    by sference-switch's ``claude on``) beats the process environment per key,
+    so a switch-managed machine would silently re-route the session through
+    the switch. ``--settings`` loads AFTER user settings and wins per key.
+
+    ANTHROPIC_AUTH_TOKEN is deliberately EXCLUDED: argv is visible to every
+    process on the machine (``ps``), and nothing in a settings.json env block
+    competes for that key — the process env carries it safely alone.
+    """
+    keys = (
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_DEFAULT_FABLE_MODEL",
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+        "ANTHROPIC_SMALL_FAST_MODEL",
+        DISCOVERY_ENV_KEY,
+        WINDOW_ENFORCEMENT_ENV_KEY,
+        AUTO_COMPACT_WINDOW_ENV_KEY,
+        "ENABLE_TOOL_SEARCH",
+    )
+    return json.dumps({"env": {k: env[k] for k in keys if k in env}})
+
+
 def launch_claude_code(
     *,
     api_key: str,
     base_url: str,
     model: str,
+    model_entries: list[dict],
     enable_tool_search: bool,
     claude_args: list[str],
     dry_run: bool,
@@ -125,7 +175,8 @@ def launch_claude_code(
         model=model,
         enable_tool_search=enable_tool_search,
     )
-    cmd = [claude_bin, *claude_args]
+    settings_json = build_claude_settings_json(env)
+    cmd = [claude_bin, "--settings", settings_json, *claude_args]
 
     if dry_run:
         typer.echo(f"ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}")
@@ -139,10 +190,23 @@ def launch_claude_code(
         ):
             typer.echo(f"{alias_var}={env[alias_var]}")
         typer.echo("ANTHROPIC_AUTH_TOKEN=<redacted>")
+        typer.echo(f"{DISCOVERY_ENV_KEY}=1")
+        typer.echo(f"{WINDOW_ENFORCEMENT_ENV_KEY}=1")
+        typer.echo(f"{AUTO_COMPACT_WINDOW_ENV_KEY}={env[AUTO_COMPACT_WINDOW_ENV_KEY]}")
+        typer.echo(f"picker cache: {len(model_entries)} model(s) to prime")
         if enable_tool_search:
             typer.echo("ENABLE_TOOL_SEARCH=true")
-        typer.echo(f"command: {' '.join(cmd)}")
+        typer.echo(f"--settings {settings_json}")
+        typer.echo(f"command: {claude_bin} --settings <json> {' '.join(claude_args)}")
         return
+
+    # Prime the picker's discovery cache before exec. Warn-only: a failed
+    # prime costs the /model entries, not the session.
+    try:
+        cache_path = prime_picker_cache(model_entries, base_url)
+        typer.echo(f"sference: /model picker cache primed ({len(model_entries)} model(s) -> {cache_path})", err=True)
+    except (OSError, ValueError, TypeError) as e:
+        typer.echo(f"sference: warning: could not prime the /model picker cache: {e}", err=True)
 
     if sys.platform == "win32":
         raise SystemExit(subprocess.call(cmd, env=env))
@@ -759,7 +823,7 @@ def register_launch_commands(app: typer.Typer) -> None:
     @launch_app.command(
         "claude",
         context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-        help="Launch Claude Code with a local Sference proxy (default). Use --no-anthropic for the direct env-var mode.",
+        help="Launch Claude Code against the Sference endpoint (gateway model discovery; no proxy).",
     )
     def claude(
         ctx: typer.Context,
@@ -767,8 +831,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help="Proxy mode: catalog id to inject into the /model picker. --no-anthropic: the pinned model (default: "
-            f"{DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help=f"Pinned catalog model (default: {CLAUDE_DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -779,108 +842,105 @@ def register_launch_commands(app: typer.Typer) -> None:
         no_anthropic: bool = typer.Option(
             False,
             "--no-anthropic",
-            help="Disable the proxy and route everything directly to the Sference endpoint "
-            "(today's ANTHROPIC_BASE_URL env-var behavior; no hybrid routing, no /model picker).",
+            help="Deprecated no-op: the direct env-var mode is now the only mode.",
         ),
         models: Optional[str] = typer.Option(
             None,
             "--models",
-            help="Proxy mode: comma-separated catalog ids to route and inject into the picker "
-            "(default: live GET /v1/models). Ignored with --no-anthropic.",
+            help="Comma-separated catalog ids for the /model picker (default: live GET /v1/models).",
         ),
         proxy_port: Optional[int] = typer.Option(
             None,
             "--proxy-port",
-            help="Local mitmproxy port (default: auto-pick a free port). Proxy mode only.",
+            help="Deprecated no-op: there is no proxy anymore.",
         ),
         enable_tool_search: bool = typer.Option(
             False,
             "--enable-tool-search",
-            help="Set ENABLE_TOOL_SEARCH=true (only meaningful with --no-anthropic; the proxy "
-            "keeps first-party detection on, so tool search already works).",
+            help="Set ENABLE_TOOL_SEARCH=true.",
         ),
         dry_run: bool = typer.Option(
             False,
             "--dry-run",
-            help="Print the proxy/env config and command without launching anything.",
+            help="Print the env config and command without launching anything.",
         ),
     ) -> None:
         """Run ``claude`` with Sference credentials.
 
-        By default a local mitmproxy forward proxy routes Sference models to
-        ``api.sference.com`` (native ``/v1/messages``, body untranslated) while
-        Claude Code's first-party detection stays on — Sference models appear in
-        the ``/model`` picker and real Claude models pass through to Anthropic.
-        ``--no-anthropic`` switches to the direct env-var mode (everything to one
-        Sference model). Unknown options and trailing args are forwarded to
+        Points Claude Code at the Sference endpoint (native ``/v1/messages``)
+        via ``ANTHROPIC_BASE_URL`` and enables gateway model discovery: the
+        live catalog is primed into the picker cache before launch, so
+        ``/model`` lists every Sference model the account can serve. No proxy,
+        no mitmproxy. Unknown options and trailing args are forwarded to
         Claude Code, e.g. ``sference launch claude -p "fix the bug"``.
         """
         from sference_cli.main import (
-            CREDENTIALS_PATH,
             _ensure_api_credential,
             _read_device_credentials,
             _read_token,
+            _write_device_credentials,
         )
 
         _ensure_api_credential()
+        resolved_base = resolve_api_base_url(base_url)
+        # Device-flow (v2) credentials: refresh the 24 h access token at launch
+        # so long sessions start on a fresh grant. Skipped when SFERENCE_API_KEY
+        # overrides the file — the env token is not the file's grant, and
+        # refreshing would swap identities mid-session.
+        device_creds = None if os.environ.get("SFERENCE_API_KEY") else _read_device_credentials()
+        if device_creds and device_creds.get("refresh_token"):
+            try:
+                from sference_cli.device_auth import CLIENT_ID_SFERENCE_CLI, refresh_tokens
+
+                tokens = refresh_tokens(
+                    resolved_base, CLIENT_ID_SFERENCE_CLI, device_creds["refresh_token"]
+                )
+                _write_device_credentials(tokens)
+            except Exception:  # noqa: BLE001 (best-effort; the current token may still be valid)
+                # The launch proceeds on the file's token. When that token is
+                # already expired, a failed refresh means the session WILL 401 —
+                # say so now rather than mid-task.
+                if float(device_creds.get("expires_at") or 0) <= time.time():
+                    typer.echo(
+                        "warning: could not refresh the expired device token; re-run `sference auth login`",
+                        err=True,
+                    )
+
         api_key = _read_token()
         if api_key is None:
             raise typer.Exit(code=1)
-        # Device-flow (v2) credentials let the proxy refresh the 24 h access
-        # token mid-session; legacy API-key credentials have no refresh token.
-        # Skip when SFERENCE_API_KEY overrides the file — the env token is not
-        # the file's grant, and refreshing would swap identities mid-session.
-        device_creds = None if os.environ.get("SFERENCE_API_KEY") else _read_device_credentials()
+
+        if no_anthropic:
+            typer.echo("note: --no-anthropic is deprecated; the direct env-var mode is now the only mode.", err=True)
+        if proxy_port is not None:
+            typer.echo("note: --proxy-port is deprecated; there is no proxy anymore.", err=True)
 
         forwarded = list(ctx.args)
         if forwarded and forwarded[0] == "--":
             forwarded = forwarded[1:]
 
-        resolved_base = resolve_api_base_url(base_url)
-
-        if no_anthropic:
-            launch_claude_code(
-                api_key=api_key,
-                base_url=resolved_base,
-                model=resolve_launch_model(model),
-                enable_tool_search=enable_tool_search,
-                claude_args=forwarded,
-                dry_run=dry_run,
-            )
-            return
-
-        if enable_tool_search:
-            typer.echo(
-                "note: --enable-tool-search is a no-op in proxy mode (first-party "
-                "detection is on, so tool search already works).",
-                err=True,
-            )
-
-        # Proxy mode: resolve the routable model set.
+        # Resolve the picker model set.
         if models:
-            model_set = {m.strip() for m in models.split(",") if m.strip()}
-        elif model:
-            model_set = {model}
+            model_entries = [{"id": m.strip()} for m in models.split(",") if m.strip()]
         else:
             try:
-                model_set = fetch_sference_models(resolved_base, api_key)
+                model_entries = fetch_sference_model_entries(resolved_base, api_key)
             except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError) as e:
                 typer.echo(f"ERROR: could not fetch models from {resolved_base}/v1/models: {e}", err=True)
-                typer.echo("Pass --models or --model explicitly to bypass the lookup.", err=True)
+                typer.echo("Pass --models explicitly to bypass the lookup.", err=True)
                 raise typer.Exit(code=1) from None
-            if not model_set:
+            if not model_entries:
                 typer.echo("ERROR: /v1/models returned no text-generation models for this account.", err=True)
                 raise typer.Exit(code=1)
 
-        launch_claude_via_proxy(
+        launch_claude_code(
             api_key=api_key,
             base_url=resolved_base,
-            models=model_set,
+            model=resolve_launch_model(model, default=CLAUDE_DEFAULT_LAUNCH_MODEL),
+            model_entries=model_entries,
+            enable_tool_search=enable_tool_search,
             claude_args=forwarded,
             dry_run=dry_run,
-            proxy_port=proxy_port,
-            refresh_token=device_creds["refresh_token"] if device_creds else None,
-            credentials_path=str(CREDENTIALS_PATH) if device_creds else None,
         )
 
     @launch_app.command(

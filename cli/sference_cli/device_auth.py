@@ -1,9 +1,8 @@
 """Device-flow (RFC 8628) client for ``sference auth login`` and token refresh.
 
-Stdlib-only (json, urllib, time) so this module imports in ANY venv — the
-mitmproxy addon (``_proxy_addon.py``) runs in mitmproxy's isolated tool venv
-without ``sference_cli`` installed and sibling-imports this file to refresh an
-expired device token mid-session. Keep it dependency-free.
+Stdlib-only (json, urllib, time) so this module imports in ANY venv —
+``sference launch claude`` refreshes the 24 h device token at launch so long
+sessions start on a fresh grant. Keep it dependency-free.
 
 Wire shapes come from the platform's device-flow endpoints (plan §4.3):
   POST /v1/oauth/device_code  -> {device_code, user_code, verification_uri, expires_in, interval}
