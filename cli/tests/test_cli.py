@@ -1174,15 +1174,22 @@ def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
     result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--resume", "abc"])
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/claude"
-    assert captured["args"] == ["/usr/local/bin/claude", "--resume", "abc"]
+    assert captured["args"][0] == "/usr/local/bin/claude"
+    assert captured["args"][1] == "--settings"
+    launch_settings = json.loads(captured["args"][2])
+    assert launch_settings["env"]["ANTHROPIC_BASE_URL"] == "https://api.sference.com"
+    assert launch_settings["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
+    assert launch_settings["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
+    assert launch_settings["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
+    assert captured["args"][3:] == ["--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
-    assert captured["env"]["ANTHROPIC_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "zai-org/GLM-5.2"
-    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "zai-org/GLM-5.2"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "moonshotai/Kimi-K3"
     assert captured["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert captured["env"]["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] == "1"
 

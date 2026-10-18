@@ -26,6 +26,10 @@ from ._discovery import (
 )
 
 DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
+# Claude Code's default request shape is thinking-disabled, which GLM-5.3-served
+# models 400 on (verified vs the API). Kimi-K3 tolerates it and is the stronger
+# coding model — claude-only default; the other launchers keep GLM-5.2.
+CLAUDE_DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K3"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
 # Thinking-effort variants stamped on Sference model entries in the opencode config.
@@ -50,14 +54,14 @@ def resolve_api_base_url(explicit: Optional[str]) -> str:
     return DEFAULT_API_BASE_URL
 
 
-def resolve_launch_model(explicit: Optional[str]) -> str:
+def resolve_launch_model(explicit: Optional[str], *, default: str = DEFAULT_LAUNCH_MODEL) -> str:
     """Default catalog model for ``launch`` subcommands (--model overrides)."""
     if explicit:
         return explicit
     env = os.environ.get("SFERENCE_MODEL")
     if env and env.strip():
         return env.strip()
-    return DEFAULT_LAUNCH_MODEL
+    return default
 
 
 def resolve_openai_base_url(explicit: Optional[str]) -> str:
@@ -116,6 +120,32 @@ def build_claude_env(
     return env
 
 
+def build_claude_settings_json(env: dict[str, str]) -> str:
+    """The launcher's env block as a ``--settings`` JSON string.
+
+    Why not just the process env: a settings.json ``env`` entry (e.g. written
+    by sference-switch's ``claude on``) beats the process environment per key,
+    so a switch-managed machine would silently re-route the session through
+    the switch. ``--settings`` loads AFTER user settings and wins per key.
+    """
+    keys = (
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_DEFAULT_FABLE_MODEL",
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+        "ANTHROPIC_SMALL_FAST_MODEL",
+        DISCOVERY_ENV_KEY,
+        WINDOW_ENFORCEMENT_ENV_KEY,
+        AUTO_COMPACT_WINDOW_ENV_KEY,
+        "ENABLE_TOOL_SEARCH",
+    )
+    return json.dumps({"env": {k: env[k] for k in keys if k in env}})
+
+
 def launch_claude_code(
     *,
     api_key: str,
@@ -142,7 +172,8 @@ def launch_claude_code(
         model=model,
         enable_tool_search=enable_tool_search,
     )
-    cmd = [claude_bin, *claude_args]
+    settings_json = build_claude_settings_json(env)
+    cmd = [claude_bin, "--settings", settings_json, *claude_args]
 
     if dry_run:
         typer.echo(f"ANTHROPIC_BASE_URL={env['ANTHROPIC_BASE_URL']}")
@@ -162,7 +193,11 @@ def launch_claude_code(
         typer.echo(f"picker cache: {len(model_entries)} model(s) to prime")
         if enable_tool_search:
             typer.echo("ENABLE_TOOL_SEARCH=true")
-        typer.echo(f"command: {' '.join(cmd)}")
+        typer.echo(
+            "--settings "
+            + settings_json.replace(env["ANTHROPIC_AUTH_TOKEN"], "<redacted>")
+        )
+        typer.echo(f"command: {claude_bin} --settings <json> {' '.join(claude_args)}")
         return
 
     # Prime the picker's discovery cache before exec. Warn-only: a failed
@@ -796,7 +831,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help=f"Pinned catalog model (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help=f"Pinned catalog model (default: {CLAUDE_DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -902,7 +937,7 @@ def register_launch_commands(app: typer.Typer) -> None:
         launch_claude_code(
             api_key=api_key,
             base_url=resolved_base,
-            model=resolve_launch_model(model),
+            model=resolve_launch_model(model, default=CLAUDE_DEFAULT_LAUNCH_MODEL),
             model_entries=model_entries,
             enable_tool_search=enable_tool_search,
             claude_args=forwarded,
