@@ -888,7 +888,8 @@ def _cursor_resolve_key(
     if (
         row is not None
         and backup is not None
-        and cursor_config.sha256_text(row) == backup.get("openai_key_row", {}).get("written_sha256")
+        and cursor_config.key_fingerprint(row)
+        == backup.get("openai_key_row", {}).get("written_fingerprint")
     ):
         return row, None, "the Sference key already configured in Cursor"
     if dry_run:

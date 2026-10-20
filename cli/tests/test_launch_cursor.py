@@ -145,7 +145,7 @@ def test_on_writes_config_and_backup(cursor_home: Path):
     assert backup["reactive"]["useOpenAIKey"] == {"present": True, "value": False}
     assert backup["reactive"]["aiSettings"]["modelOverrideDisabled"] == ["gpt-5.2"]
     assert backup["openai_key_row"]["existed"] is False
-    assert backup["openai_key_row"]["written_sha256"] == cc.sha256_text(FAKE_KEY)
+    assert backup["openai_key_row"]["written_fingerprint"] == cc.key_fingerprint(FAKE_KEY)
     assert backup["provisioned_key"] is None
 
 

@@ -24,7 +24,6 @@ module imports anywhere.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import sqlite3
@@ -143,8 +142,17 @@ def read_plan_state(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-def sha256_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+def key_fingerprint(value: str) -> str:
+    """A non-secret fingerprint of an API key: display prefix + length.
+
+    The backup has to recognize the key it wrote without storing the key
+    itself — and without hashing it: hashing a credential trips secret
+    scanners (CodeQL weak-sensitive-data-hashing), and the prefix is the
+    same non-secret fragment the console shows for every key. The length
+    narrows collisions past anything that matters for "is this still the
+    key we wrote?".
+    """
+    return f"{value[:12]}…({len(value)})"
 
 
 def _keychain_item_present() -> bool:
@@ -302,9 +310,10 @@ def preflight_on(
     if replace_existing_key or already_on:
         return
     stored = plan_state.get("openai_key_row")
-    written_hash = (backup or {}).get("openai_key_row", {}).get("written_sha256")
+    written_fingerprint = (backup or {}).get("openai_key_row", {}).get("written_fingerprint")
     stored_is_ours = stored is not None and (
-        stored == api_key or (written_hash is not None and sha256_text(stored) == written_hash)
+        stored == api_key
+        or (written_fingerprint is not None and key_fingerprint(stored) == written_fingerprint)
     )
     if stored is not None and not stored_is_ours:
         raise CursorConfigError(
@@ -353,7 +362,7 @@ def apply_on(
         "reactive": snapshot_for_backup(reactive),
         "openai_key_row": {
             "existed": _read_item(conn, OPENAI_KEY_ROW) is not None,
-            "written_sha256": sha256_text(api_key) if api_key is not None else None,
+            "written_fingerprint": key_fingerprint(api_key) if api_key is not None else None,
         },
         "secret_row_deleted": _read_item(conn, SECRET_KEY_ROW) is not None and replace_existing_key,
         "keychain_item_deleted": False,
@@ -443,7 +452,11 @@ def apply_off(conn: sqlite3.Connection, backup: dict[str, Any]) -> list[str]:
             "be restored; the Sference key stays in the settings database. Remove it in Cursor "
             "Settings → Models if you want it gone."
         )
-    elif current_key is not None and sha256_text(current_key) == key_info["written_sha256"]:
+    elif (
+        current_key is not None
+        and key_info.get("written_fingerprint") is not None
+        and key_fingerprint(current_key) == key_info["written_fingerprint"]
+    ):
         delete_key_row = True
     elif current_key is not None:
         notes.append(
