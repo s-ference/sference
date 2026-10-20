@@ -392,6 +392,27 @@ def test_on_explicit_api_key_wins(cursor_home: Path):
     assert "--api-key" in result.output
 
 
+def test_on_explicit_api_key_not_ignored_when_already_on(cursor_home: Path):
+    """--api-key on an already-on system means CHANGE the key: it must go through
+    the normal path (and therefore need --replace-existing-key), not be silently
+    dropped by the idempotent re-run short-circuit."""
+    assert invoke(["launch", "cursor"]).exit_code == 0
+    # Cursor migrated the row we wrote into its secret store.
+    conn = cc.connect(cursor_home)
+    conn.execute("DELETE FROM ItemTable WHERE key = ?", (cc.OPENAI_KEY_ROW,))
+    conn.execute(
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.SECRET_KEY_ROW, "v10-migrated")
+    )
+    conn.commit()
+    conn.close()
+    refused = invoke(["launch", "cursor", "--api-key", "sk_new_explicit"])
+    assert refused.exit_code == 1
+    assert "--replace-existing-key" in (refused.stderr or refused.output)
+    replaced = invoke(["launch", "cursor", "--api-key", "sk_new_explicit", "--replace-existing-key"])
+    assert replaced.exit_code == 0, replaced.output
+    assert read_db(cursor_home)[cc.OPENAI_KEY_ROW] == "sk_new_explicit"
+
+
 # -------------------------------------------------------------------------- off
 
 

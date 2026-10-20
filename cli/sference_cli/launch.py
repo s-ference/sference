@@ -941,8 +941,11 @@ def _cursor_on(
             # already lives in Cursor's secret store (Cursor migrated the row we
             # wrote), so there is nothing to provision or write — and nothing to
             # refuse over, because the stored key is ours, not a foreign one.
+            # An explicit --api-key opts out: the user is asking to CHANGE the key,
+            # which is the normal path (and needs --replace-existing-key).
             already_on = (
                 not replace_existing_key
+                and api_key is None
                 and backup is not None
                 and reactive.get("useOpenAIKey") is True
                 and reactive.get("openAIBaseUrl") == openai_base_url
@@ -1097,7 +1100,11 @@ def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
 
     conn = cursor_config.connect(config_dir)
     try:
-        notes = cursor_config.apply_off(conn, backup)
+        try:
+            notes = cursor_config.apply_off(conn, backup)
+        except cursor_config.CursorConfigError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from None
     finally:
         conn.close()
 
@@ -1130,7 +1137,11 @@ def _cursor_status() -> None:
     conn = cursor_config.connect(config_dir)
     try:
         plan_state = cursor_config.read_plan_state(conn)
-        reactive = cursor_config.read_reactive(conn)
+        try:
+            reactive = cursor_config.read_reactive(conn)
+        except cursor_config.CursorConfigError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from None
     finally:
         conn.close()
     backup = cursor_config.read_backup()
