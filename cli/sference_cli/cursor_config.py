@@ -53,7 +53,28 @@ FREE_MEMBERSHIPS = {"free"}
 KEYCHAIN_SERVICE = "Cursor Safe Storage"
 KEYCHAIN_ACCOUNT = "cursorAuth/openAIKey"
 
-BACKUP_VERSION = 1
+# Picker labels are stamped with this prefix so users can tell which entries
+# route through Sference; the API accepts and strips it at ingress (a Cursor
+# picker's label IS the wire model id — there is no separate display field).
+SFERENCE_NAMESPACE_PREFIX = "sference/"
+
+# Version 1 backups predate the prefixed picker labels and carry no
+# ``model_ids``; they restore fine (off replays the snapshot verbatim) and are
+# migrated on the next ``on`` run.
+BACKUP_VERSION = 2
+READABLE_BACKUP_VERSIONS = (1, 2)
+
+
+def picker_model_id(canonical: str) -> str:
+    """The picker label for a catalog id: ``sference/<canonical>``."""
+    return SFERENCE_NAMESPACE_PREFIX + canonical
+
+
+def strip_picker_prefix(model_id: str) -> str:
+    """The canonical id for a possibly-prefixed picker label (idempotent)."""
+    if model_id.startswith(SFERENCE_NAMESPACE_PREFIX):
+        return model_id[len(SFERENCE_NAMESPACE_PREFIX):]
+    return model_id
 
 
 class CursorConfigError(Exception):
@@ -207,16 +228,25 @@ def build_on_changes(
     model_ids: list[str],
     default_model: str,
     sference_only: bool,
+    previously_written: list[str] | None = None,
 ) -> dict[str, Any]:
     """The new reactive-blob fields for turning Sference routing on.
 
     Pure function of the current blob: ``aiSettings`` arrays are unioned so the
     user's other custom models survive, and the composer default is pointed at
     ``default_model`` so a fresh chat uses Sference without a picker visit.
+    ``previously_written`` carries the ids an earlier ``launch cursor`` wrote —
+    they are swapped out, not unioned, so a re-run migrates labels (e.g. to the
+    prefixed form) instead of accumulating duplicates.
     """
+    removed = set(previously_written or [])
     ai = reactive.get("aiSettings") if isinstance(reactive.get("aiSettings"), dict) else {}
-    user_added = _union_ordered(ai.get("userAddedModels") or [], model_ids)
-    enabled = _union_ordered(ai.get("modelOverrideEnabled") or [], model_ids)
+    user_added = _union_ordered(
+        [m for m in (ai.get("userAddedModels") or []) if m not in removed], model_ids
+    )
+    enabled = _union_ordered(
+        [m for m in (ai.get("modelOverrideEnabled") or []) if m not in removed], model_ids
+    )
     disabled = [m for m in (ai.get("modelOverrideDisabled") or []) if m not in model_ids]
     if sference_only:
         catalog_names = [
@@ -335,13 +365,15 @@ def apply_on(
     default_model: str,
     sference_only: bool,
     replace_existing_key: bool,
+    previously_written: list[str] | None = None,
 ) -> dict[str, Any]:
     """Write the Sference configuration in one transaction; return the backup dict.
 
     ``api_key`` is None when Sference routing is already on and the key lives
     in Cursor's secret store (a re-run refreshing models/defaults): the key row
     is then left alone and the caller carries the prior backup's key metadata
-    forward.
+    forward. ``model_ids`` are recorded in the backup so the next run can swap
+    exactly the set it wrote (see ``build_on_changes``).
     """
     reactive = read_reactive(conn)
     backup = {
@@ -350,6 +382,7 @@ def apply_on(
         "openai_base_url": openai_base_url,
         "default_model": default_model,
         "sference_only": sference_only,
+        "model_ids": list(model_ids),
         "reactive": snapshot_for_backup(reactive),
         "openai_key_row": {
             "existed": _read_item(conn, OPENAI_KEY_ROW) is not None,
@@ -365,6 +398,7 @@ def apply_on(
         model_ids=model_ids,
         default_model=default_model,
         sference_only=sference_only,
+        previously_written=previously_written,
     )
     new_reactive = {**reactive, **changes}
     conn.isolation_level = None
@@ -411,7 +445,7 @@ def read_backup() -> Optional[dict[str, Any]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    return data if isinstance(data, dict) and data.get("version") == BACKUP_VERSION else None
+    return data if isinstance(data, dict) and data.get("version") in READABLE_BACKUP_VERSIONS else None
 
 
 def apply_off(conn: sqlite3.Connection, backup: dict[str, Any]) -> list[str]:

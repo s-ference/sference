@@ -25,6 +25,9 @@ FAKE_CATALOG = [
     {"id": "moonshotai/Kimi-K3", "display_name": "Kimi K3", "modality": "text_generation"},
     {"id": "zai-org/GLM-5.3", "display_name": "GLM 5.3", "modality": "text_generation"},
 ]
+# Picker labels are written prefixed; the API strips the prefix at ingress.
+PREFIXED_DEFAULT = "sference/" + DEFAULT_MODEL
+PREFIXED_CATALOG_IDS = ["sference/" + e["id"] for e in FAKE_CATALOG]
 
 
 def make_cursor_home(tmp_path: Path, *, reactive: dict | None, rows: dict[str, str] | None = None) -> Path:
@@ -124,7 +127,7 @@ def test_on_writes_config_and_backup(cursor_home: Path):
     assert reactive["openAIBaseUrl"] == "https://api.sference.com/v1"
     assert reactive["useOpenAIKey"] is True
     ai = reactive["aiSettings"]
-    for model in ("moonshotai/Kimi-K3", "zai-org/GLM-5.3"):
+    for model in PREFIXED_CATALOG_IDS:
         assert model in ai["userAddedModels"]
         assert model in ai["modelOverrideEnabled"]
         assert model not in ai["modelOverrideDisabled"]
@@ -132,9 +135,9 @@ def test_on_writes_config_and_backup(cursor_home: Path):
     assert "my-other-custom-model" in ai["userAddedModels"]
     assert "gpt-5.2" in ai["modelOverrideDisabled"]
     # New chats default to the Sference model; maxMode is preserved.
-    assert ai["modelConfig"]["composer"]["modelName"] == DEFAULT_MODEL
+    assert ai["modelConfig"]["composer"]["modelName"] == PREFIXED_DEFAULT
     assert ai["modelConfig"]["composer"]["selectedModels"] == [
-        {"modelId": DEFAULT_MODEL, "parameters": []}
+        {"modelId": PREFIXED_DEFAULT, "parameters": []}
     ]
     assert ai["modelConfig"]["composer"]["maxMode"] is False
     # The key row is our sk_ credential; no key was provisioned over HTTP.
@@ -155,8 +158,8 @@ def test_on_idempotent_second_run(cursor_home: Path):
     second = invoke(["launch", "cursor"])
     assert second.exit_code == 0, second.output
     reactive = reactive_of(cursor_home)
-    assert reactive["aiSettings"]["userAddedModels"].count("moonshotai/Kimi-K3") == 1
-    assert reactive["aiSettings"]["modelOverrideEnabled"].count("moonshotai/Kimi-K3") == 1
+    assert reactive["aiSettings"]["userAddedModels"].count(PREFIXED_DEFAULT) == 1
+    assert reactive["aiSettings"]["modelOverrideEnabled"].count(PREFIXED_DEFAULT) == 1
 
 
 def test_on_refuses_when_cursor_running(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
@@ -278,7 +281,7 @@ def test_on_sference_only_disables_catalog_models(cursor_home: Path):
     assert "grok-4.7" in disabled
     assert "default" in disabled
     assert "gpt-5.2" in disabled
-    assert "moonshotai/Kimi-K3" not in disabled
+    assert PREFIXED_DEFAULT not in disabled
     # User-added entries are never disabled by the mode.
     assert "zai-org/GLM-5.2" not in disabled
 
@@ -307,8 +310,8 @@ def test_on_models_flag_skips_catalog_fetch(cursor_home: Path, monkeypatch: pyte
     result = invoke(["launch", "cursor", "--models", "a/A,b/B", "--model", "a/A"])
     assert result.exit_code == 0, result.output
     ai = reactive_of(cursor_home)["aiSettings"]
-    assert set(ai["userAddedModels"]) == {"my-other-custom-model", "a/A", "b/B"}
-    assert ai["modelConfig"]["composer"]["modelName"] == "a/A"
+    assert set(ai["userAddedModels"]) == {"my-other-custom-model", "sference/a/A", "sference/b/B"}
+    assert ai["modelConfig"]["composer"]["modelName"] == "sference/a/A"
 
 
 def test_on_catalog_fetch_failure_falls_back_to_default_model(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
@@ -318,7 +321,7 @@ def test_on_catalog_fetch_failure_falls_back_to_default_model(cursor_home: Path,
     result = invoke(["launch", "cursor"])
     assert result.exit_code == 0, result.output
     ai = reactive_of(cursor_home)["aiSettings"]
-    assert DEFAULT_MODEL in ai["userAddedModels"]
+    assert PREFIXED_DEFAULT in ai["userAddedModels"]
 
 
 def test_dry_run_writes_nothing(cursor_home: Path):
@@ -486,7 +489,7 @@ def test_status_reports_routing_on(cursor_home: Path):
     assert "plan: pro" in result.output
     assert "Sference routing: ON" in result.output
     assert "https://api.sference.com/v1" in result.output
-    assert f"default model: {DEFAULT_MODEL}" in result.output
+    assert f"default model: {PREFIXED_DEFAULT}" in result.output
 
 
 def test_status_reports_routing_off(cursor_home: Path):
@@ -494,6 +497,79 @@ def test_status_reports_routing_off(cursor_home: Path):
     assert result.exit_code == 0, result.output
     assert "Sference routing: off" in result.output
     assert "https://api.openai.com/v1" in result.output
+
+
+def test_on_migrates_v1_unprefixed_labels(cursor_home: Path):
+    """A v1 backup (no model_ids) + v1-written canonical labels: the next run
+    swaps exactly the written set for the prefixed form and keeps manual entries."""
+    # Simulate a v1 install: canonical ids written, one of them also pre-existing
+    # as the user's manual entry from before any launch cursor.
+    conn = cc.connect(cursor_home)
+    reactive = cc.read_reactive(conn)
+    ai = reactive["aiSettings"]
+    ai["userAddedModels"] = ["zai-org/GLM-5.2", "moonshotai/Kimi-K3", "zai-org/GLM-5.3"]
+    ai["modelOverrideEnabled"] = ["zai-org/GLM-5.2", "moonshotai/Kimi-K3", "zai-org/GLM-5.3"]
+    ai["modelConfig"]["composer"] = {
+        "modelName": "moonshotai/Kimi-K3",
+        "maxMode": False,
+        "selectedModels": [{"modelId": "moonshotai/Kimi-K3", "parameters": []}],
+    }
+    reactive["useOpenAIKey"] = True
+    reactive["openAIBaseUrl"] = "https://api.sference.com/v1"
+    conn.execute(
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.REACTIVE_KEY, json.dumps(reactive, separators=(",", ":"))),
+    )
+    conn.commit()
+    conn.close()
+    v1_backup = {
+        "version": 1,
+        "written_at": "2026-10-20T00:00:00Z",
+        "openai_base_url": "https://api.sference.com/v1",
+        "default_model": "moonshotai/Kimi-K3",
+        "sference_only": False,
+        "reactive": {
+            "openAIBaseUrl": {"present": False, "value": None},
+            "useOpenAIKey": {"present": False, "value": None},
+            "aiSettings": {
+                # The pre-on snapshot: only the user's own manual entry.
+                "userAddedModels": ["zai-org/GLM-5.2"],
+                "modelOverrideEnabled": ["zai-org/GLM-5.2"],
+                "modelOverrideDisabled": [],
+                "modelConfig": {},
+            },
+        },
+        "openai_key_row": {"existed": False, "written_sha256": cc.sha256_text(FAKE_KEY)},
+        "secret_row_deleted": False,
+        "keychain_item_deleted": False,
+        "provisioned_key": None,
+    }
+    cc.write_backup(v1_backup)
+
+    result = invoke(["launch", "cursor"])
+    assert result.exit_code == 0, result.output
+    ai = reactive_of(cursor_home)["aiSettings"]
+    # v1-written canonicals are gone (replaced), the manual entry survives.
+    assert "moonshotai/Kimi-K3" not in ai["userAddedModels"]
+    assert "zai-org/GLM-5.3" not in ai["userAddedModels"]
+    assert "zai-org/GLM-5.2" in ai["userAddedModels"]
+    for model in PREFIXED_CATALOG_IDS:
+        assert model in ai["userAddedModels"]
+        assert model in ai["modelOverrideEnabled"]
+    assert ai["modelConfig"]["composer"]["modelName"] == PREFIXED_DEFAULT
+    # The backup is upgraded and still points at the ORIGINAL pre-on state for off.
+    backup = cc.read_backup()
+    assert backup["version"] == 2
+    assert set(backup["model_ids"]) == set(PREFIXED_CATALOG_IDS)
+    assert backup["reactive"]["aiSettings"]["userAddedModels"] == ["zai-org/GLM-5.2"]
+
+
+def test_on_accepts_prefixed_model_option(cursor_home: Path):
+    result = invoke(["launch", "cursor", "--model", "sference/zai-org/GLM-5.3"])
+    assert result.exit_code == 0, result.output
+    ai = reactive_of(cursor_home)["aiSettings"]
+    assert ai["modelConfig"]["composer"]["modelName"] == "sference/zai-org/GLM-5.3"
+    assert ai["userAddedModels"].count("sference/zai-org/GLM-5.3") == 1
 
 
 def test_on_rerun_after_cursor_migrated_the_key(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):

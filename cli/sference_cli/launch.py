@@ -968,9 +968,11 @@ def _cursor_on(
                 already_on=already_on,
             )
 
-            default_model = resolve_launch_model(model, default=CURSOR_DEFAULT_LAUNCH_MODEL)
+            default_model = cursor_config.strip_picker_prefix(
+                resolve_launch_model(model, default=CURSOR_DEFAULT_LAUNCH_MODEL)
+            )
             if models:
-                model_ids = [m.strip() for m in models.split(",") if m.strip()]
+                model_ids = [cursor_config.strip_picker_prefix(m.strip()) for m in models.split(",") if m.strip()]
             else:
                 fetch_key = key if key is not None else (credential or "")
                 try:
@@ -985,14 +987,32 @@ def _cursor_on(
             if default_model not in model_ids:
                 model_ids.append(default_model)
 
+            # What an earlier run wrote and this one replaces. v2 backups carry
+            # the set; a v1 backup predates the prefixed labels, and what it
+            # wrote is the (canonical) catalog ids it unioned in — everything in
+            # the current arrays that was not already in its pre-on snapshot.
+            if backup is not None and backup.get("model_ids"):
+                previously_written = list(backup["model_ids"])
+            elif backup is not None:
+                original = set(backup["reactive"]["aiSettings"]["userAddedModels"])
+                previously_written = [i for i in model_ids if i not in original]
+            else:
+                previously_written = []
+
+            # Picker labels are prefixed so users can tell which entries route
+            # through Sference; the API strips the prefix at ingress.
+            written_ids = [cursor_config.picker_model_id(i) for i in model_ids]
+            written_default = cursor_config.picker_model_id(default_model)
+
             # Validates the change set (raises for --sference-only without a
             # cached catalog) before anything is written; apply_on recomputes it.
             cursor_config.build_on_changes(
                 reactive,
                 openai_base_url=openai_base_url,
-                model_ids=model_ids,
-                default_model=default_model,
+                model_ids=written_ids,
+                default_model=written_default,
                 sference_only=sference_only,
+                previously_written=previously_written,
             )
         except cursor_config.CursorConfigError as exc:
             typer.echo(str(exc), err=True)
@@ -1002,8 +1022,10 @@ def _cursor_on(
             typer.echo(f"Cursor settings: {db_path}")
             typer.echo(f"openAIBaseUrl: {openai_base_url}")
             typer.echo("useOpenAIKey: true")
-            typer.echo(f"default model: {default_model}")
-            typer.echo(f"models added to the picker: {len(model_ids)} ({', '.join(model_ids)})")
+            typer.echo(f"default model: {written_default}")
+            typer.echo(f"models added to the picker: {len(written_ids)} ({', '.join(written_ids)})")
+            if previously_written:
+                typer.echo(f"replacing {len(previously_written)} previously written picker entr(ies)")
             if sference_only:
                 typer.echo("sference-only: all Cursor-provided models disabled")
             typer.echo(f"key: <redacted> ({key_source})")
@@ -1028,10 +1050,11 @@ def _cursor_on(
             conn,
             openai_base_url=openai_base_url,
             api_key=key,
-            model_ids=model_ids,
-            default_model=default_model,
+            model_ids=written_ids,
+            default_model=written_default,
             sference_only=sference_only,
             replace_existing_key=replace_existing_key,
+            previously_written=previously_written,
         )
         if backup is not None:
             # The backup exists to restore the state before the FIRST `launch
@@ -1053,14 +1076,14 @@ def _cursor_on(
 
     typer.echo("Sference routing is ON for Cursor:")
     typer.echo(f"  base URL: {openai_base_url}")
-    typer.echo(f"  default model: {default_model}")
-    typer.echo(f"  picker: {len(model_ids)} Sference model(s) enabled")
+    typer.echo(f"  default model: {written_default}")
+    typer.echo(f"  picker: {len(written_ids)} Sference model(s) enabled")
     typer.echo(f"  key: {key_source}")
     typer.echo(f"  backup for `launch cursor off`: {path}")
     if cursor_config.cursor_running_pid(config_dir) is not None:
         typer.echo("Cursor is running — fully restart it for the change to take effect.")
     else:
-        typer.echo(f"Start Cursor: new chats use {default_model} on Sference.")
+        typer.echo(f"Start Cursor: new chats use {written_default} on Sference.")
 
 
 def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
