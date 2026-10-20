@@ -1124,6 +1124,24 @@
       "post": {
         "summary": "CreateBatch",
         "operationId": "V1BatchesCreateBatch",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4522,6 +4540,24 @@
       "post": {
         "summary": "CreateResponse",
         "operationId": "V1ResponsesCreateResponse",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4734,6 +4770,24 @@
       "post": {
         "summary": "CreateChatCompletion",
         "operationId": "V1ChatCompletionsCreateChatCompletion",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5016,6 +5070,22 @@
             "deprecated": false,
             "allowEmptyValue": false,
             "allowReserved": false
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
           }
         ],
         "requestBody": {
