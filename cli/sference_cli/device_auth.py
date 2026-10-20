@@ -150,3 +150,46 @@ def refresh_tokens(base_url: str, client_id: str, refresh_token: str) -> dict[st
             str(body.get("error_description") or f"refresh failed ({status})"),
         )
     return body
+
+
+def control_request(
+    base_url: str,
+    method: str,
+    path: str,
+    token: str,
+    payload: dict[str, Any] | None = None,
+    timeout: float = 15.0,
+) -> tuple[int, dict[str, Any]]:
+    """Authenticated call to a ``/control/v1`` endpoint; return ``(status, json)``.
+
+    Used by ``sference launch cursor`` to manage API keys. Same error semantics
+    as :func:`post_json`: HTTP statuses are data (a 404 on DELETE is a valid
+    outcome), network failures raise :class:`DeviceAuthError`. ``base_url`` may
+    be the API origin or carry a ``/v1`` suffix; the control plane always lives
+    at the origin root.
+    """
+    origin = base_url.rstrip("/")
+    if origin.endswith("/v1"):
+        origin = origin[: -len("/v1")]
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(
+        f"{origin}{path}",
+        data=data,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+            return resp.status, json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        try:
+            return exc.code, json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            return exc.code, {}
+    except (urllib.error.URLError, OSError) as exc:
+        raise DeviceAuthError("network_error", str(exc)) from exc

@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -16,6 +17,7 @@ from typing import Optional
 
 import typer
 
+from . import cursor_config
 from ._discovery import (
     AUTO_COMPACT_WINDOW_ENV_KEY,
     DEFAULT_AUTO_COMPACT_WINDOW,
@@ -24,13 +26,21 @@ from ._discovery import (
     fetch_sference_model_entries,
     prime_picker_cache,
 )
+from .device_auth import DeviceAuthError, control_request
 
 DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
 # Claude Code's default request shape is thinking-disabled, which GLM-5.3-served
 # models 400 on (verified vs the API). Kimi-K3 tolerates it and is the stronger
 # coding model — claude-only default; the other launchers keep GLM-5.2.
 CLAUDE_DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K3"
+# Cursor chats on Kimi-K3 out of the box for the same reason (thinking-capable,
+# tool-calling, image input).
+CURSOR_DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K3"
 DEFAULT_API_BASE_URL = "https://api.sference.com"
+
+# Tag on API keys the cursor launcher provisions, so users can find them in
+# Console → API Keys (and we can reconcile them later).
+CURSOR_API_KEY_TAG = "sference-cli-cursor"
 
 # Thinking-effort variants stamped on Sference model entries in the opencode config.
 # The levels are a subset of OpenAI's ReasoningEffort enum that the platform accepts
@@ -811,6 +821,358 @@ def launch_codex(
     os.execvpe(codex_bin, cmd, env)
 
 
+def _provision_cursor_api_key(base_url: str, jwt_token: str) -> dict:
+    """Create a Sference API key for Cursor via the control plane.
+
+    Uses the device-login JWT (``require_jwt_only`` on the server side); the
+    returned plaintext is shown exactly once, so it goes straight into Cursor's
+    settings database and the key id into the backup for ``off --revoke-key``.
+    """
+    name = f"sference-cli cursor ({socket.gethostname()})"
+    try:
+        status, body = control_request(
+            base_url,
+            "POST",
+            "/control/v1/auth/api-keys",
+            jwt_token,
+            {"name": name, "tag": CURSOR_API_KEY_TAG},
+        )
+    except DeviceAuthError as exc:
+        typer.echo(f"ERROR: could not create an API key for Cursor: {exc.description}", err=True)
+        raise typer.Exit(code=1) from None
+    if status != 201 or not isinstance(body.get("plaintext"), str):
+        detail = body.get("detail") if isinstance(body, dict) else None
+        typer.echo(
+            f"ERROR: could not create an API key for Cursor ({status}): {detail or body}",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    return {"id": str(body["id"]), "plaintext": body["plaintext"], "name": name, "tag": CURSOR_API_KEY_TAG}
+
+
+def _revoke_cursor_api_key(base_url: str, credential: str, key_id: str) -> bool:
+    """Best-effort revoke of a key we provisioned. Needs a JWT (the endpoint is
+    session-only); returns False (with a note) when the current credential is an
+    API key, which cannot revoke."""
+    if credential.startswith("sk_"):
+        return False
+    try:
+        status, _ = control_request(base_url, "DELETE", f"/control/v1/auth/api-keys/{key_id}", credential)
+    except DeviceAuthError:
+        return False
+    return status in (204, 404)
+
+
+def _cursor_resolve_key(
+    *,
+    explicit: Optional[str],
+    credential: Optional[str],
+    backup: Optional[dict],
+    plan_state: dict,
+    base_url: str,
+    dry_run: bool,
+) -> tuple[Optional[str], Optional[dict], str]:
+    """Pick the Sference key Cursor will use; never writes anything.
+
+    Returns ``(key, provisioned, source_label)``. ``key`` is None only in a dry
+    run that would provision (the placeholder is reported instead).
+    """
+    if explicit:
+        return explicit, None, "--api-key"
+    if credential is not None and credential.startswith("sk_"):
+        return credential, None, "your Sference API key"
+    # Reuse the key a previous `launch cursor` wrote, if Cursor hasn't moved or
+    # replaced it (it migrates the row into its secret store on next start, so
+    # this only fires before that first restart).
+    row = plan_state.get("openai_key_row")
+    if (
+        row is not None
+        and backup is not None
+        and cursor_config.key_fingerprint(row)
+        == backup.get("openai_key_row", {}).get("written_fingerprint")
+    ):
+        return row, None, "the Sference key already configured in Cursor"
+    if dry_run:
+        return None, None, "a new Sference API key (created at launch)"
+    if credential is None:
+        typer.echo(
+            "No Sference credential available to create an API key with.\n"
+            "Run `sference auth login`, or pass --api-key 'sk_...'.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    provisioned = _provision_cursor_api_key(base_url, credential)
+    return provisioned["plaintext"], provisioned, f"new API key '{provisioned['name']}'"
+
+
+def _cursor_on(
+    *,
+    model: Optional[str],
+    models: Optional[str],
+    base_url: Optional[str],
+    api_key: Optional[str],
+    sference_only: bool,
+    replace_existing_key: bool,
+    force: bool,
+    dry_run: bool,
+) -> None:
+    from sference_cli.main import _read_token
+
+    config_dir = cursor_config.default_config_dir()
+    db_path = cursor_config.state_db_path(config_dir)
+    if not db_path.exists():
+        typer.echo(
+            f"Cursor settings not found at {db_path}.\n"
+            "Install Cursor (https://cursor.com) and sign in once, then re-run.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    resolved_base = resolve_api_base_url(base_url)
+    openai_base_url = resolve_openai_base_url(base_url)
+    credential = _read_token()
+    backup = cursor_config.read_backup()
+
+    conn = cursor_config.connect(config_dir)
+    try:
+        plan_state = cursor_config.read_plan_state(conn)
+        reactive = cursor_config.read_reactive(conn)
+        try:
+            # A re-run while a previous `launch cursor` is still active: the key
+            # already lives in Cursor's secret store (Cursor migrated the row we
+            # wrote), so there is nothing to provision or write — and nothing to
+            # refuse over, because the stored key is ours, not a foreign one.
+            # An explicit --api-key opts out: the user is asking to CHANGE the key,
+            # which is the normal path (and needs --replace-existing-key).
+            already_on = (
+                not replace_existing_key
+                and api_key is None
+                and backup is not None
+                and reactive.get("useOpenAIKey") is True
+                and reactive.get("openAIBaseUrl") == openai_base_url
+            )
+            if already_on:
+                key, provisioned, key_source = None, None, "already configured in Cursor"
+            else:
+                key, provisioned, key_source = _cursor_resolve_key(
+                    explicit=api_key,
+                    credential=credential,
+                    backup=backup,
+                    plan_state=plan_state,
+                    base_url=resolved_base,
+                    dry_run=dry_run,
+                )
+            cursor_config.preflight_on(
+                config_dir,
+                plan_state,
+                api_key=key if key is not None else "",
+                replace_existing_key=replace_existing_key,
+                force=force,
+                backup=backup,
+                already_on=already_on,
+            )
+
+            default_model = resolve_launch_model(model, default=CURSOR_DEFAULT_LAUNCH_MODEL)
+            if models:
+                model_ids = [m.strip() for m in models.split(",") if m.strip()]
+            else:
+                fetch_key = key if key is not None else (credential or "")
+                try:
+                    entries = fetch_sference_model_entries(openai_base_url, fetch_key)
+                    model_ids = [e["id"] for e in entries]
+                except Exception as e:
+                    typer.echo(
+                        f"note: could not fetch the model catalog ({e}); registering only {default_model}.",
+                        err=True,
+                    )
+                    model_ids = []
+            if default_model not in model_ids:
+                model_ids.append(default_model)
+
+            # Validates the change set (raises for --sference-only without a
+            # cached catalog) before anything is written; apply_on recomputes it.
+            cursor_config.build_on_changes(
+                reactive,
+                openai_base_url=openai_base_url,
+                model_ids=model_ids,
+                default_model=default_model,
+                sference_only=sference_only,
+            )
+        except cursor_config.CursorConfigError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from None
+
+        if dry_run:
+            typer.echo(f"Cursor settings: {db_path}")
+            typer.echo(f"openAIBaseUrl: {openai_base_url}")
+            typer.echo("useOpenAIKey: true")
+            typer.echo(f"default model: {default_model}")
+            typer.echo(f"models added to the picker: {len(model_ids)} ({', '.join(model_ids)})")
+            if sference_only:
+                typer.echo("sference-only: all Cursor-provided models disabled")
+            typer.echo(f"key: <redacted> ({key_source})")
+            if replace_existing_key:
+                typer.echo("replace-existing-key: the currently saved OpenAI key is removed")
+            typer.echo("dry run: nothing was written")
+            return
+
+        keychain_deleted = False
+        if replace_existing_key and cursor_config._keychain_item_present():
+            keychain_deleted = cursor_config._keychain_delete()
+            if not keychain_deleted:
+                typer.echo(
+                    "ERROR: could not remove the OpenAI key saved in your macOS Keychain "
+                    "(Cursor shadows the settings database with it). Remove it in "
+                    "Cursor Settings → Models, then re-run.",
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+
+        new_backup = cursor_config.apply_on(
+            conn,
+            openai_base_url=openai_base_url,
+            api_key=key,
+            model_ids=model_ids,
+            default_model=default_model,
+            sference_only=sference_only,
+            replace_existing_key=replace_existing_key,
+        )
+        if backup is not None:
+            # The backup exists to restore the state before the FIRST `launch
+            # cursor`; a re-run must not re-snapshot our own config as "prior".
+            new_backup["reactive"] = backup["reactive"]
+            if key is None:
+                new_backup["openai_key_row"] = backup["openai_key_row"]
+            else:
+                new_backup["openai_key_row"]["existed"] = backup["openai_key_row"]["existed"]
+        new_backup["provisioned_key"] = (
+            {"id": provisioned["id"], "tag": provisioned["tag"], "name": provisioned["name"]}
+            if provisioned
+            else (backup or {}).get("provisioned_key")
+        )
+        new_backup["keychain_item_deleted"] = keychain_deleted
+        path = cursor_config.write_backup(new_backup)
+    finally:
+        conn.close()
+
+    typer.echo("Sference routing is ON for Cursor:")
+    typer.echo(f"  base URL: {openai_base_url}")
+    typer.echo(f"  default model: {default_model}")
+    typer.echo(f"  picker: {len(model_ids)} Sference model(s) enabled")
+    typer.echo(f"  key: {key_source}")
+    typer.echo(f"  backup for `launch cursor off`: {path}")
+    if cursor_config.cursor_running_pid(config_dir) is not None:
+        typer.echo("Cursor is running — fully restart it for the change to take effect.")
+    else:
+        typer.echo(f"Start Cursor: new chats use {default_model} on Sference.")
+
+
+def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
+    from sference_cli.main import _read_token
+
+    config_dir = cursor_config.default_config_dir()
+    db_path = cursor_config.state_db_path(config_dir)
+    backup = cursor_config.read_backup()
+    if backup is None:
+        typer.echo(
+            f"No `sference launch cursor` backup found at {cursor_config.backup_path()} — "
+            "Sference routing was never turned on (or was already turned off).",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    if not db_path.exists():
+        typer.echo(f"Cursor settings not found at {db_path}; nothing to restore.", err=True)
+        raise typer.Exit(code=1)
+    pid = cursor_config.cursor_running_pid(config_dir)
+    if pid is not None and not force:
+        typer.echo(
+            f"Cursor is running (pid {pid}). Quit Cursor and re-run, or pass --force.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if dry_run:
+        typer.echo(f"Would restore Cursor settings from {cursor_config.backup_path()} "
+                   f"(written {backup.get('written_at', 'unknown')})")
+        if revoke_key and backup.get("provisioned_key"):
+            typer.echo(f"Would revoke API key '{backup['provisioned_key'].get('name')}'")
+        typer.echo("dry run: nothing was written")
+        return
+
+    conn = cursor_config.connect(config_dir)
+    try:
+        try:
+            notes = cursor_config.apply_off(conn, backup)
+        except cursor_config.CursorConfigError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from None
+    finally:
+        conn.close()
+
+    if revoke_key and backup.get("provisioned_key"):
+        credential = _read_token()
+        key_id = backup["provisioned_key"]["id"]
+        revoke_base = backup.get("openai_base_url") or resolve_api_base_url(None)
+        if credential is not None and _revoke_cursor_api_key(revoke_base, credential, key_id):
+            notes.append(f"Revoked API key '{backup['provisioned_key'].get('name')}'.")
+        else:
+            notes.append(
+                f"Could not revoke API key '{backup['provisioned_key'].get('name')}' here — "
+                "revoke it in Console → API Keys."
+            )
+
+    cursor_config.backup_path().unlink(missing_ok=True)
+    typer.echo("Sference routing is OFF for Cursor (settings restored).")
+    for note in notes:
+        typer.echo(f"  note: {note}")
+    if cursor_config.cursor_running_pid(config_dir) is not None:
+        typer.echo("Cursor is running — fully restart it for the change to take effect.")
+
+
+def _cursor_status() -> None:
+    config_dir = cursor_config.default_config_dir()
+    db_path = cursor_config.state_db_path(config_dir)
+    if not db_path.exists():
+        typer.echo(f"Cursor settings not found at {db_path}.")
+        raise typer.Exit(code=1)
+    conn = cursor_config.connect(config_dir)
+    try:
+        plan_state = cursor_config.read_plan_state(conn)
+        try:
+            reactive = cursor_config.read_reactive(conn)
+        except cursor_config.CursorConfigError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from None
+    finally:
+        conn.close()
+    backup = cursor_config.read_backup()
+    ai = reactive.get("aiSettings") if isinstance(reactive.get("aiSettings"), dict) else {}
+    base_url = reactive.get("openAIBaseUrl")
+    use_key = reactive.get("useOpenAIKey") is True
+    has_key = (
+        plan_state["openai_key_row"] is not None
+        or plan_state["secret_row_present"]
+        or cursor_config._keychain_item_present()
+    )
+    routing_on = bool(use_key and base_url and has_key)
+
+    membership = plan_state.get("membership") or "unknown"
+    typer.echo(f"Cursor: {'signed in' if plan_state['signed_in'] else 'signed out'} (plan: {membership})")
+    typer.echo(f"Sference routing: {'ON' if routing_on else 'off'}")
+    if base_url:
+        typer.echo(f"  openAIBaseUrl: {base_url}")
+    typer.echo(f"  useOpenAIKey: {use_key}")
+    typer.echo(f"  saved key: {cursor_config.stored_key_situation(plan_state)}")
+    composer = (ai.get("modelConfig") or {}).get("composer") or {}
+    if composer.get("modelName"):
+        typer.echo(f"  default model: {composer['modelName']}")
+    added = ai.get("userAddedModels") or []
+    if added:
+        typer.echo(f"  custom models in picker: {', '.join(str(m) for m in added)}")
+    if backup is not None:
+        typer.echo(f"  `launch cursor off` backup: {cursor_config.backup_path()} (written {backup.get('written_at', 'unknown')})")
+
+
 def register_launch_commands(app: typer.Typer) -> None:
     launch_app = typer.Typer(help="Launch external tools configured for Sference.", invoke_without_command=True)
 
@@ -1111,5 +1473,110 @@ def register_launch_commands(app: typer.Typer) -> None:
             codex_args=forwarded,
             dry_run=dry_run,
         )
+
+    cursor_app = typer.Typer(
+        help="Configure Cursor to chat on Sference (its own-API-key mode).",
+        invoke_without_command=True,
+    )
+
+    @cursor_app.callback()
+    def cursor_root(
+        ctx: typer.Context,
+        model: Optional[str] = typer.Option(
+            None,
+            "--model",
+            "-m",
+            help=f"Default model for new chats (default: {CURSOR_DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+        ),
+        models: Optional[str] = typer.Option(
+            None,
+            "--models",
+            help="Comma-separated catalog ids for the picker (default: live GET /v1/models).",
+        ),
+        base_url: Optional[str] = typer.Option(
+            None,
+            "--base-url",
+            envvar="SFERENCE_BASE_URL",
+            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
+        ),
+        api_key: Optional[str] = typer.Option(
+            None,
+            "--api-key",
+            help="Sference API key to store in Cursor (default: your credential, or a newly created one).",
+        ),
+        sference_only: bool = typer.Option(
+            False,
+            "--sference-only",
+            help="Disable all Cursor-provided models, leaving only Sference models in the picker.",
+        ),
+        replace_existing_key: bool = typer.Option(
+            False,
+            "--replace-existing-key",
+            help="Replace an OpenAI key already saved in Cursor (the old key cannot be restored).",
+        ),
+        force: bool = typer.Option(
+            False,
+            "--force",
+            help="Write even while Cursor is running (you must fully restart Cursor afterwards).",
+        ),
+        dry_run: bool = typer.Option(
+            False,
+            "--dry-run",
+            help="Print what would change without writing anything.",
+        ),
+    ) -> None:
+        """Turn Sference routing on for Cursor (default action)."""
+        if ctx.invoked_subcommand is not None:
+            return
+        _cursor_on(
+            model=model,
+            models=models,
+            base_url=base_url,
+            api_key=api_key,
+            sference_only=sference_only,
+            replace_existing_key=replace_existing_key,
+            force=force,
+            dry_run=dry_run,
+        )
+
+    @cursor_app.command("on", help="Turn Sference routing on (same as `sference launch cursor`).")
+    def cursor_on_cmd(
+        model: Optional[str] = typer.Option(None, "--model", "-m"),
+        models: Optional[str] = typer.Option(None, "--models"),
+        base_url: Optional[str] = typer.Option(None, "--base-url", envvar="SFERENCE_BASE_URL"),
+        api_key: Optional[str] = typer.Option(None, "--api-key"),
+        sference_only: bool = typer.Option(False, "--sference-only"),
+        replace_existing_key: bool = typer.Option(False, "--replace-existing-key"),
+        force: bool = typer.Option(False, "--force"),
+        dry_run: bool = typer.Option(False, "--dry-run"),
+    ) -> None:
+        _cursor_on(
+            model=model,
+            models=models,
+            base_url=base_url,
+            api_key=api_key,
+            sference_only=sference_only,
+            replace_existing_key=replace_existing_key,
+            force=force,
+            dry_run=dry_run,
+        )
+
+    @cursor_app.command("off", help="Restore Cursor's settings from before `launch cursor`.")
+    def cursor_off_cmd(
+        revoke_key: bool = typer.Option(
+            False,
+            "--revoke-key",
+            help="Also revoke the Sference API key that was created for Cursor.",
+        ),
+        force: bool = typer.Option(False, "--force"),
+        dry_run: bool = typer.Option(False, "--dry-run"),
+    ) -> None:
+        _cursor_off(revoke_key=revoke_key, force=force, dry_run=dry_run)
+
+    @cursor_app.command("status", help="Show whether Cursor chats on Sference right now.")
+    def cursor_status_cmd() -> None:
+        _cursor_status()
+
+    launch_app.add_typer(cursor_app, name="cursor")
 
     app.add_typer(launch_app, name="launch")

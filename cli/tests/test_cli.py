@@ -2136,3 +2136,33 @@ def test_claude_catalog_fetch_failure_exits(monkeypatch, tmp_path: Path):
     assert result.exit_code == 1
     out = (result.stdout or "") + (result.stderr or "")
     assert "could not fetch models" in out
+
+
+def test_fetch_sference_model_entries_strips_v1_suffix(monkeypatch):
+    """#46 regression: fetch hit /v1/v1/models for OpenAI-style base URLs.
+
+    launch pi/opencode/codex pass the /v1-suffixed base; the catalog fetch must
+    resolve it to exactly one /v1.
+    """
+    import sference_cli._discovery as discovery
+
+    seen: dict = {}
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return json.dumps({"data": [{"id": "m", "modality": "text_generation"}]}).encode()
+
+    def fake_urlopen(req, timeout=0):
+        seen["url"] = req.full_url
+        return _Resp()
+
+    monkeypatch.setattr(discovery.urllib.request, "urlopen", fake_urlopen)
+    entries = discovery.fetch_sference_model_entries("https://api.sference.com/v1", "k")
+    assert seen["url"] == "https://api.sference.com/v1/models"
+    assert entries == [{"id": "m", "modality": "text_generation"}]
