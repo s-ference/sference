@@ -140,6 +140,25 @@ Requires `codex` on `PATH`. The `sference` model provider is passed as `codex -c
 
 **Sub-agents and MCP servers** work: the Sference provider applies to the whole session, so agents Codex spawns run on Sference too. The launcher also writes `~/.sference/codex/models.json`, a Codex model catalog listing only the Sference models, and passes it as `model_catalog_json`. Without it Codex offers `spawn_agent` its own OpenAI models, and a sub-agent started on one of them fails. Each entry is built at launch from the catalog bundled with your Codex (`codex debug models --bundled`), so it always matches your Codex version; if that command is unavailable the launcher warns and starts without the catalog. An `agents.default_subagent_model` in your Codex config still pins sub-agents to an OpenAI model, which Sference cannot serve (the launcher warns about it).
 
+#### `sference launch cursor`
+
+| Command | Description |
+|---------|-------------|
+| `sference launch cursor` | Turn Sference routing on for Cursor |
+| `sference launch cursor --dry-run` | Print what would change without writing anything |
+| `sference launch cursor --model zai-org/GLM-5.3` | Override the default model for new chats |
+| `sference launch cursor --sference-only` | Disable all Cursor-provided models, leaving only Sference models |
+| `sference launch cursor --api-key sk_...` | Store this API key in Cursor (default: your credential, or a newly created one) |
+| `sference launch cursor status` | Show whether Cursor chats on Sference right now |
+| `sference launch cursor off` | Restore Cursor's settings from before `launch cursor` |
+| `sference launch cursor off --revoke-key` | Also revoke the API key that was created for Cursor |
+
+Configures [Cursor](https://cursor.com) to run its chat on Sference through Cursor's own-API-key (BYOK) mode: the launcher writes the Sference base URL (`/v1`), your key, and the live model catalog into Cursor's settings database, and sets the default model for new chats (default `moonshotai/Kimi-K3`). Cursor's own models stay available side by side unless `--sference-only` is passed. Requires a **signed-in paid Cursor plan** (Pro/Business/Enterprise) — BYOK is not available on the free plan.
+
+Key handling: with an `sk_...` credential (or `--api-key`) that key is stored directly; with a device login the launcher creates a dedicated API key (tagged `sference-cli-cursor`, visible in Console → API Keys) so the 24 h device token never lands in another app. If Cursor already has an OpenAI key saved, the launcher refuses unless `--replace-existing-key` is passed (the old key cannot be restored; on macOS you will be asked to confirm the Keychain change).
+
+Safety: quit Cursor first — it rewrites its settings from memory on exit and would discard the change (the launcher refuses while Cursor is running; `--force` overrides, and you must then fully restart Cursor). Everything is written in one transaction, the prior settings are backed up to `~/.sference/cursor/backup.json`, and `off` restores them. **Scope:** this covers Cursor chat and the model picker — Tab completions, chat titles, Agent Review (Bugbot), and cloud agents keep running on Cursor's own models, same as any BYOK setup.
+
 ### Batch
 
 | Command | Description |
