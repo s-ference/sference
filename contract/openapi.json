@@ -1124,6 +1124,24 @@
       "post": {
         "summary": "CreateBatch",
         "operationId": "V1BatchesCreateBatch",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4522,6 +4540,24 @@
       "post": {
         "summary": "CreateResponse",
         "operationId": "V1ResponsesCreateResponse",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4734,6 +4770,24 @@
       "post": {
         "summary": "CreateChatCompletion",
         "operationId": "V1ChatCompletionsCreateChatCompletion",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5016,6 +5070,22 @@
             "deprecated": false,
             "allowEmptyValue": false,
             "allowReserved": false
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false
           }
         ],
         "requestBody": {
@@ -7907,7 +7977,7 @@
                 "type": "null"
               }
             ],
-            "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly. A flex request that cannot complete in time fails with 408 (OpenAI SDKs retry it automatically). All other accepted values (`auto`, `default`, `scale`, `priority`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
+            "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly. A flex request that cannot complete in time fails with 408 (OpenAI SDKs retry it automatically). `\"priority\"` is served ahead of default-tier requests in the scheduler and engine queues and is billed at a premium; it is available to standard organizations and is not available in batch request bodies. A priority request from a reseller organization is rejected with 400. The remaining accepted values (`auto`, `default`, `scale`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
           },
           "max_queue_wait_s": {
             "oneOf": [
@@ -10653,7 +10723,7 @@
                 "type": "null"
               }
             ],
-            "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly, or use `background: true` and poll. All other accepted values (`auto`, `default`, `scale`, `priority`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
+            "description": "Processing tier for the request. `\"flex\"` selects flex processing (beta) on flex-enabled accounts: discounted tokens in exchange for lower scheduling priority and best-effort completion \u2014 the request may queue significantly longer than default-tier requests, so raise your client timeout accordingly, or use `background: true` and poll. `\"priority\"` is served ahead of default-tier requests in the scheduler and engine queues and is billed at a premium; it is available to standard organizations, and a priority request from a reseller organization is rejected with 400. The remaining accepted values (`auto`, `default`, `scale`) are served at the default tier. Responses echo the tier actually served in `service_tier`."
           },
           "max_queue_wait_s": {
             "oneOf": [
@@ -10855,7 +10925,8 @@
             "type": "string",
             "enum": [
               "default",
-              "flex"
+              "flex",
+              "priority"
             ],
             "description": "Tier the request was served at.",
             "default": "default"
@@ -11814,6 +11885,10 @@
             "default": "prepaid"
           },
           "agents_enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "webhooks_enabled": {
             "type": "boolean",
             "default": false
           },
