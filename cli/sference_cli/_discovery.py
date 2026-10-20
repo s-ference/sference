@@ -37,8 +37,16 @@ DEFAULT_AUTO_COMPACT_WINDOW = "950000"
 
 
 def fetch_sference_model_entries(base_url: str, api_key: str) -> list[dict[str, Any]]:
-    """Pull the live text-generation model entries from GET {base_url}/v1/models."""
-    api_root = base_url.rstrip("/") + "/v1"
+    """Pull the live text-generation model entries from GET {base_url}/v1/models.
+
+    ``base_url`` may be the API origin (``launch claude``) or already end in
+    ``/v1`` (the OpenAI-compatible base the other launchers pass); both resolve
+    to the same ``/v1/models``.
+    """
+    origin = base_url.rstrip("/")
+    if origin.endswith("/v1"):
+        origin = origin[: -len("/v1")]
+    api_root = origin + "/v1"
     req = urllib.request.Request(
         f"{api_root}/models",
         headers={"Authorization": f"Bearer {api_key}"},
