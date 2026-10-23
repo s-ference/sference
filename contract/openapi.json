@@ -5004,16 +5004,6 @@
               }
             }
           },
-          "429": {
-            "description": "Capacity exceeded before dispatch; no charge",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          },
           "502": {
             "description": "Invalid response or worker misconfiguration; no charge",
             "content": {
@@ -5025,7 +5015,7 @@
             }
           },
           "503": {
-            "description": "Worker or billing temporarily unavailable; no charge",
+            "description": "Capacity shed (Retry-After; no worker, admission or billing capacity) or worker/billing temporarily unavailable; no charge",
             "content": {
               "application/json": {
                 "schema": {
@@ -8340,6 +8330,18 @@
             "type": "integer"
           },
           "cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "input_cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "cached_cost_micros": {
+            "type": "integer",
+            "default": 0
+          },
+          "output_cost_micros": {
             "type": "integer",
             "default": 0
           }
