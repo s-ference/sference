@@ -4358,6 +4358,16 @@
               }
             }
           },
+          "402": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "OpenAI-compatible error",
             "content": {
@@ -4499,6 +4509,16 @@
             }
           },
           "401": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
             "description": "OpenAI-compatible error",
             "content": {
               "application/json": {
@@ -4680,6 +4700,16 @@
               }
             }
           },
+          "402": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "OpenAI-compatible error",
             "content": {
@@ -4843,6 +4873,16 @@
             }
           },
           "401": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
             "description": "OpenAI-compatible error",
             "content": {
               "application/json": {
@@ -5072,6 +5112,16 @@
               }
             }
           },
+          "402": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "OpenAI-compatible error",
             "content": {
@@ -5247,6 +5297,16 @@
               }
             }
           },
+          "402": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "OpenAI-compatible error",
             "content": {
@@ -5389,6 +5449,16 @@
             }
           },
           "401": {
+            "description": "OpenAI-compatible error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
             "description": "OpenAI-compatible error",
             "content": {
               "application/json": {
@@ -5848,122 +5918,142 @@
               }
             }
           },
-          "400": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "408": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
           "422": {
-            "description": "OpenAI-compatible error",
+            "description": "Error format follows the anthropic-version header",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "OpenAI-compatible error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                  "$ref": "#/components/schemas/ModelErrorResponse"
                 }
               }
             }
           },
           "504": {
-            "description": "OpenAI-compatible error",
+            "description": "Error format follows the anthropic-version header",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OpenAIErrorResponse"
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "529": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Error format follows the anthropic-version header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelErrorResponse"
                 }
               }
             }
@@ -10633,6 +10723,25 @@
         "type": "object",
         "required": [],
         "title": "ModelDeploymentRequestResponse"
+      },
+      "ModelErrorResponse": {
+        "properties": {
+          "root": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OpenAIErrorResponse"
+              },
+              {
+                "$ref": "#/components/schemas/AnthropicErrorResponse"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "root"
+        ],
+        "title": "ModelErrorResponse"
       },
       "ModelPolicyDepartmentItem": {
         "properties": {
