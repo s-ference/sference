@@ -7735,8 +7735,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "const": "error",
-            "default": "error"
+            "const": "error"
           },
           "error": {
             "$ref": "#/components/schemas/AnthropicErrorDetail"
@@ -7744,7 +7743,8 @@
         },
         "type": "object",
         "required": [
-          "error"
+          "error",
+          "type"
         ],
         "title": "AnthropicErrorResponse"
       },
