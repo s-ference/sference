@@ -21,7 +21,9 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
+          # requires-python has no upper bound, so pin the newest version every
+          # locked wheel (ray) supports.
+          python-version: "3.13"
 
       - uses: astral-sh/setup-uv@v5
         with:
