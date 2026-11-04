@@ -14,6 +14,7 @@ Runnable workflows that show how to integrate **sference-sdk** with common orche
 | [llamaindex/](llamaindex/) | LlamaIndex nodes → batch metadata extraction |
 | [label_studio/](label_studio/) | Pre-label classification tasks for import |
 | [argilla/](argilla/) | Offline reply suggestions for human feedback |
+| [promptfoo/](promptfoo/) | promptfoo custom provider — eval prompts on sference models (+ offline batch) |
 
 Install example dependencies from the **oss** repo root:
 
@@ -26,6 +27,7 @@ Some examples need an extra package (documented in each README):
 - **Spark:** `uv pip install pyspark` (+ Java for local mode)
 - **Airflow:** `uv pip install "apache-airflow>=3.0"`
 - **Argilla (live push):** `uv pip install argilla`
+- **promptfoo (eval run):** Node.js + `npx promptfoo` (the Python provider itself needs no extra package; a `uv run` self-check works without Node)
 
 Each example is self-contained: copy a script into your repo and set `SFERENCE_API_KEY` (and optional `SFERENCE_MODEL`, poll env vars). Batch workflow helpers (`InferenceRequest.chat`, `get_results_indexed`, `BatchResultRow.completion_text`) live in **sference-sdk**.
 

@@ -1,0 +1,44 @@
+# promptfoo eval driving a sference-hosted model, one /v1/responses call per row.
+#
+# Run (from the oss repo root):
+#   export SFERENCE_API_KEY=sk_...
+#   export PROMPTFOO_PYTHON="$PWD/.venv/bin/python3"   # venv with sference_sdk
+#   npx promptfoo@latest eval -c examples/promptfoo/promptfooconfig.yaml
+#   npx promptfoo@latest view        # open the results UI
+#
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Sentiment classification on a sference-hosted model
+
+providers:
+  - id: file://provider.py
+    label: sference
+    config:
+      model: Qwen/Qwen3.6-35B-A3B   # your deployed model; compare by adding more providers, each with its own model
+      temperature: 0
+      enable_thinking: false   # single-word answers — don't spend the budget reasoning
+
+prompts:
+  - |
+    Classify the sentiment of the review as POSITIVE, NEGATIVE, or NEUTRAL.
+    Reply with a single word.
+
+    Review: {{review}}
+
+tests:
+  - vars:
+      review: "Absolutely love it, fast and reliable."
+    assert:
+      - type: icontains
+        value: positive
+
+  - vars:
+      review: "Terrible experience, it broke on day one."
+    assert:
+      - type: icontains
+        value: negative
+
+  - vars:
+      review: "It is fine, nothing special either way."
+    assert:
+      - type: icontains
+        value: neutral

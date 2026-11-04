@@ -13,3 +13,4 @@ build/
 .pytest_cache/
 examples/label_studio/sample_predictions.json
 examples/argilla/sample_suggestions.json
+examples/promptfoo/batch_tests.json
