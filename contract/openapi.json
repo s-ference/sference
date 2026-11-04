@@ -8069,7 +8069,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "daily_limit_micros": {
             "oneOf": [
@@ -8079,7 +8080,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           }
         },
         "type": "object",
@@ -9672,7 +9674,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "daily_limit_micros": {
             "oneOf": [
@@ -9682,7 +9685,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "member_default_monthly_limit_micros": {
             "oneOf": [
@@ -9692,7 +9696,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "member_default_daily_limit_micros": {
             "oneOf": [
@@ -9702,7 +9707,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "model_allowlist": {
             "oneOf": [
@@ -10643,7 +10649,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "daily_limit_micros": {
             "oneOf": [
@@ -10653,7 +10660,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           }
         },
         "type": "object",
@@ -10672,7 +10680,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "daily_limit_micros": {
             "oneOf": [
@@ -10682,7 +10691,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "model_caps": {
             "items": {
@@ -11415,7 +11425,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "daily_limit_micros": {
             "oneOf": [
@@ -11425,7 +11436,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           }
         },
         "type": "object",
@@ -12532,7 +12544,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "daily_limit_micros": {
             "oneOf": [
@@ -12542,7 +12555,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "member_default_monthly_limit_micros": {
             "oneOf": [
@@ -12552,7 +12566,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           },
           "member_default_daily_limit_micros": {
             "oneOf": [
@@ -12562,7 +12577,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "maximum": 9223372036854775807
           }
         },
         "type": "object",
