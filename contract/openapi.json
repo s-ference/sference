@@ -1552,39 +1552,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -1644,39 +1616,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -1738,39 +1682,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -1830,39 +1746,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -7252,39 +7140,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -7349,39 +7209,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -7446,39 +7278,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -7562,39 +7366,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -7659,39 +7435,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -7756,39 +7504,11 @@
             }
           },
           "400": {
-            "description": "Bad request syntax or unsupported method",
+            "description": "Bad request",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }
@@ -8542,6 +8262,42 @@
           "type"
         ],
         "title": "AnthropicTextBlock"
+      },
+      "ApiError": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail",
+          "status",
+          "title"
+        ],
+        "title": "ApiError"
+      },
+      "ApiErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/ApiError"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ApiErrorResponse"
       },
       "ApiKeyCreateRequest": {
         "properties": {
