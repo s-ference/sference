@@ -1685,6 +1685,192 @@
         "deprecated": false
       }
     },
+    "/v1/billing/balance": {
+      "get": {
+        "summary": "GetBalance",
+        "operationId": "V1BillingBalanceGetBalance",
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingBalanceResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/billing/summary": {
+      "get": {
+        "summary": "GetSummary",
+        "operationId": "V1BillingSummaryGetSummary",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "default": 30
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/billing/transactions": {
+      "get": {
+        "summary": "GetTransactions",
+        "operationId": "V1BillingTransactionsGetTransactions",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "default": 25
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "starting_after",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/teams/me/members": {
       "get": {
         "summary": "ListMembers",
@@ -6586,122 +6772,6 @@
         "deprecated": false
       }
     },
-    "/control/v1/usage/by-key": {
-      "get": {
-        "summary": "GetByKey",
-        "operationId": "ControlV1UsageByKeyGetByKey",
-        "parameters": [
-          {
-            "name": "days",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "maximum": 365.0,
-              "minimum": 1.0,
-              "description": "Rolling window",
-              "default": 30
-            },
-            "description": "Rolling window",
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "month",
-            "in": "query",
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Calendar month YYYY-MM; overrides `days`"
-            },
-            "description": "Calendar month YYYY-MM; overrides `days`",
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          },
-          {
-            "name": "tag",
-            "in": "query",
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter to one key tag"
-            },
-            "description": "Filter to one key tag",
-            "required": false,
-            "deprecated": false,
-            "allowEmptyValue": false,
-            "allowReserved": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Request fulfilled, document follows",
-            "headers": {},
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UsageByKeyResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request syntax or unsupported method",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "status_code": {
-                      "type": "integer"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "status_code": 400,
-                      "detail": "Bad Request",
-                      "extra": {}
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "deprecated": false
-      }
-    },
     "/control/v1/usage/by-key.csv": {
       "get": {
         "summary": "GetByKeyCsv",
@@ -7107,6 +7177,122 @@
         "deprecated": false
       }
     },
+    "/control/v1/usage/by-key": {
+      "get": {
+        "summary": "GetByKey",
+        "operationId": "ControlV1UsageByKeyGetByKey",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one key tag"
+            },
+            "description": "Filter to one key tag",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageByKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
     "/control/v1/usage/daily": {
       "get": {
         "summary": "GetDaily",
@@ -7208,6 +7394,316 @@
       "get": {
         "summary": "GetSummary",
         "operationId": "ControlV1UsageSummaryGetSummary",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Number of days to look back",
+              "default": 30
+            },
+            "description": "Number of days to look back",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Team admins: filter usage to one member"
+            },
+            "description": "Team admins: filter usage to one member",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageSummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/usage/by-key": {
+      "get": {
+        "summary": "GetByKey",
+        "operationId": "V1UsageByKeyGetByKey",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Rolling window",
+              "default": 30
+            },
+            "description": "Rolling window",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Calendar month YYYY-MM; overrides `days`"
+            },
+            "description": "Calendar month YYYY-MM; overrides `days`",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one key tag"
+            },
+            "description": "Filter to one key tag",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageByKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/usage/daily": {
+      "get": {
+        "summary": "GetDaily",
+        "operationId": "V1UsageDailyGetDaily",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 365.0,
+              "minimum": 1.0,
+              "description": "Number of days to look back",
+              "default": 30
+            },
+            "description": "Number of days to look back",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Team admins: filter usage to one member"
+            },
+            "description": "Team admins: filter usage to one member",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "allowReserved": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Request fulfilled, document follows",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageDailyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request syntax or unsupported method",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status_code": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "status_code": 400,
+                      "detail": "Bad Request",
+                      "extra": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/v1/usage/summary": {
+      "get": {
+        "summary": "GetSummary",
+        "operationId": "V1UsageSummaryGetSummary",
         "parameters": [
           {
             "name": "days",
@@ -7635,6 +8131,9 @@
               }
             ]
           },
+          "off_peak": {
+            "type": "boolean"
+          },
           "body_json": {
             "type": "object"
           },
@@ -7672,6 +8171,7 @@
           "error_json",
           "id",
           "model",
+          "off_peak",
           "prompt_tokens",
           "result_json",
           "status",
@@ -8679,6 +9179,16 @@
             "oneOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "off_peak": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/V1OffPeakPricing"
               },
               {
                 "type": "null"
@@ -13710,11 +14220,50 @@
                 "type": "null"
               }
             ]
+          },
+          "off_peak": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/V1OffPeakPricing"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Off-peak discount on this model; null when none is offered."
           }
         },
         "type": "object",
         "required": [],
         "title": "V1ModelPricing"
+      },
+      "V1OffPeakPricing": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "Daily window start, HH:MM local time in `timezone` (inclusive)."
+          },
+          "end": {
+            "type": "string",
+            "description": "Daily window end, HH:MM local time in `timezone` (exclusive). Earlier than `start` when the window wraps past midnight."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA timezone of the window; it follows that zone's daylight saving."
+          },
+          "price_factor": {
+            "type": "number",
+            "description": "Multiplier on the standard per-token prices for requests that arrive inside the window. Priority-tier requests multiply it with their premium; flex-tier requests pay the lower of the flex multiplier and this one. Batch API requests are not discounted. Whether a request is off-peak is decided by when it arrives, not when it completes."
+          }
+        },
+        "type": "object",
+        "required": [
+          "end",
+          "price_factor",
+          "start",
+          "timezone"
+        ],
+        "title": "V1OffPeakPricing"
       },
       "VerifyEmailRequest": {
         "properties": {
