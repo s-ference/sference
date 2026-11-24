@@ -35,9 +35,9 @@ Inner `body` accepts **chat completions** (`messages`) or **Responses** (`input`
 Example `workload.jsonl`:
 
 ```jsonl
-{"custom_id":"example-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"user","content":"Say hello in exactly one word."}]}}
-{"custom_id":"example-2","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.6-35B-A3B","messages":[{"role":"system","content":"You reply with one short sentence only."},{"role":"user","content":"What is 2+2?"}]}}
-{"custom_id":"example-3","method":"POST","url":"/v1/responses","body":{"model":"Qwen/Qwen3.6-35B-A3B","input":[{"role":"user","content":"Reply with one word."}],"max_output_tokens":32}}
+{"custom_id":"example-1","method":"POST","url":"/v1/chat/completions","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","messages":[{"role":"user","content":"Say hello in exactly one word."}]}}
+{"custom_id":"example-2","method":"POST","url":"/v1/chat/completions","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","messages":[{"role":"system","content":"You reply with one short sentence only."},{"role":"user","content":"What is 2+2?"}]}}
+{"custom_id":"example-3","method":"POST","url":"/v1/responses","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","input":[{"role":"user","content":"Reply with one word."}],"max_output_tokens":32}}
 ```
 
 ### Batches (sync)
@@ -51,7 +51,7 @@ client = SferenceClient(api_key="sk_...")
 
 batch = client.submit_batch(
     input_file="./workload.jsonl",
-    model="Qwen/Qwen3.6-35B-A3B",
+    model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
     window="24h",
 )
 done = client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
@@ -75,7 +75,7 @@ req = InferenceRequest.chat(
     custom_id="row-a",
     user_content="Summarize this.",
     system_content="One sentence only.",
-    model="Qwen/Qwen3.6-35B-A3B",
+    model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
     temperature=0,
 )
 batch = client.submit_batch(requests=[req], window="24h")
@@ -93,7 +93,7 @@ from sference_sdk import SferenceClient
 client = SferenceClient(api_key="sk_...")
 
 created = client.create_response(
-    model="Qwen/Qwen3.6-35B-A3B",
+    model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
     input=[{"role": "user", "content": "Hello"}],
     metadata={"completion_window": "24h"},
 )
@@ -158,7 +158,7 @@ async def main() -> None:
     )
 
     response = await client.responses.create(
-        model="Qwen/Qwen3.6-35B-A3B",
+        model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
         input=[{"role": "user", "content": "Hello, world!"}],
         background=True,
     )
@@ -190,7 +190,7 @@ async def main() -> None:
     async with AsyncSferenceClient(api_key="sk_...") as client:
         batch = await client.submit_batch(
             input_file="./workload.jsonl",
-            model="Qwen/Qwen3.6-35B-A3B",
+            model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
             window="24h",
         )
         done = await client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
@@ -219,7 +219,7 @@ async def main() -> None:
     async with AsyncSferenceClient(api_key="sk_...") as client:
         stream = await client.create_stream(name="sdk-demo", window="24h")
         await client.create_response(
-            model="Qwen/Qwen3.6-35B-A3B",
+            model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
             input=[{"role": "user", "content": "Hello"}],
             metadata={"stream_id": stream.id, "completion_window": "24h"},
         )

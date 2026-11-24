@@ -47,7 +47,7 @@ from prefect import flow, task
 
 from sference_sdk import SferenceClient
 
-DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
+DEFAULT_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
 COMPLETION_WINDOW = "24h"
 
 

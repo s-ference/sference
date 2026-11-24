@@ -45,6 +45,10 @@ client = SferenceClient(api_key="sk_...")  # explicit
 
 Use `api_key`/env, **not** `client.login()`, in agent-generated code.
 
+## Model
+
+Default to **`deepseek-ai/DeepSeek-V4.1-Flash-1017`** (DeepSeek V4.1 Flash) wherever the examples below show `<model-id>`, unless the user names another model. `client.list_models()` (`GET /v1/models`) returns the live catalog; skip ids whose `retires_on` has passed and use their `alias_of` target instead.
+
 ## Choosing an approach
 
 | Situation | Use | Notes |

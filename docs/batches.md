@@ -21,7 +21,7 @@ OpenAPI: [api.sference.com/openapi.json](https://api.sference.com/openapi.json)
     {
       "custom_id": "row-a",
       "body": {
-        "model": "moonshotai/Kimi-K2.6",
+        "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
         "messages": [{"role": "user", "content": "Hello"}]
       }
     }
@@ -37,7 +37,7 @@ Each `requests[].body` must include **`model`**, and **every row in a batch must
 
 ```json
 {
-  "model": "moonshotai/Kimi-K2.6",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
   "messages": [{"role": "user", "content": "Summarize this."}],
   "temperature": 0.2,
   "max_tokens": 512
@@ -52,7 +52,7 @@ Same fields as `POST /v1/responses`. The API converts `input` → `messages`, `m
 
 ```json
 {
-  "model": "moonshotai/Kimi-K2.6",
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
   "input": [{"role": "user", "content": "Summarize this."}],
   "instructions": "Reply in one sentence.",
   "max_output_tokens": 512
@@ -105,12 +105,12 @@ For per-request async Responses without a batch id, use `POST /v1/responses` wit
 from sference_sdk import SferenceClient
 
 client = SferenceClient(api_key="sk_...")
-batch = client.submit_batch(input_file="workload.jsonl", model="moonshotai/Kimi-K2.6", window="24h")
+batch = client.submit_batch(input_file="workload.jsonl", model="deepseek-ai/DeepSeek-V4.1-Flash-1017", window="24h")
 done = client.wait_for_completion(batch.id, poll_interval=5.0, timeout=86_400.0)
 client.download_results_jsonl(done.id, out="./out.jsonl")
 ```
 
 ```bash
-sference batch submit --input-file workload.jsonl --model moonshotai/Kimi-K2.6 --window 24h
+sference batch submit --input-file workload.jsonl --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --window 24h
 sference batch wait --batch-id <id>
 ```
