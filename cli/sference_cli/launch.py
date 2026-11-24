@@ -11,7 +11,6 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.error
 from pathlib import Path
 from typing import Optional
 
@@ -27,16 +26,13 @@ from ._discovery import (
     prime_picker_cache,
 )
 from .device_auth import DeviceAuthError, control_request
-
-DEFAULT_LAUNCH_MODEL = "zai-org/GLM-5.2"
-# Claude Code's default request shape is thinking-disabled, which GLM-5.3-served
-# models 400 on (verified vs the API). Kimi-K3 tolerates it and is the stronger
-# coding model — claude-only default; the other launchers keep GLM-5.2.
-CLAUDE_DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K3"
-# Cursor chats on Kimi-K3 out of the box for the same reason (thinking-capable,
-# tool-calling, image input).
-CURSOR_DEFAULT_LAUNCH_MODEL = "moonshotai/Kimi-K3"
-DEFAULT_API_BASE_URL = "https://api.sference.com"
+from .settings import (
+    DEFAULT_API_BASE_URL,
+    DEFAULT_MODEL,
+    resolve_api_base_url,
+    resolve_model,
+    resolve_openai_base_url,
+)
 
 # Tag on API keys the cursor launcher provisions, so users can find them in
 # Console → API Keys (and we can reconcile them later).
@@ -55,32 +51,30 @@ CURSOR_API_KEY_TAG = "sference-cli-cursor"
 OPENCODE_THINKING_VARIANTS = ("none", "medium", "high", "xhigh")
 
 
-def resolve_api_base_url(explicit: Optional[str]) -> str:
-    if explicit:
-        return explicit.rstrip("/")
-    env = os.environ.get("SFERENCE_BASE_URL")
-    if env:
-        return env.strip().rstrip("/")
-    return DEFAULT_API_BASE_URL
+def _launcher_credential() -> str:
+    """The credential a launched tool runs on; exits with guidance when there is none."""
+    from sference_cli.main import _ensure_api_credential, _read_token
+
+    _ensure_api_credential()
+    api_key = _read_token()
+    if api_key is None:
+        raise typer.Exit(code=1)
+    return api_key
 
 
-def resolve_launch_model(explicit: Optional[str], *, default: str = DEFAULT_LAUNCH_MODEL) -> str:
-    """Default catalog model for ``launch`` subcommands (--model overrides)."""
-    if explicit:
-        return explicit
-    env = os.environ.get("SFERENCE_MODEL")
-    if env and env.strip():
-        return env.strip()
-    return default
+def _forwarded_args(ctx: typer.Context) -> list[str]:
+    """Args after the launcher's own options, minus a leading ``--`` separator."""
+    forwarded = list(ctx.args)
+    if forwarded and forwarded[0] == "--":
+        forwarded = forwarded[1:]
+    return forwarded
 
 
-def resolve_openai_base_url(explicit: Optional[str]) -> str:
-    """OpenAI-compatible base URL with ``/v1`` for tool config files (Pi, opencode)."""
-    base = resolve_api_base_url(explicit)
-    base = base.rstrip("/")
-    if base.endswith("/v1"):
-        return base
-    return f"{base}/v1"
+def _exec(binary: str, cmd: list[str], env: dict[str, str]) -> None:
+    """Replace this process with the tool (Windows has no exec; wait and mirror its exit code)."""
+    if sys.platform == "win32":
+        raise SystemExit(subprocess.call(cmd, env=env))
+    os.execvpe(binary, cmd, env)
 
 
 def find_claude_executable() -> str | None:
@@ -218,10 +212,7 @@ def launch_claude_code(
     except (OSError, ValueError, TypeError) as e:
         typer.echo(f"sference: warning: could not prime the /model picker cache: {e}", err=True)
 
-    if sys.platform == "win32":
-        raise SystemExit(subprocess.call(cmd, env=env))
-
-    os.execvpe(claude_bin, cmd, env)
+    _exec(claude_bin, cmd, env)
 
 
 def _pi_models_json_path() -> Path:
@@ -282,8 +273,7 @@ def _build_pi_models(*, base_url: str, api_key: str, model: str) -> list[dict]:
 
     Fetches the live catalog (GET {base_url}/models) and maps every
     text-generation entry to a pi ProviderModelConfig with reasoning/input/
-    cost/context metadata and the per-model thinking wire format, so all
-    Sference-provided models appear in pi's ``/model`` picker — not just the one
+    cost/context metadata, so all Sference-provided models appear in pi's ``/model`` picker — not just the one
     passed to ``--model``.
 
     The picker always mirrors the live catalog exactly: the list is rebuilt on
@@ -376,7 +366,7 @@ def launch_pi(
     # Sference provider only, so built-in / other configured providers are hidden
     # by default instead of cluttering the picker. Using `**` (globstar) is
     # required: pi matches `--models` patterns against `provider/modelId`, and
-    # Sference model ids contain a slash (e.g. `zai-org/GLM-5.2`), so `sference/*`
+    # Sference model ids contain a slash (e.g. `deepseek-ai/DeepSeek-V4.1-Flash-1017`), so `sference/*`
     # would match nothing (`*` does not cross `/`) and the picker would fall back
     # to showing every configured provider.
     cmd = [pi_bin, "--provider", "sference", "--model", model, "--models", "sference/**", *pi_args]
@@ -392,10 +382,7 @@ def launch_pi(
         typer.echo(f"command: {' '.join(cmd)}")
         return
 
-    if sys.platform == "win32":
-        raise SystemExit(subprocess.call(cmd, env=env))
-
-    os.execvpe(pi_bin, cmd, env)
+    _exec(pi_bin, cmd, env)
 
 
 def find_opencode_executable() -> str | None:
@@ -470,9 +457,9 @@ def _write_opencode_config(
     The API key is referenced as ``{env:SFERENCE_API_KEY}`` so no secret is
     stored on disk; ``launch_opencode`` injects the resolved key into the
     opencode process env at exec time. opencode splits ``provider/model`` on
-    the first slash, so a model id like ``zai-org/GLM-5.2`` is passed
-    as ``--model sference/zai-org/GLM-5.2`` and resolves to provider
-    ``sference`` + model id ``zai-org/GLM-5.2``.
+    the first slash, so a model id like ``deepseek-ai/DeepSeek-V4.1-Flash-1017``
+    is passed as ``--model sference/deepseek-ai/DeepSeek-V4.1-Flash-1017`` and
+    resolves to provider ``sference`` + that model id.
     """
     path = _opencode_config_path()
     if path.exists():
@@ -565,10 +552,7 @@ def launch_opencode(
         typer.echo(f"command: {' '.join(cmd)}")
         return
 
-    if sys.platform == "win32":
-        raise SystemExit(subprocess.call(cmd, env=env))
-
-    os.execvpe(opencode_bin, cmd, env)
+    _exec(opencode_bin, cmd, env)
 
 
 def find_codex_executable() -> str | None:
@@ -815,10 +799,7 @@ def launch_codex(
         typer.echo(f"command: {' '.join(cmd)}")
         return
 
-    if sys.platform == "win32":
-        raise SystemExit(subprocess.call(cmd, env=env))
-
-    os.execvpe(codex_bin, cmd, env)
+    _exec(codex_bin, cmd, env)
 
 
 def _provision_cursor_api_key(base_url: str, jwt_token: str) -> dict:
@@ -972,7 +953,7 @@ def _cursor_on(
                 already_on=already_on,
             )
 
-            default_model = resolve_launch_model(model, default=CURSOR_DEFAULT_LAUNCH_MODEL)
+            default_model = resolve_model(model)
             if models:
                 model_ids = [m.strip() for m in models.split(",") if m.strip()]
             else:
@@ -1193,7 +1174,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help=f"Pinned catalog model (default: {CLAUDE_DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help=f"Pinned catalog model (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -1204,6 +1185,7 @@ def register_launch_commands(app: typer.Typer) -> None:
         no_anthropic: bool = typer.Option(
             False,
             "--no-anthropic",
+            hidden=True,
             help="Deprecated no-op: the direct env-var mode is now the only mode.",
         ),
         models: Optional[str] = typer.Option(
@@ -1214,6 +1196,7 @@ def register_launch_commands(app: typer.Typer) -> None:
         proxy_port: Optional[int] = typer.Option(
             None,
             "--proxy-port",
+            hidden=True,
             help="Deprecated no-op: there is no proxy anymore.",
         ),
         enable_tool_search: bool = typer.Option(
@@ -1239,7 +1222,6 @@ def register_launch_commands(app: typer.Typer) -> None:
         from sference_cli.main import (
             _ensure_api_credential,
             _read_device_credentials,
-            _read_token,
             _write_device_credentials,
         )
 
@@ -1268,18 +1250,12 @@ def register_launch_commands(app: typer.Typer) -> None:
                         err=True,
                     )
 
-        api_key = _read_token()
-        if api_key is None:
-            raise typer.Exit(code=1)
+        api_key = _launcher_credential()
 
         if no_anthropic:
             typer.echo("note: --no-anthropic is deprecated; the direct env-var mode is now the only mode.", err=True)
         if proxy_port is not None:
             typer.echo("note: --proxy-port is deprecated; there is no proxy anymore.", err=True)
-
-        forwarded = list(ctx.args)
-        if forwarded and forwarded[0] == "--":
-            forwarded = forwarded[1:]
 
         # Resolve the picker model set.
         if models:
@@ -1287,7 +1263,7 @@ def register_launch_commands(app: typer.Typer) -> None:
         else:
             try:
                 model_entries = fetch_sference_model_entries(resolved_base, api_key)
-            except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError) as e:
+            except (OSError, ValueError, KeyError) as e:  # URLError/timeouts are OSError
                 typer.echo(f"ERROR: could not fetch models from {resolved_base}/v1/models: {e}", err=True)
                 typer.echo("Pass --models explicitly to bypass the lookup.", err=True)
                 raise typer.Exit(code=1) from None
@@ -1298,10 +1274,10 @@ def register_launch_commands(app: typer.Typer) -> None:
         launch_claude_code(
             api_key=api_key,
             base_url=resolved_base,
-            model=resolve_launch_model(model, default=CLAUDE_DEFAULT_LAUNCH_MODEL),
+            model=resolve_model(model),
             model_entries=model_entries,
             enable_tool_search=enable_tool_search,
-            claude_args=forwarded,
+            claude_args=_forwarded_args(ctx),
             dry_run=dry_run,
         )
 
@@ -1316,7 +1292,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help=f"Catalog model id (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -1349,22 +1325,11 @@ def register_launch_commands(app: typer.Typer) -> None:
         Unknown options and trailing args are forwarded to Pi, e.g.
         ``sference launch pi -- /path/to/project``.
         """
-        from sference_cli.main import _ensure_api_credential, _read_token
-
-        _ensure_api_credential()
-        api_key = _read_token()
-        if api_key is None:
-            raise typer.Exit(code=1)
-
-        forwarded = list(ctx.args)
-        if forwarded and forwarded[0] == "--":
-            forwarded = forwarded[1:]
-
         launch_pi(
-            api_key=api_key,
+            api_key=_launcher_credential(),
             base_url=resolve_openai_base_url(base_url),
-            model=resolve_launch_model(model),
-            pi_args=forwarded,
+            model=resolve_model(model),
+            pi_args=_forwarded_args(ctx),
             dry_run=dry_run,
         )
 
@@ -1379,7 +1344,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help=f"Catalog model id (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -1402,22 +1367,11 @@ def register_launch_commands(app: typer.Typer) -> None:
         the config, so no secret is written to disk). Unknown options and trailing
         args are forwarded to opencode, e.g. ``sference launch opencode --prompt "..."``.
         """
-        from sference_cli.main import _ensure_api_credential, _read_token
-
-        _ensure_api_credential()
-        api_key = _read_token()
-        if api_key is None:
-            raise typer.Exit(code=1)
-
-        forwarded = list(ctx.args)
-        if forwarded and forwarded[0] == "--":
-            forwarded = forwarded[1:]
-
         launch_opencode(
-            api_key=api_key,
+            api_key=_launcher_credential(),
             base_url=resolve_openai_base_url(base_url),
-            model=resolve_launch_model(model),
-            opencode_args=forwarded,
+            model=resolve_model(model),
+            opencode_args=_forwarded_args(ctx),
             dry_run=dry_run,
         )
 
@@ -1432,7 +1386,7 @@ def register_launch_commands(app: typer.Typer) -> None:
             None,
             "--model",
             "-m",
-            help=f"Catalog model id (default: {DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
+            help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
         base_url: Optional[str] = typer.Option(
             None,
@@ -1455,22 +1409,11 @@ def register_launch_commands(app: typer.Typer) -> None:
         ``sference launch codex -- exec "fix the bug"`` or
         ``sference launch codex -- -c model_reasoning_effort=high``.
         """
-        from sference_cli.main import _ensure_api_credential, _read_token
-
-        _ensure_api_credential()
-        api_key = _read_token()
-        if api_key is None:
-            raise typer.Exit(code=1)
-
-        forwarded = list(ctx.args)
-        if forwarded and forwarded[0] == "--":
-            forwarded = forwarded[1:]
-
         launch_codex(
-            api_key=api_key,
+            api_key=_launcher_credential(),
             base_url=resolve_openai_base_url(base_url),
-            model=resolve_launch_model(model),
-            codex_args=forwarded,
+            model=resolve_model(model),
+            codex_args=_forwarded_args(ctx),
             dry_run=dry_run,
         )
 
@@ -1479,51 +1422,54 @@ def register_launch_commands(app: typer.Typer) -> None:
         invoke_without_command=True,
     )
 
+    # Shared by the bare `launch cursor` callback and its `on` alias so both
+    # document the same flags.
+    model_opt = typer.Option(
+        None,
+        "--model",
+        "-m",
+        help=f"Default model for new chats (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
+    )
+    models_opt = typer.Option(
+        None, "--models", help="Comma-separated catalog ids for the picker (default: live GET /v1/models)."
+    )
+    base_url_opt = typer.Option(
+        None,
+        "--base-url",
+        envvar="SFERENCE_BASE_URL",
+        help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
+    )
+    api_key_opt = typer.Option(
+        None,
+        "--api-key",
+        help="Sference API key to store in Cursor (default: your credential, or a newly created one).",
+    )
+    sference_only_opt = typer.Option(
+        False,
+        "--sference-only",
+        help="Disable all Cursor-provided models, leaving only Sference models in the picker.",
+    )
+    replace_key_opt = typer.Option(
+        False,
+        "--replace-existing-key",
+        help="Replace an OpenAI key already saved in Cursor (the old key cannot be restored).",
+    )
+    force_opt = typer.Option(
+        False, "--force", help="Write even while Cursor is running (you must fully restart Cursor afterwards)."
+    )
+    dry_run_opt = typer.Option(False, "--dry-run", help="Print what would change without writing anything.")
+
     @cursor_app.callback()
     def cursor_root(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
-            None,
-            "--model",
-            "-m",
-            help=f"Default model for new chats (default: {CURSOR_DEFAULT_LAUNCH_MODEL} or SFERENCE_MODEL).",
-        ),
-        models: Optional[str] = typer.Option(
-            None,
-            "--models",
-            help="Comma-separated catalog ids for the picker (default: live GET /v1/models).",
-        ),
-        base_url: Optional[str] = typer.Option(
-            None,
-            "--base-url",
-            envvar="SFERENCE_BASE_URL",
-            help=f"Sference API base URL (default: {DEFAULT_API_BASE_URL}).",
-        ),
-        api_key: Optional[str] = typer.Option(
-            None,
-            "--api-key",
-            help="Sference API key to store in Cursor (default: your credential, or a newly created one).",
-        ),
-        sference_only: bool = typer.Option(
-            False,
-            "--sference-only",
-            help="Disable all Cursor-provided models, leaving only Sference models in the picker.",
-        ),
-        replace_existing_key: bool = typer.Option(
-            False,
-            "--replace-existing-key",
-            help="Replace an OpenAI key already saved in Cursor (the old key cannot be restored).",
-        ),
-        force: bool = typer.Option(
-            False,
-            "--force",
-            help="Write even while Cursor is running (you must fully restart Cursor afterwards).",
-        ),
-        dry_run: bool = typer.Option(
-            False,
-            "--dry-run",
-            help="Print what would change without writing anything.",
-        ),
+        model: Optional[str] = model_opt,
+        models: Optional[str] = models_opt,
+        base_url: Optional[str] = base_url_opt,
+        api_key: Optional[str] = api_key_opt,
+        sference_only: bool = sference_only_opt,
+        replace_existing_key: bool = replace_key_opt,
+        force: bool = force_opt,
+        dry_run: bool = dry_run_opt,
     ) -> None:
         """Turn Sference routing on for Cursor (default action)."""
         if ctx.invoked_subcommand is not None:
@@ -1541,14 +1487,14 @@ def register_launch_commands(app: typer.Typer) -> None:
 
     @cursor_app.command("on", help="Turn Sference routing on (same as `sference launch cursor`).")
     def cursor_on_cmd(
-        model: Optional[str] = typer.Option(None, "--model", "-m"),
-        models: Optional[str] = typer.Option(None, "--models"),
-        base_url: Optional[str] = typer.Option(None, "--base-url", envvar="SFERENCE_BASE_URL"),
-        api_key: Optional[str] = typer.Option(None, "--api-key"),
-        sference_only: bool = typer.Option(False, "--sference-only"),
-        replace_existing_key: bool = typer.Option(False, "--replace-existing-key"),
-        force: bool = typer.Option(False, "--force"),
-        dry_run: bool = typer.Option(False, "--dry-run"),
+        model: Optional[str] = model_opt,
+        models: Optional[str] = models_opt,
+        base_url: Optional[str] = base_url_opt,
+        api_key: Optional[str] = api_key_opt,
+        sference_only: bool = sference_only_opt,
+        replace_existing_key: bool = replace_key_opt,
+        force: bool = force_opt,
+        dry_run: bool = dry_run_opt,
     ) -> None:
         _cursor_on(
             model=model,
@@ -1568,8 +1514,8 @@ def register_launch_commands(app: typer.Typer) -> None:
             "--revoke-key",
             help="Also revoke the Sference API key that was created for Cursor.",
         ),
-        force: bool = typer.Option(False, "--force"),
-        dry_run: bool = typer.Option(False, "--dry-run"),
+        force: bool = typer.Option(False, "--force", help="Restore even while Cursor is running."),
+        dry_run: bool = dry_run_opt,
     ) -> None:
         _cursor_off(revoke_key=revoke_key, force=force, dry_run=dry_run)
 
