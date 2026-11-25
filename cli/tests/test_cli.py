@@ -4,6 +4,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 from typer.testing import CliRunner
 
@@ -33,6 +34,38 @@ def test_cli_version_flag() -> None:
 def _with_fake_credential(monkeypatch) -> None:
     """auth me / batch commands require a stored credential before calling the API."""
     monkeypatch.setattr(cli_main, "_read_token", lambda: "sk_fake_for_tests")
+
+
+def _serve(monkeypatch, handler) -> list[httpx.Request]:
+    """Run the CLI on the real SDK client with ``handler`` as the API, so error
+    statuses, timeouts and re-credentialing go through the SDK's own code."""
+    sent: list[httpx.Request] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return handler(request)
+
+    real = cli_main.SferenceClient
+    monkeypatch.setattr(
+        cli_main, "SferenceClient", lambda **kw: real(transport=httpx.MockTransport(record), **kw)
+    )
+    return sent
+
+
+def _batch(batch_id: str, status: str) -> dict:
+    d = json.loads((FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(encoding="utf-8"))
+    return {**d, "id": batch_id, "status": status}
+
+
+def _batch_input(monkeypatch, tmp_path: Path) -> Path:
+    """A one-line batch file, with the resume cache isolated to ``tmp_path``."""
+    monkeypatch.setenv("SFERENCE_STREAM_CACHE", str(tmp_path / "stream_cache.json"))
+    path = tmp_path / "in.jsonl"
+    path.write_text(
+        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
+        encoding="utf-8",
+    )
+    return path
 
 
 _FAKE_ENTRIES = [
@@ -207,16 +240,23 @@ class FakeFailedStreamClient(FakeClient):
         return FakeResult(d)
 
 
-def test_auth_login_api_key_noninteractive(monkeypatch, tmp_path: Path):
+@pytest.mark.parametrize("validate", [True, False])
+def test_auth_login_api_key_noninteractive(monkeypatch, tmp_path: Path, validate: bool):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    sent = _serve(monkeypatch, lambda _r: httpx.Response(200, json=FakeClient().get_me()))
     result = runner.invoke(
         cli_main.app,
-        ["auth", "login", "--api-key", "sk_test_cli_key_abc", "--no-validate"],
+        ["auth", "login", "--api-key", "sk_test_cli_key_abc", *([] if validate else ["--no-validate"])],
     )
-    assert result.exit_code == 0
+    assert result.exit_code == 0, result.output
     assert "Credentials saved" in result.stdout
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
     assert data["token"] == "sk_test_cli_key_abc"
+    if validate:
+        assert [r.headers["authorization"] for r in sent] == ["Bearer sk_test_cli_key_abc"]
+        assert "Authenticated as admin (admin)." in result.stdout
+    else:
+        assert sent == []
 
 
 def _fake_device_start() -> dict:
@@ -419,6 +459,34 @@ def test_login_validates_the_credential_it_just_minted(monkeypatch, tmp_path: Pa
     assert seen["token"] == "jwt_access_test"
 
 
+def test_stale_device_token_is_refreshed_and_the_call_retried(monkeypatch, tmp_path: Path):
+    """A grant rotated server-side leaves the cached token looking valid
+    locally; the first 401 must refresh, persist the new pair and retry."""
+    monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
+    monkeypatch.setattr(cli_main, "_device_grant_dead", False)
+    monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
+    _write_device_creds(tmp_path / "credentials.json")
+    monkeypatch.setattr(
+        cli_main,
+        "refresh_tokens",
+        lambda *_a: {"access_token": "jwt_fresh", "refresh_token": "rt_rotated", "expires_in": 86400},
+    )
+
+    def api(request: httpx.Request) -> httpx.Response:
+        if request.headers["authorization"] == "Bearer jwt_fresh":
+            return httpx.Response(200, json=FakeClient().get_me())
+        return httpx.Response(401, json={"detail": "Unauthorized"})
+
+    sent = _serve(monkeypatch, api)
+    result = runner.invoke(cli_main.app, ["auth", "me", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["username"] == "admin"
+    assert [r.headers["authorization"] for r in sent] == ["Bearer jwt_device", "Bearer jwt_fresh"]
+    saved = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
+    assert (saved["access_token"], saved["refresh_token"]) == ("jwt_fresh", "rt_rotated")
+
+
 def test_read_token_refresh_invalid_grant_returns_none(monkeypatch, tmp_path: Path):
     import time as _time
 
@@ -590,94 +658,109 @@ def test_batch_submit_rejects_unknown_window():
     assert "24h" in out
 
 
+def _batch_stream(input_file: Path, *extra: str):
+    return runner.invoke(
+        cli_main.app, ["batch", "stream", "--input-file", str(input_file), "--poll-interval", "0", *extra]
+    )
+
+
 def test_batch_stream_submits_and_outputs_jsonl(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
-    cache_path = tmp_path / "stream_cache.json"
-    monkeypatch.setenv("SFERENCE_STREAM_CACHE", str(cache_path))
-    input_file = tmp_path / "in.jsonl"
-    input_file.write_text(
-        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
-        encoding="utf-8",
-    )
-    result = runner.invoke(
-        cli_main.app,
-        [
-            "batch",
-            "stream",
-            "--input-file",
-            str(input_file),
-            "--poll-interval",
-            "0.01",
-        ],
-    )
+    input_file = _batch_input(monkeypatch, tmp_path)
+    result = _batch_stream(input_file)
     assert result.exit_code == 0
-    combined = (result.stdout or "") + (result.stderr or "")
-    assert "batch_1" in combined
-    assert "status=completed" in combined
-    assert '"batch_id"' in result.stdout
+    assert "status=completed" in result.stderr
+    assert result.stdout == '{"batch_id": "batch_1"}\n'
     assert get_cached_batch_id(cache_key_from_file(input_file), "https://api.sference.com") is None
 
 
 def test_batch_stream_failed_batch_exits_1(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeFailedStreamClient)
-    cache_path = tmp_path / "stream_cache.json"
-    monkeypatch.setenv("SFERENCE_STREAM_CACHE", str(cache_path))
-    input_file = tmp_path / "in.jsonl"
-    input_file.write_text(
-        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
-        encoding="utf-8",
-    )
-    result = runner.invoke(
-        cli_main.app,
-        ["batch", "stream", "--input-file", str(input_file), "--poll-interval", "0.01"],
-    )
+    result = _batch_stream(_batch_input(monkeypatch, tmp_path))
     assert result.exit_code == 1
-    combined = (result.stdout or "") + (result.stderr or "")
-    assert "status=failed" in combined
+    assert "status=failed" in result.stderr
 
 
-def test_batch_stream_resumes_from_cache(monkeypatch, tmp_path: Path):
+def test_batch_stream_reuses_a_finished_cached_batch(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     fake = FakeTrackingClient()
     monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
-    cache_path = tmp_path / "stream_cache.json"
-    monkeypatch.setenv("SFERENCE_STREAM_CACHE", str(cache_path))
-    input_file = tmp_path / "in.jsonl"
-    input_file.write_text(
-        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
-        encoding="utf-8",
-    )
+    input_file = _batch_input(monkeypatch, tmp_path)
     set_cached_batch(cache_key_from_file(input_file), "batch_1", "https://api.sference.com")
-    result = runner.invoke(
-        cli_main.app,
-        ["batch", "stream", "--input-file", str(input_file), "--poll-interval", "0.01"],
-    )
+    result = _batch_stream(input_file)
     assert result.exit_code == 0
     assert fake.submit_calls == 0
-    combined = (result.stdout or "") + (result.stderr or "")
-    assert "Resuming" not in combined
+    assert "Resuming" not in result.stderr
+
+
+def test_batch_stream_resumes_a_running_cached_batch_until_it_finishes(monkeypatch, tmp_path: Path):
+    """Ctrl-C then rerun: pick the batch back up and keep polling, don't resubmit."""
+    _with_fake_credential(monkeypatch)
+    statuses = iter(["running", "running", "completed"])
+
+    def api(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/batches/batch_old":
+            return httpx.Response(200, json=_batch("batch_old", next(statuses)))
+        if request.url.path == "/v1/batches/batch_old/results.jsonl":
+            return httpx.Response(200, content=b'{"custom_id": "r1"}\n')
+        return httpx.Response(500, json={"detail": f"unexpected {request.method} {request.url.path}"})
+
+    sent = _serve(monkeypatch, api)
+    input_file = _batch_input(monkeypatch, tmp_path)
+    set_cached_batch(cache_key_from_file(input_file), "batch_old", "https://api.sference.com")
+    result = _batch_stream(input_file)
+
+    assert result.exit_code == 0, result.output
+    assert "Resuming batch batch_old" in result.stderr
+    assert [r.method for r in sent] == ["GET"] * 4
+    assert result.stdout == '{"custom_id": "r1"}\n'
+    assert get_cached_batch_id(cache_key_from_file(input_file), "https://api.sference.com") is None
+
+
+def test_batch_stream_resubmits_when_the_cached_batch_is_gone(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+
+    def api(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/batches/batch_gone":
+            return httpx.Response(404, json={"detail": "not found"})
+        if request.method == "POST" and request.url.path == "/v1/batches":
+            return httpx.Response(201, json=_batch("batch_new", "completed"))
+        if request.url.path == "/v1/batches/batch_new/results.jsonl":
+            return httpx.Response(200, content=b'{"custom_id": "r1"}\n')
+        return httpx.Response(500, json={"detail": f"unexpected {request.method} {request.url.path}"})
+
+    sent = _serve(monkeypatch, api)
+    input_file = _batch_input(monkeypatch, tmp_path)
+    set_cached_batch(cache_key_from_file(input_file), "batch_gone", "https://api.sference.com")
+    result = _batch_stream(input_file)
+
+    assert result.exit_code == 0, result.output
+    assert [(r.method, r.url.path) for r in sent][:2] == [("GET", "/v1/batches/batch_gone"), ("POST", "/v1/batches")]
+    assert result.stdout == '{"custom_id": "r1"}\n'
 
 
 def test_batch_stream_no_cache_flag_resubmits(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     fake = FakeTrackingClient()
     monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
-    cache_path = tmp_path / "stream_cache.json"
-    monkeypatch.setenv("SFERENCE_STREAM_CACHE", str(cache_path))
-    input_file = tmp_path / "in.jsonl"
-    input_file.write_text(
-        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
-        encoding="utf-8",
-    )
+    input_file = _batch_input(monkeypatch, tmp_path)
     set_cached_batch(cache_key_from_file(input_file), "batch_1", "https://api.sference.com")
-    result = runner.invoke(
-        cli_main.app,
-        ["batch", "stream", "--input-file", str(input_file), "--poll-interval", "0.01", "--no-cache"],
-    )
+    result = _batch_stream(input_file, "--no-cache")
     assert result.exit_code == 0
     assert fake.submit_calls == 1
+
+
+def test_batch_wait_gives_up_at_timeout(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    _serve(monkeypatch, lambda _r: httpx.Response(200, json=_batch("b", "running")))
+    result = runner.invoke(
+        cli_main.app, ["batch", "wait", "--batch-id", "b", "--timeout", "0", "--poll-interval", "0"]
+    )
+    assert result.exit_code == 1
+    assert "Timed out waiting for batch b" in result.stderr
+    assert "Raise --timeout" in result.stderr
 
 
 def test_batch_status_json(monkeypatch):
@@ -689,13 +772,19 @@ def test_batch_status_json(monkeypatch):
     assert payload["status"] == "completed"
 
 
-def test_auth_me_json(monkeypatch):
+@pytest.mark.parametrize(
+    ("flags", "expected"),
+    [
+        (["--json"], '{\n  "username": "admin",\n  "role": "admin"\n}\n'),
+        ([], "username  admin\nrole      admin\n"),
+    ],
+)
+def test_auth_me_output(monkeypatch, flags: list[str], expected: str):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
-    result = runner.invoke(cli_main.app, ["auth", "me", "--json"])
+    result = runner.invoke(cli_main.app, ["auth", "me", *flags])
     assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["username"] == "admin"
+    assert result.stdout == expected
 
 
 def test_batch_submit_wait_and_results_json(monkeypatch, tmp_path: Path):
@@ -1001,11 +1090,16 @@ def test_responses_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path)
     assert "019d58a7" in result.stdout
 
 
-def test_responses_tail_passes_saved_checkpoint_as_starting_after_then_cursor(
-    monkeypatch, tmp_path: Path
+@pytest.mark.parametrize(
+    ("flags", "first_cursor"),
+    [([], "019d58a7-2ece-7742-bc3e-69ba44168210"), (["--from-latest"], None)],
+)
+def test_responses_tail_resumes_from_checkpoint_then_follows_cursor(
+    monkeypatch, tmp_path: Path, flags: list[str], first_cursor: str | None
 ) -> None:
-    """Tail loads checkpoint, lists with that ``starting_after``, then uses last event id on the next poll."""
-    from sference_sdk.checkpoint import save_checkpoint
+    """Tail starts after the saved checkpoint (or ignores it with --from-latest),
+    then pages from the last event it printed and saves that as the checkpoint."""
+    from sference_sdk.checkpoint import load_checkpoint, save_checkpoint
 
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(tmp_path / "ck.json"))
@@ -1045,12 +1139,13 @@ def test_responses_tail_passes_saved_checkpoint_as_starting_after_then_cursor(
     monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
     result = runner.invoke(
         cli_main.app,
-        ["responses", "tail", "--poll-interval", "0.001", "--consumer", "tail-cursor"],
+        ["responses", "tail", "--poll-interval", "0.001", "--consumer", "tail-cursor", *flags],
     )
     assert result.exit_code == 130
     assert "019d58a7" in result.stdout
-    assert tracker.starting_after_calls[0] == "019d58a7-2ece-7742-bc3e-69ba44168210"
-    assert tracker.starting_after_calls[1] == "019d58a7-2ece-7742-bc3e-69ba44168279"
+    last = "019d58a7-2ece-7742-bc3e-69ba44168279"
+    assert tracker.starting_after_calls[:2] == [first_cursor, last]
+    assert load_checkpoint("https://api.sference.com", "__responses_events__", "tail-cursor") == last
 
 
 @pytest.mark.parametrize(
