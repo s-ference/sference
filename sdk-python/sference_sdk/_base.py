@@ -34,6 +34,16 @@ from .models import (
 DEFAULT_BASE_URL = "https://api.sference.com"
 DEFAULT_TIMEOUT = 30.0
 
+# Read timeouts for calls the server legitimately holds open without sending
+# anything; each sits just above the platform's own deadline so the server's
+# error (408/504, or a terminal stream event) arrives instead of a ReadTimeout.
+# Blocking responses wait up to 1800 s (flex tier; 1200 s otherwise).
+BLOCKING_RESPONSE_READ_TIMEOUT = 1860.0
+# Streams hold headers for max_queue_wait_s (<= 300 s) + 15 s, then ping every 20 s.
+STREAM_READ_TIMEOUT = 360.0
+# Decisions answer 504 at their deadline, which is at most 30 s.
+DECISION_READ_TIMEOUT = 45.0
+
 TERMINAL_BATCH_STATUSES = frozenset({"completed", "failed", "cancelled"})
 TERMINAL_RESPONSE_STATUSES = frozenset({"completed", "failed", "cancelled", "incomplete"})
 
@@ -118,9 +128,19 @@ _request_extra_headers: contextvars.ContextVar[dict[str, str] | None] = contextv
 class BaseClient:
     """Credential, header and request-building logic common to both clients."""
 
-    def __init__(self, base_url: str | None, api_key: str | None) -> None:
+    def __init__(self, base_url: str | None, api_key: str | None, timeout: float | None = None) -> None:
         self.base_url = base_url or os.getenv("SFERENCE_BASE_URL", DEFAULT_BASE_URL)
         self._token = api_key or os.getenv("SFERENCE_API_KEY")
+        self._timeout_chosen = timeout is not None
+
+    def _quiet_timeout(self, read: float) -> Any:
+        """Timeout for a call the server may hold silent for up to ``read`` seconds.
+
+        A ``timeout`` passed to the client wins, so callers keep full control.
+        """
+        if self._timeout_chosen:
+            return httpx.USE_CLIENT_DEFAULT
+        return httpx.Timeout(DEFAULT_TIMEOUT, read=read)
 
     def set_api_key(self, api_key: str | None) -> None:
         """Swap the credential used for subsequent requests.

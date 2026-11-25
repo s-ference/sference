@@ -10,8 +10,11 @@ import httpx
 from pydantic import BaseModel
 
 from ._base import (
+    BLOCKING_RESPONSE_READ_TIMEOUT,
+    DECISION_READ_TIMEOUT,
     DEFAULT_TIMEOUT,
     EVENTS_CHECKPOINT_KEY,
+    STREAM_READ_TIMEOUT,
     TERMINAL_BATCH_STATUSES,
     TERMINAL_RESPONSE_STATUSES,
     BaseClient,
@@ -66,7 +69,7 @@ class AsyncSferenceClient(BaseClient):
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float | None = None,
     ) -> None:
-        super().__init__(base_url, api_key)
+        super().__init__(base_url, api_key, timeout)
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=DEFAULT_TIMEOUT if timeout is None else timeout,
@@ -90,9 +93,10 @@ class AsyncSferenceClient(BaseClient):
         *,
         params: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        timeout: Any = httpx.USE_CLIENT_DEFAULT,
     ) -> httpx.Response:
         response = await self._client.request(
-            method, path, headers=self._headers(extra_headers), json=json_body, params=params
+            method, path, headers=self._headers(extra_headers), json=json_body, params=params, timeout=timeout
         )
         raise_for_status(response)
         return response
@@ -106,8 +110,9 @@ class AsyncSferenceClient(BaseClient):
         *,
         params: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
+        timeout: Any = httpx.USE_CLIENT_DEFAULT,
     ) -> _M:
-        response = await self._send(method, path, json_body, params=params, extra_headers=extra_headers)
+        response = await self._send(method, path, json_body, params=params, extra_headers=extra_headers, timeout=timeout)
         return model.model_validate(response.json())
 
     # Account ----------------------------------------------------------------
@@ -192,7 +197,9 @@ class AsyncSferenceClient(BaseClient):
         ``content_type`` and ``base64``. Limits: 4 MiB/16 MP each, 8 MiB total.
         """
         payload = self._decision_payload(model=model, state=state, questions=questions, images=images)
-        return await self._call(DecisionResponse, "POST", "/v1/decisions", payload)
+        return await self._call(
+            DecisionResponse, "POST", "/v1/decisions", payload, timeout=self._quiet_timeout(DECISION_READ_TIMEOUT)
+        )
 
     # Batches ------------------------------------------------------------------
 
@@ -316,7 +323,15 @@ class AsyncSferenceClient(BaseClient):
             metadata=metadata,
             idempotency_key=idempotency_key,
         )
-        return await self._call(Response, "POST", "/v1/responses", payload, extra_headers=headers)
+        return await self._call(
+            Response,
+            "POST",
+            "/v1/responses",
+            payload,
+            extra_headers=headers,
+            # Background creates return at once; blocking ones wait for the whole generation.
+            timeout=httpx.USE_CLIENT_DEFAULT if background else self._quiet_timeout(BLOCKING_RESPONSE_READ_TIMEOUT),
+        )
 
     def stream_response(
         self,
@@ -373,7 +388,13 @@ class AsyncSferenceClient(BaseClient):
         payload["stream"] = True
         # Build the request now, not on first iteration, so ``extra_headers()`` applies
         # where the call is made and bad input fails before any network I/O.
-        request = self._client.build_request("POST", "/v1/responses", headers=self._headers(headers), json=payload)
+        request = self._client.build_request(
+            "POST",
+            "/v1/responses",
+            headers=self._headers(headers),
+            json=payload,
+            timeout=self._quiet_timeout(STREAM_READ_TIMEOUT),
+        )
         return self._iter_stream(request)
 
     async def _iter_stream(self, request: httpx.Request) -> AsyncIterator[ResponseStreamEvent]:

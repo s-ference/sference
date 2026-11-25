@@ -152,6 +152,10 @@ except ApiError as err:
         ...  # back off and retry
 ```
 
+### Timeouts
+
+Most calls time out after 30 seconds. Calls that the server keeps open while it works get longer waits that sit just above the server's own limits, so you get the server's error (a 408 or 504, or a failed stream event) instead of a client-side timeout. A blocking `create_response` waits up to 31 minutes, `stream_response` up to 6 minutes between events, and `create_decision` 45 seconds. Passing `timeout=` to the client sets one timeout for every call instead.
+
 ### Decisions (realtime classification)
 
 `POST /v1/decisions` answers up to 64 questions about one `state` (text or any JSON value) in a single call. Pick a model with `modality == "decisions"` from `list_models()`. Question types: `choice` (pick one label), `score` (ordinal scale, index 0 = lowest) and `noul` (probability of true). Billed on input tokens only, including image tokens.

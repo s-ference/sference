@@ -1,6 +1,7 @@
 import json
 import warnings
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -959,3 +960,40 @@ async def test_stream_response_async_yields_events_until_completed() -> None:
 
     assert "".join(e.delta or "" for e in events) == "Hello"
     assert events[-1].type == "response.completed"
+
+
+_RESPONSE_JSON = {"id": "r", "created_at": 1, "model": "m", "status": "completed"}
+
+
+@pytest.mark.parametrize(
+    ("client_timeout", "call", "read_timeout"),
+    [
+        # Blocking creates wait silently for the whole generation; the server allows up to 1800 s.
+        (None, lambda c: c.create_response(model="m", input="hi"), 1860.0),
+        (None, lambda c: c.create_response(model="m", input="hi", background=True), 30.0),
+        (None, lambda c: list(c.stream_response(model="m", input="hi")), 360.0),
+        (None, lambda c: c.create_decision(model="m", state="s", questions={"q": {"type": "noul"}}), 45.0),
+        (None, lambda c: c.get_response("r"), 30.0),
+        # An explicit client timeout applies to every call, long ones included.
+        (5.0, lambda c: c.create_response(model="m", input="hi"), 5.0),
+        (5.0, lambda c: list(c.stream_response(model="m", input="hi")), 5.0),
+    ],
+)
+def test_read_timeout_covers_the_servers_silent_wait(
+    client_timeout: float | None, call: Callable[[SferenceClient], object], read_timeout: float
+) -> None:
+    seen: dict[str, float] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.extensions["timeout"])
+        if request.url.path == "/v1/decisions":
+            return httpx.Response(200, json={"model": "m", "answers": {}, "usage": {"input_tokens": 1}})
+        if json.loads(request.content or b"{}").get("stream"):
+            return httpx.Response(200, content=_frame({"type": "response.completed", "response": _RESPONSE_JSON}))
+        return httpx.Response(200, json=_RESPONSE_JSON)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok", timeout=client_timeout) as client:
+        call(client)
+
+    assert seen["read"] == read_timeout
+    assert seen["connect"] == (client_timeout or 30.0)
