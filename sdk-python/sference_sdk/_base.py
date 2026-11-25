@@ -27,6 +27,7 @@ from .models import (
     EmbeddingEncodingFormat,
     EmbeddingInput,
     InferenceRequest,
+    ResponseStreamEvent,
     ServiceTier,
 )
 
@@ -72,6 +73,40 @@ class ApiError(Exception):
 def raise_for_status(response: httpx.Response) -> None:
     if response.status_code >= 400:
         raise ApiError.from_response(response)
+
+
+class SSEDecoder:
+    """Incremental ``text/event-stream`` parser, fed one line at a time.
+
+    Shared by both clients so sync and async streams frame events identically.
+    """
+
+    def __init__(self) -> None:
+        self._data: list[str] = []
+
+    def feed(self, line: str) -> str | None:
+        """Return the event's joined ``data`` once a blank line ends it."""
+        if not line:
+            if not self._data:
+                return None
+            data, self._data = "\n".join(self._data), []
+            return data
+        field, _, value = line.partition(":")
+        # The ``type`` inside data duplicates ``event:``; comments (``: ping``) keep the connection alive.
+        if field == "data":
+            self._data.append(value.removeprefix(" "))
+        return None
+
+
+def parse_stream_event(data: str) -> ResponseStreamEvent | None:
+    """Decode one SSE ``data`` payload; ``None`` marks the OpenAI-style ``[DONE]`` sentinel."""
+    if data == "[DONE]":
+        return None
+    body = json.loads(data)
+    if body.get("type") == "error":
+        # Mid-stream failure: the HTTP status was already 200, so surface it as an exception.
+        raise ApiError(f"stream error: {body}", body={"error": body})
+    return ResponseStreamEvent.model_validate(body)
 
 
 _request_extra_headers: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(

@@ -107,6 +107,23 @@ For a stream, add `stream_id` inside `metadata` next to `completion_window`.
 - `service_tier="flex"` gives discounted tokens in exchange for lower scheduling priority (pair it with `background=True`); `"priority"` is scheduled ahead of default traffic and billed at a premium. `response.service_tier` is the tier actually served.
 - `idempotency_key="..."` lets you retry a create after a network error without running the request twice.
 
+### Streaming output (SSE)
+
+For interactive use, `stream_response` takes the same options as `create_response` and yields events while the model generates. This is HTTP streaming of one response, unrelated to sference streams (`create_stream`), which group many responses. The events follow the OpenAI Responses streaming format:
+
+```python
+for event in client.stream_response(
+    model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    input="Write a haiku about queues.",
+):
+    if event.type == "response.output_text.delta":
+        print(event.delta, end="", flush=True)
+    elif event.type in ("response.completed", "response.incomplete", "response.failed"):
+        final = event.response  # full Response with output and usage
+```
+
+Reasoning arrives as `response.reasoning_summary_text.delta` events. If the server fails mid-stream, iteration raises `ApiError`. Stopping iteration early disconnects, which cancels the generation. `AsyncSferenceClient.stream_response` works the same way with `async for`.
+
 ### Models, usage and billing
 
 ```python

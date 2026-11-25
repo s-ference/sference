@@ -288,6 +288,35 @@ class Response(ApiModel):
     service_tier: str = "default"
 
 
+ResponseStreamPart = Annotated[
+    ResponseOutputText | ResponseReasoningSummaryPart,
+    Field(discriminator="type"),
+]
+
+
+class ResponseStreamEvent(ApiModel):
+    """One server-sent event from ``stream_response`` (OpenAI Responses streaming shape).
+
+    ``type`` names the event, e.g. ``response.output_text.delta`` or
+    ``response.completed``. Fields an event type doesn't carry stay ``None``.
+    """
+
+    type: str
+    sequence_number: int | None = None
+    # Lifecycle events (created, in_progress, completed, failed, incomplete).
+    response: Response | None = None
+    output_index: int | None = None
+    content_index: int | None = None
+    summary_index: int | None = None
+    item_id: str | None = None
+    # ``output_item.added`` / ``.done``; ``added`` items arrive with empty content.
+    item: ResponseOutputContent | None = None
+    part: ResponseStreamPart | None = None
+    delta: str | None = None
+    text: str | None = None
+    arguments: str | None = None
+
+
 class ResponseListItem(ApiModel):
     """Item in a response list."""
 

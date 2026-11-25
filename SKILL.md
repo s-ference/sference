@@ -178,6 +178,7 @@ asyncio.run(main())
 | Task | Methods |
 |------|---------|
 | Responses (default) | `create_response` (set `background=True`), `wait_for_response`, `get_response`, `cancel_response`, `list_responses` |
+| Streaming output (interactive only) | `stream_response` yields SSE events: text in `response.output_text.delta` (`event.delta`); the last event (`response.completed` / `incomplete` / `failed`) carries the full `event.response`. Not related to `create_stream` |
 | Completion events | `list_responses_events` (`stream_id`, `starting_after`, `wait_ms` long-poll); `iter_responses_events` (`stream_id`, `checkpoint`, `from_latest`) |
 | Streams | `create_stream(name, window=)`, `get_stream`, `list_streams`, `cancel_stream`, `archive_stream` |
 | Decisions (realtime classification) | `create_decision(model=, state=, questions=)`; questions are `ChoiceQuestion` / `ScoreQuestion` / `NoulQuestion` or dicts with `type` |

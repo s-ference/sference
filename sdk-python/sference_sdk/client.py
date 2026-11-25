@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator, Mapping, Sequence
+from itertools import chain
 from pathlib import Path
 from typing import Any, BinaryIO, Self, TypeVar
 
@@ -15,6 +16,8 @@ from ._base import (
     TERMINAL_RESPONSE_STATUSES,
     ApiError,
     BaseClient,
+    SSEDecoder,
+    parse_stream_event,
     raise_for_status,
 )
 from .checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
@@ -36,6 +39,7 @@ from .models import (
     ModelList,
     Response,
     ResponseList,
+    ResponseStreamEvent,
     ServiceTier,
     Stream,
     StreamEventList,
@@ -290,9 +294,8 @@ class SferenceClient(BaseClient):
         Attach to a stream with ``metadata={"stream_id": ..., "completion_window": "24h"}``.
         ``service_tier="flex"`` trades latency for price; ``"priority"`` costs more
         and is scheduled first. ``idempotency_key`` makes retries safe.
+        Use ``stream_response`` to receive output as it is generated.
         """
-        # TODO: support `stream=True` (SSE) once there is a user for it; the SDK
-        # targets background work, so it only sends non-streaming requests today.
         payload, headers = self._response_request(
             model=model,
             input=input,
@@ -315,6 +318,81 @@ class SferenceClient(BaseClient):
             idempotency_key=idempotency_key,
         )
         return self._call(Response, "POST", "/v1/responses", payload, extra_headers=headers)
+
+    def stream_response(
+        self,
+        *,
+        model: str,
+        input: str | Sequence[Mapping[str, Any]],
+        instructions: str | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        include_reasoning: bool | None = None,
+        enable_thinking: bool | None = None,
+        reasoning: Mapping[str, Any] | None = None,
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        tool_choice: str | Mapping[str, Any] | None = None,
+        include: Sequence[str] | None = None,
+        text: Mapping[str, Any] | None = None,
+        service_tier: ServiceTier | None = None,
+        prompt_cache_key: str | None = None,
+        max_queue_wait_s: int | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> Iterator[ResponseStreamEvent]:
+        """Create a response and yield its server-sent events (POST /v1/responses, ``stream=true``).
+
+        Text arrives as ``response.output_text.delta`` events; the last event is
+        ``response.completed``, ``response.incomplete`` or ``response.failed`` and
+        carries the full ``Response``. A mid-stream server error raises ``ApiError``.
+        Closing the iterator early disconnects, which cancels the generation.
+        """
+        payload, headers = self._response_request(
+            model=model,
+            input=input,
+            instructions=instructions,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            include_reasoning=include_reasoning,
+            enable_thinking=enable_thinking,
+            reasoning=reasoning,
+            tools=tools,
+            tool_choice=tool_choice,
+            include=include,
+            text=text,
+            service_tier=service_tier,
+            prompt_cache_key=prompt_cache_key,
+            max_queue_wait_s=max_queue_wait_s,
+            background=False,
+            metadata=metadata,
+            idempotency_key=idempotency_key,
+        )
+        payload["stream"] = True
+        # Build the request now, not on first iteration, so ``extra_headers()`` applies
+        # where the call is made and bad input fails before any network I/O.
+        request = self._client.build_request("POST", "/v1/responses", headers=self._headers(headers), json=payload)
+        return self._iter_stream(request)
+
+    def _iter_stream(self, request: httpx.Request) -> Iterator[ResponseStreamEvent]:
+        response = self._client.send(request, stream=True)
+        try:
+            if response.is_error:
+                response.read()
+                raise_for_status(response)
+            decoder = SSEDecoder()
+            # The trailing "" flushes a final event the server didn't end with a blank line.
+            for line in chain(response.iter_lines(), [""]):
+                data = decoder.feed(line)
+                if data is None:
+                    continue
+                event = parse_stream_event(data)
+                if event is None:
+                    return
+                yield event
+        finally:
+            response.close()
 
     def wait_for_response(self, response_id: str, poll_interval: float = 2.0, timeout: float | None = 3600.0) -> Response:
         """Poll GET /v1/responses/{id} until terminal; ``timeout=None`` waits indefinitely."""

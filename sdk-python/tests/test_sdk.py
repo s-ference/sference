@@ -870,3 +870,92 @@ def test_async_client_has_every_sync_method() -> None:
 
     # close/aclose is the one intended naming difference.
     assert public(SferenceClient) - {"close"} == public(AsyncSferenceClient) - {"aclose"}
+
+
+def _frame(*events: dict[str, Any]) -> bytes:
+    """Frame events the way the API does: ``event:`` + ``data:``, with keep-alive pings."""
+    frames = [": ping\n\n"]
+    frames += [f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events]
+    # The final frame drops its blank line to prove the decoder flushes at EOF.
+    return "".join(frames).removesuffix("\n\n").encode()
+
+
+_SHELL = {"id": "resp_1", "object": "response", "created_at": 1, "model": "m", "status": "in_progress", "output": []}
+_STREAM_EVENTS = [
+    {"type": "response.created", "sequence_number": 0, "response": _SHELL},
+    {
+        "type": "response.output_item.added",
+        "sequence_number": 1,
+        "output_index": 0,
+        "item": {"type": "message", "id": "msg_1", "role": "assistant", "status": "in_progress", "content": []},
+    },
+    {"type": "response.output_text.delta", "sequence_number": 2, "item_id": "msg_1", "output_index": 0, "content_index": 0, "delta": "Hel"},
+    {"type": "response.output_text.delta", "sequence_number": 3, "item_id": "msg_1", "output_index": 0, "content_index": 0, "delta": "lo"},
+    {
+        "type": "response.completed",
+        "sequence_number": 4,
+        "response": {
+            **_SHELL,
+            "status": "completed",
+            "output": [{"type": "message", "id": "msg_1", "content": [{"type": "output_text", "text": "Hello"}]}],
+            "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+        },
+    },
+]
+
+
+def test_stream_response_yields_typed_events_until_completed() -> None:
+    sent: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent["json"] = json.loads(request.content)
+        sent["extra"] = request.headers.get("x-extra")
+        return httpx.Response(200, content=_frame(*_STREAM_EVENTS), headers={"content-type": "text/event-stream"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        with client.extra_headers({"x-extra": "1"}):
+            stream = client.stream_response(model="m", input="hi")
+        events = list(stream)
+
+    assert sent["json"] == {"model": "m", "input": "hi", "stream": True}
+    # Headers are bound when the call is made, not when iteration starts.
+    assert sent["extra"] == "1"
+    assert [e.sequence_number for e in events] == [0, 1, 2, 3, 4]
+    assert "".join(e.delta or "" for e in events) == "Hello"
+    final = events[-1].response
+    assert final is not None and final.status == "completed" and final.usage is not None
+
+
+def test_stream_response_raises_mid_stream_error_frame() -> None:
+    # After HTTP 200 a failure can only arrive as an SSE ``error`` frame.
+    body = _frame({"type": "response.created", "response": {"id": "r", "created_at": 1, "model": "m", "status": "in_progress"}},
+               {"type": "error", "code": "server_error", "message": "boom", "param": None})
+    with SferenceClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200, content=body)), api_key="tok") as client:
+        events = client.stream_response(model="m", input="hi")
+        assert next(events).type == "response.created"
+        with pytest.raises(ApiError) as excinfo:
+            next(events)
+
+    assert excinfo.value.code == "server_error"
+    assert excinfo.value.message == "boom"
+
+
+def test_stream_response_raises_refusal_before_stream() -> None:
+    refusal = httpx.Response(402, json={"error": {"type": "billing", "code": "insufficient_balance", "message": "top up"}})
+    with SferenceClient(transport=httpx.MockTransport(lambda _r: refusal), api_key="tok") as client:
+        with pytest.raises(ApiError) as excinfo:
+            list(client.stream_response(model="m", input="hi"))
+
+    assert excinfo.value.status_code == 402
+    assert excinfo.value.code == "insufficient_balance"
+
+
+async def test_stream_response_async_yields_events_until_completed() -> None:
+    from sference_sdk import AsyncSferenceClient
+
+    transport = httpx.MockTransport(lambda _r: httpx.Response(200, content=_frame(*_STREAM_EVENTS)))
+    async with AsyncSferenceClient(transport=transport, api_key="tok") as client:
+        events = [e async for e in client.stream_response(model="m", input="hi")]
+
+    assert "".join(e.delta or "" for e in events) == "Hello"
+    assert events[-1].type == "response.completed"
