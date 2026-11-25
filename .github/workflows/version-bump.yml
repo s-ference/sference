@@ -1,0 +1,27 @@
+name: Version bump
+
+# Separate from CI so adding/removing the override label re-runs only this check.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-release') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Require version bump for changed packages
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: python .github/scripts/release_version.py check-bumps "origin/$BASE_REF"
