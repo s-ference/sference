@@ -117,8 +117,10 @@ def invoke(args: list[str]):
 # --------------------------------------------------------------------------- on
 
 
-def test_on_writes_config_and_backup(cursor_home: Path):
-    result = invoke(["launch", "cursor"])
+# Bare `launch cursor` and `launch cursor on` are the same command.
+@pytest.mark.parametrize("argv", [["launch", "cursor"], ["launch", "cursor", "on"]])
+def test_on_writes_config_and_backup(cursor_home: Path, argv: list[str]):
+    result = invoke(argv)
     assert result.exit_code == 0, result.output
     reactive = reactive_of(cursor_home)
     assert reactive["openAIBaseUrl"] == "https://api.sference.com/v1"

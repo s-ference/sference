@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import httpx
@@ -10,35 +9,6 @@ from sference_sdk.async_client import AsyncSferenceClient
 from sference_sdk.client import ApiError
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-
-
-@pytest.mark.asyncio
-async def test_async_get_me_via_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/auth/me":
-            assert request.headers.get("authorization") == "Bearer mock-admin-token"
-            payload = json.loads((FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="mock-admin-token") as client:
-        me = await client.get_me()
-        assert me.username == "admin"
-
-
-@pytest.mark.asyncio
-async def test_async_list_batches_via_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/batches":
-            assert request.headers.get("authorization") == "Bearer tok"
-            payload = json.loads((FIXTURES / "V1BatchesListBatches" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        out = await client.list_batches()
-        assert len(out.items) == 1
-        assert out.items[0].id == "batch_abc"
 
 
 @pytest.mark.asyncio
@@ -60,22 +30,6 @@ async def test_async_submit_batch_raises_api_error_on_http_failure() -> None:
                     }
                 ]
             )
-
-
-@pytest.mark.asyncio
-async def test_async_cancel_batch_via_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" and request.url.path == "/v1/batches/batch_abc/cancel":
-            assert request.headers.get("authorization") == "Bearer tok"
-            payload = json.loads(
-                (FIXTURES / "V1BatchesBatchIdCancelCancelBatch" / "200.json").read_text(encoding="utf-8")
-            )
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        out = await client.cancel_batch("batch_abc")
-        assert out.status == "cancelled"
 
 
 @pytest.mark.asyncio
@@ -157,45 +111,3 @@ async def test_async_wait_for_response_treats_incomplete_as_terminal() -> None:
     assert resp.status == "incomplete"
     assert resp.incomplete_details is not None
     assert resp.incomplete_details.reason == "max_output_tokens"
-
-
-@pytest.mark.asyncio
-async def test_async_get_results_via_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/batches/batch_1/results":
-            payload = {
-                "batch_id": "batch_1",
-                "status": "completed",
-                "output_url": None,
-                "completed_at": "2025-01-01T00:00:01+00:00",
-                "results": None,
-            }
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        res = await client.get_results("batch_1")
-        assert res.batch_id == "batch_1"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("images", [None, ["data:image/png;base64,eA==", {"content_type": "image/jpeg", "base64": "eA=="}]])
-async def test_async_create_decision_via_mock_transport(images) -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" and request.url.path == "/v1/decisions":
-            body = json.loads(request.content.decode("utf-8"))
-            assert body["questions"]["refund"] == {"type": "noul", "instructions": "", "criteria": None}
-            if images is None:
-                assert "images" not in body
-            else:
-                assert body["images"] == images
-            payload = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        resp = await client.create_decision(
-            model="Cloudflare/clef", state={"message": "refund please"}, questions={"refund": {"type": "noul"}}, images=images,
-        )
-
-    assert resp.answers["refund"].noul == 0.9

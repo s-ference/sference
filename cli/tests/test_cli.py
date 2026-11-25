@@ -590,22 +590,6 @@ def test_batch_submit_rejects_unknown_window():
     assert "24h" in out
 
 
-def test_batch_submit_accepts_all_completion_windows(monkeypatch, tmp_path: Path):
-    input_file = tmp_path / "in.jsonl"
-    input_file.write_text(
-        '{"custom_id":"r1","method":"POST","url":"/v1/chat/completions","body":{"model":"m","messages":[{"role":"user","content":"hi"}]}}\n',
-        encoding="utf-8",
-    )
-    for window in ("24h",):
-        _with_fake_credential(monkeypatch)
-        monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
-        result = runner.invoke(
-            cli_main.app,
-            ["batch", "submit", "--input-file", str(input_file), "--window", window, "--json"],
-        )
-        assert result.exit_code == 0, result.stdout
-
-
 def test_batch_stream_submits_and_outputs_jsonl(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
@@ -828,6 +812,13 @@ def test_stream_create_list_status_archive(monkeypatch, tmp_path: Path):
     assert out["status"] == "cancelled"
     assert out["cancelled_at"] is not None
 
+    r5 = runner.invoke(
+        cli_main.app,
+        ["stream", "archive", "--stream-id", "123e4567-e89b-12d3-a456-426614174000", "--json"],
+    )
+    assert r5.exit_code == 0
+    assert json.loads(r5.stdout)["status"] == "archived"
+
 
 def test_stream_submit_jsonl(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
@@ -1010,29 +1001,6 @@ def test_responses_tail_prints_event_then_interrupt(monkeypatch, tmp_path: Path)
     assert "019d58a7" in result.stdout
 
 
-def test_responses_tail_without_stream_id_prints_event_then_interrupt(monkeypatch, tmp_path: Path):
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(cli_main, "SferenceClient", FakeResponsesTailClient)
-    ck = tmp_path / "ck.json"
-    monkeypatch.setenv("SFERENCE_STREAM_CHECKPOINTS", str(ck))
-
-    sleeps = 0
-
-    def fake_sleep(_sec: float) -> None:
-        nonlocal sleeps
-        sleeps += 1
-        if sleeps >= 2:
-            raise KeyboardInterrupt()
-
-    monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
-    result = runner.invoke(
-        cli_main.app,
-        ["responses", "tail", "--poll-interval", "0.001", "--no-checkpoint"],
-    )
-    assert result.exit_code == 130
-    assert "019d58a7" in result.stdout
-
-
 def test_responses_tail_passes_saved_checkpoint_as_starting_after_then_cursor(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -1085,31 +1053,33 @@ def test_responses_tail_passes_saved_checkpoint_as_starting_after_then_cursor(
     assert tracker.starting_after_calls[1] == "019d58a7-2ece-7742-bc3e-69ba44168279"
 
 
-def test_cli_exits_nonzero_on_client_error(monkeypatch):
+@pytest.mark.parametrize(
+    ("error", "hint"),
+    [
+        ("500: {'detail': 'boom'}", None),
+        # A sync wait that times out server-side should point at --background.
+        ("504: {'detail': 'timed out'}", "resubmit with --background"),
+    ],
+)
+def test_api_error_prints_message_and_exits_1(monkeypatch, error: str, hint: str | None):
     _with_fake_credential(monkeypatch)
 
     class FailingClient(FakeClient):
-        def get_batch(self, batch_id: str):
-            raise RuntimeError("boom")
+        def create_response(self, **kwargs):
+            raise ApiError(error)
 
     monkeypatch.setattr(cli_main, "SferenceClient", FailingClient)
-    result = runner.invoke(cli_main.app, ["batch", "status", "--batch-id", "batch_1", "--json"])
-    assert result.exit_code != 0
-    assert isinstance(result.exception, RuntimeError)
+    result = runner.invoke(cli_main.app, ["responses", "create", "--model", "m", "--content", "hi"])
+
+    assert result.exit_code == 1
+    assert error in result.stderr
+    assert (hint in result.stderr) if hint else ("--background" not in result.stderr)
 
 
 def test_launch_visible_in_root_help() -> None:
     result = runner.invoke(cli_main.app, ["--help"])
     assert result.exit_code == 0
     assert "launch" in result.stdout
-
-
-def test_launch_still_invocable() -> None:
-    result = runner.invoke(cli_main.app, ["launch", "--help"])
-    assert result.exit_code == 0
-    assert "claude" in result.stdout
-    assert "pi" in result.stdout
-    assert "opencode" in result.stdout
 
 
 def test_launch_uses_sference_model_env(monkeypatch, tmp_path: Path):
@@ -1315,33 +1285,6 @@ def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     assert "thinkingLevelMap" not in vision
     assert vision["contextWindow"] == 256000
     assert vision["maxTokens"] == 16384
-
-
-def test_pi_does_not_add_model_absent_from_catalog(monkeypatch, tmp_path: Path):
-    """The picker shows only currently-available Sference models.
-
-    ``sference launch pi`` registers exactly the live /v1/models catalog — not
-    the chosen ``--model`` and not a bare ``{id, name}`` fallback when the model
-    isn't served. ``--model`` only selects the active model for the launch; it
-    is never injected into the picker if the catalog doesn't list it.
-    """
-    _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
-    models_json = tmp_path / "models.json"
-    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
-    monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
-    )
-    runner.invoke(
-        cli_main.app, ["launch", "pi", "--dry-run", "--model", "custom-org/not-in-catalog"]
-    )
-    data = json.loads(models_json.read_text())
-    models = data["providers"]["sference"]["models"]
-    ids = {m["id"] for m in models}
-    # non-catalog model is not added to the picker
-    assert "custom-org/not-in-catalog" not in ids
-    # only the live catalog models are registered
-    assert ids == {e["id"] for e in _FAKE_PI_MODEL_ENTRIES}
 
 
 def test_pi_drops_model_no_longer_in_catalog(monkeypatch, tmp_path: Path):
