@@ -23,7 +23,7 @@ async def test_async_get_me_via_mock_transport() -> None:
 
     async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="mock-admin-token") as client:
         me = await client.get_me()
-        assert me["username"] == "admin"
+        assert me.username == "admin"
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,7 @@ async def test_async_submit_batch_raises_api_error_on_http_failure() -> None:
                         "custom_id": "request-1",
                         "method": "POST",
                         "url": "/v1/chat/completions",
-                        "body": {"model": "Qwen/Qwen3.5-4B", "messages": [{"role": "user", "content": "hi"}]},
+                        "body": {"model": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "messages": [{"role": "user", "content": "hi"}]},
                     }
                 ]
             )
@@ -144,7 +144,7 @@ async def test_async_wait_for_response_treats_incomplete_as_terminal() -> None:
                     "id": "resp_trunc",
                     "object": "response",
                     "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                     "status": "incomplete",
                     "incomplete_details": {"reason": "max_output_tokens"},
                 },

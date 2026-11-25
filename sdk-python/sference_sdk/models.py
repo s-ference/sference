@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 BatchStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
@@ -10,6 +10,16 @@ BatchStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
 # Completion window accepted by batches, streams, and background responses.
 CompletionWindow = Literal["24h"]
 COMPLETION_WINDOWS: tuple[str, ...] = ("24h",)
+
+
+class ApiModel(BaseModel):
+    """Base for parsed API responses.
+
+    Unknown fields are kept (``model_extra``) so fields the API adds later are
+    readable before the SDK models catch up.
+    """
+
+    model_config = ConfigDict(extra="allow")
 
 
 class InferenceRequest(BaseModel):
@@ -44,13 +54,14 @@ class InferenceRequest(BaseModel):
         return cls(custom_id=custom_id, body=body)
 
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str
-    user: dict[str, str]
+class User(ApiModel):
+    """Owner of the current credential (GET /v1/auth/me)."""
+
+    username: str
+    role: str
 
 
-class Batch(BaseModel):
+class Batch(ApiModel):
     id: str
     status: BatchStatus
     window: CompletionWindow
@@ -61,16 +72,15 @@ class Batch(BaseModel):
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     total_tokens: int = 0
+    total_cost_micros: int = 0
 
 
-class BatchList(BaseModel):
+class BatchList(ApiModel):
     items: list[Batch]
 
 
-class BatchResultRow(BaseModel):
+class BatchResultRow(ApiModel):
     """One row from ``GET /v1/batches/{id}/results`` (sference ``result_json`` / ``error_json`` shape)."""
-
-    model_config = ConfigDict(extra="allow")
 
     custom_id: str | None = None
     status: str | None = None
@@ -93,7 +103,7 @@ class BatchResultRow(BaseModel):
         return content if isinstance(content, str) else str(content or "")
 
 
-class BatchResults(BaseModel):
+class BatchResults(ApiModel):
     batch_id: str
     status: BatchStatus
     output_url: str | None = None
@@ -120,7 +130,7 @@ StreamStatus = Literal["open", "cancelled", "archived"]
 StreamWindow = CompletionWindow
 
 
-class Stream(BaseModel):
+class Stream(ApiModel):
     """Stream detail (GET /v1/streams/{id}); list responses omit counter fields (defaults apply)."""
 
     id: str
@@ -141,11 +151,12 @@ class Stream(BaseModel):
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     total_tokens: int = 0
+    total_cost_micros: int = 0
     last_completion_at: str | None = None
     latest_completion_id: str | None = None
 
 
-class StreamInferenceCompletionEvent(BaseModel):
+class StreamInferenceCompletionEvent(ApiModel):
     completion_id: str
     response_id: str | None = None
     custom_id: str | None = None
@@ -155,60 +166,32 @@ class StreamInferenceCompletionEvent(BaseModel):
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     total_tokens: int | None = None
+    cost_micros: int | None = None
     completed_at: str | None = None
 
 
-class StreamEventList(BaseModel):
+class StreamEventList(ApiModel):
     object: str = "list"
     data: list[StreamInferenceCompletionEvent]
     has_more: bool
 
 
-class StreamList(BaseModel):
+class StreamList(ApiModel):
     items: list[Stream]
 
 
 # Response (OpenAI-compatible) models
 ResponseStatus = Literal["in_progress", "completed", "failed", "cancelled", "incomplete"]
+# Accepted request tiers; the response echoes the tier actually served.
+ServiceTier = Literal["auto", "default", "flex", "priority", "scale"]
 
 
-class ResponseInputMessage(BaseModel):
-    """Message in the input array for a response."""
-
-    role: Literal["user", "assistant", "system", "developer"]
-    content: str
-
-
-class ResponseCreatePayload(BaseModel):
-    """Request body for POST /v1/responses."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    model: str = Field(description='Model identifier, e.g. "deepseek-ai/DeepSeek-V4.1-Flash-1017"')
-    input: str | list[ResponseInputMessage]
-    instructions: str | None = None
-    max_output_tokens: int | None = None
-    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
-    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
-    include_reasoning: bool = True
-    enable_thinking: bool | None = None
-    background: bool = False
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("input")
-    @classmethod
-    def _reject_empty_input(cls, v: str | list[ResponseInputMessage]) -> str | list[ResponseInputMessage]:
-        if isinstance(v, list) and len(v) == 0:
-            raise ValueError("input must not be empty")
-        return v
-
-
-class ResponseReasoningSummaryPart(BaseModel):
+class ResponseReasoningSummaryPart(ApiModel):
     type: Literal["summary_text"] = "summary_text"
     text: str
 
 
-class ResponseOutputText(BaseModel):
+class ResponseOutputText(ApiModel):
     """An ``output_text`` content part nested inside a message item."""
 
     type: Literal["output_text"] = "output_text"
@@ -216,7 +199,7 @@ class ResponseOutputText(BaseModel):
     annotations: list[Any] = Field(default_factory=list)
 
 
-class ResponseOutputMessage(BaseModel):
+class ResponseOutputMessage(ApiModel):
     """Assistant message output item wrapping ``output_text`` content parts.
 
     Mirrors the OpenAI Responses API, where final text lives in a ``message`` item
@@ -231,7 +214,7 @@ class ResponseOutputMessage(BaseModel):
     content: list[ResponseOutputText]
 
 
-class ResponseOutputReasoning(BaseModel):
+class ResponseOutputReasoning(ApiModel):
     """OpenAI Responses API reasoning output item (``summary``, not top-level ``text``)."""
 
     type: Literal["reasoning"] = "reasoning"
@@ -243,12 +226,13 @@ def reasoning_summary_plaintext(item: ResponseOutputReasoning) -> str:
     return "".join(part.text for part in item.summary)
 
 
-class ResponseFunctionToolCall(BaseModel):
+class ResponseFunctionToolCall(ApiModel):
     type: Literal["function_call"] = "function_call"
     id: str
     call_id: str
     name: str
     arguments: str = "{}"
+    namespace: str | None = None
     status: Literal["completed", "in_progress", "incomplete"] = "completed"
 
 
@@ -258,15 +242,15 @@ ResponseOutputContent = Annotated[
 ]
 
 
-class ResponseInputTokensDetails(BaseModel):
+class ResponseInputTokensDetails(ApiModel):
     cached_tokens: int = 0
 
 
-class ResponseOutputTokensDetails(BaseModel):
+class ResponseOutputTokensDetails(ApiModel):
     reasoning_tokens: int = 0
 
 
-class ResponseUsage(BaseModel):
+class ResponseUsage(ApiModel):
     """Token usage for a response."""
 
     input_tokens: int
@@ -276,20 +260,20 @@ class ResponseUsage(BaseModel):
     output_tokens_details: ResponseOutputTokensDetails = Field(default_factory=ResponseOutputTokensDetails)
 
 
-class ResponseError(BaseModel):
+class ResponseError(ApiModel):
     """Error information for a failed response."""
 
     code: str
     message: str
 
 
-class ResponseIncompleteDetails(BaseModel):
+class ResponseIncompleteDetails(ApiModel):
     """Why a response is ``incomplete`` (e.g. truncated at ``max_output_tokens``)."""
 
     reason: Literal["max_output_tokens", "content_filter"]
 
 
-class Response(BaseModel):
+class Response(ApiModel):
     """OpenAI-compatible response object."""
 
     id: str
@@ -301,9 +285,10 @@ class Response(BaseModel):
     output: list[ResponseOutputContent] | None = None
     error: ResponseError | None = None
     usage: ResponseUsage | None = None
+    service_tier: str = "default"
 
 
-class ResponseListItem(BaseModel):
+class ResponseListItem(ApiModel):
     """Item in a response list."""
 
     id: str
@@ -313,7 +298,7 @@ class ResponseListItem(BaseModel):
     status: ResponseStatus
 
 
-class ResponseList(BaseModel):
+class ResponseList(ApiModel):
     """Paginated list of responses."""
 
     object: Literal["list"] = "list"
@@ -326,18 +311,18 @@ EmbeddingInput = str | list[str] | list[int] | list[list[int]]
 EmbeddingEncodingFormat = Literal["float", "base64"]
 
 
-class EmbeddingData(BaseModel):
+class EmbeddingData(ApiModel):
     index: int
     object: Literal["embedding"] = "embedding"
     embedding: list[float] | str
 
 
-class EmbeddingUsage(BaseModel):
+class EmbeddingUsage(ApiModel):
     prompt_tokens: int
     total_tokens: int
 
 
-class EmbeddingResponse(BaseModel):
+class EmbeddingResponse(ApiModel):
     object: Literal["list"] = "list"
     data: list[EmbeddingData]
     model: str
@@ -406,14 +391,14 @@ class CreateDecisionPayload(BaseModel):
     images: list[str | DecisionImage] = Field(default_factory=list, max_length=4)
 
 
-class ChoiceAnswer(BaseModel):
+class ChoiceAnswer(ApiModel):
     type: Literal["choice"] = "choice"
     choice: str
     confidence: float
     probabilities: dict[str, float]
 
 
-class ScoreAnswer(BaseModel):
+class ScoreAnswer(ApiModel):
     type: Literal["score"] = "score"
     score: float
     confidence: float
@@ -421,7 +406,7 @@ class ScoreAnswer(BaseModel):
     probabilities: dict[str, float]
 
 
-class NoulAnswer(BaseModel):
+class NoulAnswer(ApiModel):
     type: Literal["noul"] = "noul"
     noul: float
 
@@ -429,12 +414,201 @@ class NoulAnswer(BaseModel):
 DecisionAnswer = Annotated[ChoiceAnswer | ScoreAnswer | NoulAnswer, Field(discriminator="type")]
 
 
-class DecisionUsage(BaseModel):
+class DecisionUsage(ApiModel):
     input_tokens: int
     output_tokens: int = 0
 
 
-class DecisionResponse(BaseModel):
+class DecisionResponse(ApiModel):
     model: str
     answers: dict[str, DecisionAnswer]
     usage: DecisionUsage
+
+
+# Model catalog (GET /v1/models)
+class CapabilityFlag(ApiModel):
+    supported: bool = False
+
+
+class ThinkingCapabilityTypes(ApiModel):
+    enabled: CapabilityFlag = Field(default_factory=CapabilityFlag)
+    adaptive: CapabilityFlag = Field(default_factory=CapabilityFlag)
+
+
+class ThinkingCapability(ApiModel):
+    supported: bool = False
+    types: ThinkingCapabilityTypes = Field(default_factory=ThinkingCapabilityTypes)
+
+
+class ModelCapabilities(ApiModel):
+    image_input: CapabilityFlag = Field(default_factory=CapabilityFlag)
+    pdf_input: CapabilityFlag = Field(default_factory=CapabilityFlag)
+    thinking: ThinkingCapability = Field(default_factory=ThinkingCapability)
+    tools: CapabilityFlag = Field(default_factory=CapabilityFlag)
+    dimensions: int | None = None
+
+
+class OffPeakPricing(ApiModel):
+    start: str
+    end: str
+    timezone: str
+    price_factor: float
+
+
+class ModelPricing(ApiModel):
+    input_per_million_usd: float | None = None
+    output_per_million_usd: float | None = None
+    cached_input_per_million_usd: float | None = None
+    off_peak: OffPeakPricing | None = None
+
+
+class ModelInfo(ApiModel):
+    id: str
+    object: Literal["model"] = "model"
+    created: int
+    owned_by: str = "sference"
+    display_name: str
+    # str, not Literal: a new modality must not break parsing the whole catalog.
+    modality: str = "text_generation"
+    capabilities: ModelCapabilities = Field(default_factory=ModelCapabilities)
+    context_tokens: int | None = None
+    provider: str | None = None
+    pricing: ModelPricing | None = None
+    released: str | None = None
+    alias_of: str | None = None
+    retires_on: str | None = None
+
+
+class ModelList(ApiModel):
+    object: Literal["list"] = "list"
+    data: list[ModelInfo]
+
+
+# Billing (GET /v1/billing/*). Amounts are in micro-USD.
+class BillingBalanceResponse(ApiModel):
+    credit_balance_micros: int
+    billing_mode: str = "prepaid"
+
+
+class BillingSummary(ApiModel):
+    days: int
+    total_prompt_tokens: int
+    total_completion_tokens: int
+    total_tokens: int
+    total_cached_prompt_tokens: int = 0
+    total_requests: int
+    estimated_cost_micros: int
+    credit_balance_micros: int
+    billing_mode: str = "prepaid"
+
+
+class PricingInfo(ApiModel):
+    model: str
+    prompt_token_price_micros: int
+    completion_token_price_micros: int
+    effective_from: str
+
+
+class BillingModelSummary(ApiModel):
+    model: str
+    service_tier: str = "default"
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    cached_prompt_tokens: int = 0
+    total_requests: int
+    cost_micros: int
+    pricing: PricingInfo | None = None
+
+
+class BillingSummaryResponse(ApiModel):
+    summary: BillingSummary
+    by_model: list[BillingModelSummary]
+
+
+class LedgerEntryItem(ApiModel):
+    id: str
+    created_at: str
+    type: str
+    amount_micros: int
+    balance_after_micros: int | None = None
+    description: str
+    external_provider: str | None = None
+    external_payment_id: str | None = None
+
+
+class LedgerListResponse(ApiModel):
+    items: list[LedgerEntryItem]
+    next_starting_after: str | None = None
+
+
+# Usage (GET /v1/usage/*)
+class UsageSummary(ApiModel):
+    total_prompt_tokens: int
+    total_completion_tokens: int
+    total_tokens: int
+    total_cached_prompt_tokens: int = 0
+    total_requests: int
+    total_cost_micros: int = 0
+
+
+class ModelUsageSummary(UsageSummary):
+    model: str
+    service_tier: str = "default"
+
+
+class UserUsageSummary(UsageSummary):
+    user_id: str | None = None
+
+
+class UsageSummaryResponse(ApiModel):
+    summary: UsageSummary
+    by_model: list[ModelUsageSummary]
+    by_user: list[UserUsageSummary] = Field(default_factory=list)
+
+
+class DailyUsage(ApiModel):
+    date: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    cached_prompt_tokens: int = 0
+    request_count: int
+    cost_micros: int = 0
+    input_cost_micros: int = 0
+    cached_cost_micros: int = 0
+    output_cost_micros: int = 0
+
+
+class UsageDailyResponse(ApiModel):
+    items: list[DailyUsage]
+
+
+class UsageByKeyItem(ApiModel):
+    api_key_id: str
+    name: str
+    prefix: str
+    tag: str | None = None
+    owner_email: str
+    department_id: str | None = None
+    revoked: bool = False
+    last_used_at: str | None = None
+    requests: int = 0
+    total_tokens: int = 0
+    cost_micros: int = 0
+
+
+class UsageByTagItem(ApiModel):
+    tag: str
+    keys: int = 0
+    requests: int = 0
+    total_tokens: int = 0
+    cost_micros: int = 0
+
+
+class UsageByKeyResponse(ApiModel):
+    period_start: str
+    period_end: str
+    items: list[UsageByKeyItem]
+    by_tag: list[UsageByTagItem] = Field(default_factory=list)

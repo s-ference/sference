@@ -375,6 +375,13 @@ def _submit_batch(client: SferenceClient, *, input_file: str, model: Optional[st
             _fail(f"Could not read {input_file}: {exc}")
 
 
+def _plain(value: object) -> object:
+    """API payload as plain JSON data; typed SDK models dump only the fields the server sent."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json", exclude_unset=True)
+    return value
+
+
 def _print(value: object, as_json: bool) -> None:
     """``--json`` prints the payload verbatim; otherwise one ``key: value`` line per field."""
     if as_json or not isinstance(value, dict):
@@ -387,7 +394,7 @@ def _print(value: object, as_json: bool) -> None:
 
 
 def _list_models(*, client: SferenceClient, as_json: bool) -> None:
-    payload = _call_api(client.list_models)
+    payload = _plain(_call_api(client.list_models))
     if as_json:
         typer.echo(json.dumps(payload, indent=2, default=str))
         return
@@ -643,7 +650,7 @@ def decisions_create(
 
 def _validate_login(base_url: Optional[str], token: str, as_json: bool) -> None:
     """Call GET /v1/auth/me with the credential just saved and say who it is."""
-    me = _call_api(_client(base_url, token=token).get_me)
+    me = _plain(_call_api(_client(base_url, token=token).get_me))
     if as_json:
         _print(me, True)
     elif isinstance(me, dict) and "username" in me and "role" in me:
@@ -743,7 +750,7 @@ def auth_me(
 ) -> None:
     """Show the user the current credential belongs to (GET /v1/auth/me)."""
     _ensure_api_credential()
-    _print(_call_api(_client(base_url).get_me), as_json)
+    _print(_plain(_call_api(_client(base_url).get_me)), as_json)
 
 
 @responses_app.command("create")

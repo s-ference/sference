@@ -1,6 +1,6 @@
 # sference Python SDK
 
-Installable package: `sference-sdk` (import: `sference_sdk`). Used by the `sference` CLI and your own automation.
+Installable package: `sference-sdk` (import: `sference_sdk`), Python 3.11+. Used by the `sference` CLI and your own automation.
 
 ## Install
 
@@ -54,7 +54,7 @@ batch = client.submit_batch(
     model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
     window="24h",
 )
-done = client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
+done = client.wait_for_completion(batch.id)  # polls until terminal; pass timeout= to bound it
 results = client.get_results(done.id)
 by_id = results.index_by_custom_id()
 print(by_id["row-a"].completion_text)
@@ -101,6 +101,39 @@ row = client.get_response(created.id)
 ```
 
 For a stream, add `stream_id` inside `metadata` next to `completion_window`.
+
+`create_response` also takes `tools`, `tool_choice`, `reasoning`, `include`, `text`, `prompt_cache_key` and `max_queue_wait_s`. Two options matter for cost and reliability:
+
+- `service_tier="flex"` gives discounted tokens in exchange for lower scheduling priority (pair it with `background=True`); `"priority"` is scheduled ahead of default traffic and billed at a premium. `response.service_tier` is the tier actually served.
+- `idempotency_key="..."` lets you retry a create after a network error without running the request twice.
+
+### Models, usage and billing
+
+```python
+models = client.list_models()                  # typed catalog: modality, pricing, capabilities, retires_on
+live = [m.id for m in models.data if not m.retires_on]
+
+client.get_billing_balance().credit_balance_micros          # micro-USD
+client.get_usage_summary(days=7).summary.total_cost_micros
+client.get_usage_by_key(month="2026-11").items              # spend per API key
+page = client.list_billing_transactions(limit=50)           # next page: starting_after=page.next_starting_after
+```
+
+Batches, streams and completion events also report cost in micro-USD (`total_cost_micros`, `cost_micros`).
+
+### Errors
+
+Every non-2xx response raises `sference_sdk.ApiError` with `status_code`, `type`, `code`, `message` and the raw `body`:
+
+```python
+from sference_sdk import ApiError
+
+try:
+    client.create_response(model="deepseek-ai/DeepSeek-V4.1-Flash-1017", input="hi")
+except ApiError as err:
+    if err.status_code == 429:
+        ...  # back off and retry
+```
 
 ### Decisions (realtime classification)
 

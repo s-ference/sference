@@ -133,3 +133,61 @@ def test_decision_image_data_url_contract_preserves_constraints() -> None:
                                {"content_type": "image/png", "base64": "eA=="}])
     assert not validator.is_valid(["https://example.com/image.png"])
     assert not validator.is_valid(["data:" + "x" * (5_592_440 - 4)])
+
+
+# SDK response model -> contract schema it parses. Hand-written models drift
+# silently (unknown fields are only kept as extras), so every contract property
+# must be a declared field.
+_MODEL_SCHEMAS = {
+    "User": "UserResponse",
+    "Batch": "BatchResponse",
+    "BatchResults": "BatchResultsResponse",
+    "Stream": "StreamDetailResponse",
+    "StreamInferenceCompletionEvent": "StreamInferenceCompletionEvent",
+    "StreamEventList": "StreamEventListResponse",
+    "Response": "ResponseItem",
+    "ResponseListItem": "ResponseListItem",
+    "ResponseList": "ResponseList",
+    "ResponseUsage": "ResponseUsage",
+    "ResponseError": "ResponseError",
+    "ResponseOutputMessage": "ResponseOutputMessage",
+    "ResponseOutputReasoning": "ResponseOutputReasoning",
+    "ResponseFunctionToolCall": "ResponseFunctionToolCall",
+    "DecisionResponse": "DecisionResponse",
+    "DecisionUsage": "DecisionUsage",
+    "ModelList": "V1ModelListResponse",
+    "ModelInfo": "V1ModelItemResponse",
+    "ModelCapabilities": "ModelCapabilities",
+    "ModelPricing": "V1ModelPricing",
+    "OffPeakPricing": "V1OffPeakPricing",
+    "ThinkingCapability": "ThinkingCapability",
+    "BillingBalanceResponse": "BillingBalanceResponse",
+    "BillingSummaryResponse": "BillingSummaryResponse",
+    "BillingSummary": "BillingSummary",
+    "BillingModelSummary": "BillingModelSummary",
+    "PricingInfo": "PricingInfo",
+    "LedgerListResponse": "LedgerListResponse",
+    "LedgerEntryItem": "LedgerEntryItem",
+    "UsageSummaryResponse": "UsageSummaryResponse",
+    "UsageSummary": "UsageSummary",
+    "ModelUsageSummary": "ModelUsageSummary",
+    "UserUsageSummary": "UserUsageSummary",
+    "UsageDailyResponse": "UsageDailyResponse",
+    "DailyUsage": "DailyUsage",
+    "UsageByKeyResponse": "UsageByKeyResponse",
+    "UsageByKeyItem": "UsageByKeyItem",
+    "UsageByTagItem": "UsageByTagItem",
+}
+
+
+def test_sdk_response_models_declare_every_contract_field() -> None:
+    from sference_sdk import models
+
+    schemas = _load_openapi()["components"]["schemas"]
+    missing = {}
+    for model_name, schema_name in _MODEL_SCHEMAS.items():
+        declared = set(getattr(models, model_name).model_fields)
+        gaps = set(schemas[schema_name].get("properties", {})) - declared
+        if gaps:
+            missing[model_name] = sorted(gaps)
+    assert not missing, f"SDK models are missing contract fields: {missing}"

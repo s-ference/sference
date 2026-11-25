@@ -1,6 +1,7 @@
 import json
 import warnings
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -22,24 +23,24 @@ def test_sdk_version_matches_metadata() -> None:
 def test_parse_openai_jsonl_format(tmp_path: Path) -> None:
     p = tmp_path / "openai.jsonl"
     p.write_text(
-        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.5-4B","messages":[{"role":"user","content":"hi"}]}}\n',
+        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","messages":[{"role":"user","content":"hi"}]}}\n',
         encoding="utf-8",
     )
     with pytest.warns(UserWarning, match="model argument is ignored"):
-        parsed = SferenceClient._parse_jsonl(p, model="ignored")
+        parsed = SferenceClient.parse_inference_requests_jsonl(p, model="ignored")
     assert len(parsed) == 1
-    assert parsed[0]["custom_id"] == "request-1"
+    assert parsed[0].custom_id == "request-1"
 
 
 def test_parse_openai_jsonl_no_model_no_warning(tmp_path: Path) -> None:
     p = tmp_path / "openai.jsonl"
     p.write_text(
-        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.5-4B","messages":[{"role":"user","content":"hi"}]}}\n',
+        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","messages":[{"role":"user","content":"hi"}]}}\n',
         encoding="utf-8",
     )
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        parsed = SferenceClient._parse_jsonl(p, model=None)
+        parsed = SferenceClient.parse_inference_requests_jsonl(p, model=None)
     assert len(w) == 0
     assert len(parsed) == 1
 
@@ -49,7 +50,7 @@ def test_parse_openai_jsonl_model_warns_once_per_file(tmp_path: Path) -> None:
     p = tmp_path / "openai.jsonl"
     p.write_text(line * 3, encoding="utf-8")
     with pytest.warns(UserWarning, match="model argument is ignored") as record:
-        parsed = SferenceClient._parse_jsonl(p, model="extra")
+        parsed = SferenceClient.parse_inference_requests_jsonl(p, model="extra")
     assert len(record) == 1
     assert len(parsed) == 3
 
@@ -57,17 +58,17 @@ def test_parse_openai_jsonl_model_warns_once_per_file(tmp_path: Path) -> None:
 def test_parse_content_only_jsonl_format(tmp_path: Path) -> None:
     p = tmp_path / "content.jsonl"
     p.write_text('{"content":"What is the capital of France?"}\n', encoding="utf-8")
-    parsed = SferenceClient._parse_jsonl(p, model="Qwen/Qwen3.5-4B")
+    parsed = SferenceClient.parse_inference_requests_jsonl(p, model="deepseek-ai/DeepSeek-V4.1-Flash-1017")
     assert len(parsed) == 1
-    assert parsed[0]["body"]["model"] == "Qwen/Qwen3.5-4B"
-    assert parsed[0]["body"]["messages"][0]["content"] == "What is the capital of France?"
+    assert parsed[0].body["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert parsed[0].body["messages"][0]["content"] == "What is the capital of France?"
 
 
 def test_parse_content_only_requires_model(tmp_path: Path) -> None:
     p = tmp_path / "content.jsonl"
     p.write_text('{"content":"x"}\n', encoding="utf-8")
     with pytest.raises(ValueError, match="model is required"):
-        SferenceClient._parse_jsonl(p, model=None)
+        SferenceClient.parse_inference_requests_jsonl(p, model=None)
 
 
 def test_client_timeout_defaults_to_30s_and_can_be_overridden() -> None:
@@ -88,7 +89,7 @@ def test_get_me_via_httpx_mock_transport() -> None:
 
     with SferenceClient(transport=httpx.MockTransport(handler), api_key="mock-admin-token") as client:
         me = client.get_me()
-        assert me["username"] == "admin"
+        assert me.username == "admin"
 
 
 def test_list_batches_via_httpx_mock_transport() -> None:
@@ -123,7 +124,7 @@ def test_submit_batch_raises_api_error_on_http_failure() -> None:
                         "custom_id": "request-1",
                         "method": "POST",
                         "url": "/v1/chat/completions",
-                        "body": {"model": "Qwen/Qwen3.5-4B", "messages": [{"role": "user", "content": "hi"}]},
+                        "body": {"model": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "messages": [{"role": "user", "content": "hi"}]},
                     }
                 ]
             )
@@ -244,7 +245,7 @@ def test_get_response_parses_reasoning_output_item() -> None:
                     "id": "resp_1",
                     "object": "response",
                     "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                     "status": "completed",
                     "output": [
                         {
@@ -291,7 +292,7 @@ def test_wait_for_response_treats_incomplete_as_terminal() -> None:
                     "id": "resp_trunc",
                     "object": "response",
                     "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                     "status": "incomplete",
                     "incomplete_details": {"reason": "max_output_tokens"},
                     "output": [
@@ -324,7 +325,7 @@ def test_get_response_parses_reasoning_summary_parts() -> None:
                     "id": "resp_qwen",
                     "object": "response",
                     "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                     "status": "completed",
                     "output": [
                         {
@@ -677,11 +678,11 @@ def test_inference_request_chat_builds_messages_body() -> None:
         custom_id="row-1",
         user_content="hello",
         system_content="be brief",
-        model="Qwen/Qwen3.6-35B-A3B",
+        model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
         temperature=0,
     )
     assert req.custom_id == "row-1"
-    assert req.body["model"] == "Qwen/Qwen3.6-35B-A3B"
+    assert req.body["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
     assert req.body["temperature"] == 0
     assert req.body["messages"] == [
         {"role": "system", "content": "be brief"},
@@ -764,3 +765,108 @@ def test_set_api_key_swaps_the_credential_without_rebuilding() -> None:
         client.get_me()
 
     assert seen == ["Bearer old", "Bearer new"]
+
+
+def test_create_response_sends_new_options_and_idempotency_key() -> None:
+    captured: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["json"] = json.loads(request.content)
+        captured["idempotency"] = request.headers.get("idempotency-key")
+        return httpx.Response(
+            201,
+            json={"id": "r", "created_at": 1, "model": "m", "status": "in_progress", "service_tier": "flex"},
+        )
+
+    tools = [{"type": "function", "name": "lookup", "parameters": {"type": "object"}}]
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        resp = client.create_response(
+            model="m",
+            input="hi",
+            tools=tools,
+            tool_choice="auto",
+            reasoning={"effort": "low"},
+            service_tier="flex",
+            max_queue_wait_s=60,
+            idempotency_key="key-1",
+        )
+
+    assert captured["idempotency"] == "key-1"
+    assert captured["json"] == {
+        "model": "m",
+        "input": "hi",
+        "tools": tools,
+        "tool_choice": "auto",
+        "reasoning": {"effort": "low"},
+        "service_tier": "flex",
+        "max_queue_wait_s": 60,
+    }
+    assert resp.service_tier == "flex"
+
+
+def test_api_error_exposes_openai_error_fields() -> None:
+    body = {"error": {"message": "Insufficient credits", "type": "billing_error", "param": None, "code": "insufficient_credits"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(402, json=body)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        with pytest.raises(ApiError) as excinfo:
+            client.create_response(model="m", input="hi")
+
+    err = excinfo.value
+    assert (err.status_code, err.type, err.code, err.message) == (402, "billing_error", "insufficient_credits", "Insufficient credits")
+    assert err.body == body
+    assert str(err).startswith("402: ")
+
+
+@pytest.mark.parametrize(
+    ("call", "path", "params", "payload"),
+    [
+        (lambda c: c.get_billing_balance(), "/v1/billing/balance", {}, {"credit_balance_micros": 5_000_000}),
+        (
+            lambda c: c.list_billing_transactions(limit=10),
+            "/v1/billing/transactions",
+            {"limit": "10"},
+            {"items": [], "next_starting_after": None},
+        ),
+        (
+            lambda c: c.get_usage_summary(days=7),
+            "/v1/usage/summary",
+            {"days": "7"},
+            {
+                "summary": {"total_prompt_tokens": 1, "total_completion_tokens": 2, "total_tokens": 3, "total_requests": 1},
+                "by_model": [],
+            },
+        ),
+        (lambda c: c.get_usage_daily(), "/v1/usage/daily", {}, {"items": []}),
+        (
+            lambda c: c.get_usage_by_key(month="2026-11", tag="prod"),
+            "/v1/usage/by-key",
+            {"month": "2026-11", "tag": "prod"},
+            {"period_start": "2026-11-01", "period_end": "2026-11-30", "items": []},
+        ),
+    ],
+)
+def test_billing_and_usage_reads_hit_their_endpoint(call, path, params, payload) -> None:
+    seen: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"], seen["params"] = request.url.path, dict(request.url.params)
+        return httpx.Response(200, json=payload)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        call(client)
+
+    # Unset filters are omitted so the server's defaults apply.
+    assert (seen["path"], seen["params"]) == (path, params)
+
+
+def test_async_client_has_every_sync_method() -> None:
+    from sference_sdk import AsyncSferenceClient
+
+    def public(cls: type) -> set[str]:
+        return {n for n in dir(cls) if not n.startswith("_")}
+
+    # close/aclose is the one intended naming difference.
+    assert public(SferenceClient) - {"close"} == public(AsyncSferenceClient) - {"aclose"}
