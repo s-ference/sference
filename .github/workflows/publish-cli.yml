@@ -1,9 +1,10 @@
 name: Publish CLI to PyPI
 
+# Released independently of the SDK: push a `cli-v<version>` tag.
+# The filename must stay as-is: PyPI trusted publishing is bound to it.
 on:
-  workflow_run:
-    workflows: ["Publish SDK to PyPI"]
-    types: [completed]
+  push:
+    tags: ["cli-v*"]
   workflow_dispatch:
 
 permissions:
@@ -12,18 +13,35 @@ permissions:
 
 jobs:
   publish-cli:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment: pypi
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - uses: astral-sh/setup-uv@v5
 
+      - name: Check tag matches package version
+        if: github.ref_type == 'tag'
+        run: python3 .github/scripts/release_version.py cli "$GITHUB_REF_NAME"
+
       - name: Build sference-cli
         run: uv build --package sference-cli --out-dir dist-cli
+
+      # When both packages are released together the SDK tag's run may still be
+      # uploading; wait until the CLI's SDK requirement resolves from PyPI so we
+      # never publish a CLI that cannot be installed.
+      - name: Wait for required SDK on PyPI
+        run: |
+          uv venv -q /tmp/resolve
+          for attempt in $(seq 1 30); do
+            if uv pip install -q --refresh --dry-run --python /tmp/resolve dist-cli/*.whl; then
+              exit 0
+            fi
+            echo "SDK requirement not installable yet (attempt $attempt/30); retrying in 20s"
+            sleep 20
+          done
+          echo "::error::sference-cli's sference-sdk requirement never became installable from PyPI"
+          exit 1
 
       - name: Publish sference-cli
         uses: pypa/gh-action-pypi-publish@release/v1
