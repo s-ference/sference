@@ -70,7 +70,7 @@ Orchestration recipes (Prefect, batch `/v1/responses`, etc.) live under [example
 ## Development
 
 ```bash
-uv sync --group dev
+uv sync --group dev --group examples-test  # example tests need the framework deps
 uv run pytest -q
 ```
 
