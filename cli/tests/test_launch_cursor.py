@@ -19,10 +19,10 @@ runner = CliRunner()
 REACTIVE = cc.REACTIVE_KEY
 FAKE_KEY = "sk_test_sference_key"
 FAKE_JWT = "header.payload.signature"
-DEFAULT_MODEL = launch_mod.CURSOR_DEFAULT_LAUNCH_MODEL
+DEFAULT_MODEL = launch_mod.DEFAULT_MODEL
 
 FAKE_CATALOG = [
-    {"id": "moonshotai/Kimi-K3", "display_name": "Kimi K3", "modality": "text_generation"},
+    {"id": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "display_name": "DeepSeek V4.1 Flash (1017)", "modality": "text_generation"},
     {"id": "zai-org/GLM-5.3", "display_name": "GLM 5.3", "modality": "text_generation"},
 ]
 
@@ -124,7 +124,7 @@ def test_on_writes_config_and_backup(cursor_home: Path):
     assert reactive["openAIBaseUrl"] == "https://api.sference.com/v1"
     assert reactive["useOpenAIKey"] is True
     ai = reactive["aiSettings"]
-    for model in ("moonshotai/Kimi-K3", "zai-org/GLM-5.3"):
+    for model in ("deepseek-ai/DeepSeek-V4.1-Flash-1017", "zai-org/GLM-5.3"):
         assert model in ai["userAddedModels"]
         assert model in ai["modelOverrideEnabled"]
         assert model not in ai["modelOverrideDisabled"]
@@ -155,8 +155,8 @@ def test_on_idempotent_second_run(cursor_home: Path):
     second = invoke(["launch", "cursor"])
     assert second.exit_code == 0, second.output
     reactive = reactive_of(cursor_home)
-    assert reactive["aiSettings"]["userAddedModels"].count("moonshotai/Kimi-K3") == 1
-    assert reactive["aiSettings"]["modelOverrideEnabled"].count("moonshotai/Kimi-K3") == 1
+    assert reactive["aiSettings"]["userAddedModels"].count("deepseek-ai/DeepSeek-V4.1-Flash-1017") == 1
+    assert reactive["aiSettings"]["modelOverrideEnabled"].count("deepseek-ai/DeepSeek-V4.1-Flash-1017") == 1
 
 
 def test_on_refuses_when_cursor_running(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
@@ -278,7 +278,7 @@ def test_on_sference_only_disables_catalog_models(cursor_home: Path):
     assert "grok-4.7" in disabled
     assert "default" in disabled
     assert "gpt-5.2" in disabled
-    assert "moonshotai/Kimi-K3" not in disabled
+    assert "deepseek-ai/DeepSeek-V4.1-Flash-1017" not in disabled
     # User-added entries are never disabled by the mode.
     assert "zai-org/GLM-5.2" not in disabled
 

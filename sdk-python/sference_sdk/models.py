@@ -184,7 +184,7 @@ class ResponseCreatePayload(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    model: str = Field(description='Model identifier, e.g. "zai-org/GLM-5"')
+    model: str = Field(description='Model identifier, e.g. "deepseek-ai/DeepSeek-V4.1-Flash-1017"')
     input: str | list[ResponseInputMessage]
     instructions: str | None = None
     max_output_tokens: int | None = None

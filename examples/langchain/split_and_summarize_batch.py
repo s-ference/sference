@@ -21,7 +21,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 
-DEFAULT_MODEL = "Qwen/Qwen3.6-35B-A3B"
+DEFAULT_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
 COMPLETION_WINDOW = "24h"
 BATCH_POLL_INTERVAL_S = float(os.environ.get("SFERENCE_BATCH_POLL_INTERVAL_S", "5.0"))
 BATCH_WAIT_TIMEOUT_S = float(os.environ.get("SFERENCE_BATCH_WAIT_TIMEOUT_S", "86400.0"))

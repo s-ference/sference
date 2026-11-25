@@ -23,6 +23,7 @@ import os
 import tempfile
 import time
 import urllib.request
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -36,8 +37,23 @@ AUTO_COMPACT_WINDOW_ENV_KEY = "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
 DEFAULT_AUTO_COMPACT_WINDOW = "950000"
 
 
+def is_retired(item: dict[str, Any], today: date | None = None) -> bool:
+    """Whether ``retires_on`` has passed.
+
+    A retired alias still serves requests (via ``alias_of``), but the API asks
+    callers to migrate, so pickers should not offer it.
+    """
+    raw = item.get("retires_on")
+    if not isinstance(raw, str):
+        return False
+    try:
+        return date.fromisoformat(raw) <= (today or date.today())
+    except ValueError:
+        return False
+
+
 def fetch_sference_model_entries(base_url: str, api_key: str) -> list[dict[str, Any]]:
-    """Pull the live text-generation model entries from GET {base_url}/v1/models.
+    """Pull the live, non-retired text-generation entries from GET {base_url}/v1/models.
 
     ``base_url`` may be the API origin (``launch claude``) or already end in
     ``/v1`` (the OpenAI-compatible base the other launchers pass); both resolve
@@ -56,7 +72,10 @@ def fetch_sference_model_entries(base_url: str, api_key: str) -> list[dict[str, 
     return [
         item
         for item in payload.get("data", [])
-        if isinstance(item, dict) and item.get("id") and item.get("modality", "text_generation") == "text_generation"
+        if isinstance(item, dict)
+        and item.get("id")
+        and item.get("modality", "text_generation") == "text_generation"
+        and not is_retired(item)
     ]
 
 

@@ -13,7 +13,7 @@ Dagster owns lineage and materialization; sference runs GPU inference on the sch
 ```bash
 uv sync --group dev --group examples
 export SFERENCE_API_KEY=sk_...
-export SFERENCE_MODEL=Qwen/Qwen3.6-35B-A3B   # optional
+export SFERENCE_MODEL=deepseek-ai/DeepSeek-V4.1-Flash-1017   # optional
 ```
 
 ## Run

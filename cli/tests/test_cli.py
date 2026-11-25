@@ -37,7 +37,7 @@ def _with_fake_credential(monkeypatch) -> None:
 
 _FAKE_ENTRIES = [
     {"id": "zai-org/GLM-5.2", "display_name": "GLM 5.2", "modality": "text_generation", "context_tokens": 1048576},
-    {"id": "moonshotai/Kimi-K3", "display_name": "Kimi K3", "modality": "text_generation", "context_tokens": 1048576},
+    {"id": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "display_name": "DeepSeek V4.1 Flash (1017)", "modality": "text_generation", "context_tokens": 1048576},
 ]
 
 
@@ -125,16 +125,6 @@ class FakeClient:
         d = json.loads((FIXTURES / "V1StreamsStreamIdGetStream" / "200.json").read_text(encoding="utf-8"))
         d["id"] = stream_id
         return FakeResult(d)
-
-    def append_stream_items(self, stream_id: str, items: list):
-        d = json.loads((FIXTURES / "V1StreamsStreamIdItemsAppendItems" / "200.json").read_text(encoding="utf-8"))
-        d["id"] = stream_id
-        return FakeResult(d)
-
-    def submit_stream_items_from_file(self, stream_id: str, *, input_file: str, model: str | None = None):
-        _ = input_file
-        _ = model
-        return self.append_stream_items(stream_id, items=[])
 
     def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
         """Mock create_response (keyword-only, matches SDK signature)."""
@@ -462,9 +452,9 @@ def test_models_list_json(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["object"] == "list"
     ids = {m["id"] for m in payload["data"]}
-    assert "Qwen/Qwen3.6-35B-A3B" in ids
-    assert "moonshotai/Kimi-K2.6" in ids
-    assert payload["data"][0]["capabilities"]["image_input"]["supported"] is False
+    assert "deepseek-ai/DeepSeek-V4.1-Flash-1017" in ids
+    assert "zai-org/GLM-5.3" in ids
+    assert payload["data"][0]["capabilities"]["image_input"]["supported"] is True
 
 
 def test_models_list_default(monkeypatch):
@@ -472,14 +462,13 @@ def test_models_list_default(monkeypatch):
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
     result = runner.invoke(cli_main.app, ["models", "list"])
     assert result.exit_code == 0
-    assert "display_name" in result.stdout
-    assert "modality" in result.stdout
-    assert "generation" in result.stdout
-    assert "context" in result.stdout
-    assert "vision" in result.stdout
-    assert "Qwen/Qwen3.6-35B-A3B" in result.stdout
-    assert "moonshotai/Kimi-K2.6" in result.stdout
-    assert "262144" in result.stdout
+    lines = result.stdout.splitlines()
+    assert lines[0].split() == ["id", "name", "modality", "context", "vision", "thinking", "tools", "note"]
+    # Full ids, never truncated: they are what users paste into --model.
+    pinned = next(line for line in lines if line.startswith("deepseek-ai/DeepSeek-V4.1-Flash-1017 "))
+    assert "1M" in pinned
+    alias = next(line for line in lines if line.startswith("deepseek-ai/DeepSeek-V4.1-Flash "))
+    assert "alias of deepseek-ai/DeepSeek-V4.1-Flash-1017; retired 2026-10-17" in alias
 
 
 def test_embeddings_create_json(monkeypatch):
@@ -1127,10 +1116,10 @@ def test_launch_uses_sference_model_env(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     _mock_launch_net(monkeypatch, tmp_path)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
-    monkeypatch.setenv("SFERENCE_MODEL", "Qwen/Qwen3.6-35B-A3B")
+    monkeypatch.setenv("SFERENCE_MODEL", "deepseek-ai/DeepSeek-V4-Flash-0731")
     result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
     assert result.exit_code == 0
-    assert "ANTHROPIC_MODEL=Qwen/Qwen3.6-35B-A3B" in result.stdout
+    assert "ANTHROPIC_MODEL=deepseek-ai/DeepSeek-V4-Flash-0731" in result.stdout
 
 
 def test_claude_dry_run_prints_env(monkeypatch, tmp_path: Path):
@@ -1139,16 +1128,16 @@ def test_claude_dry_run_prints_env(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     result = runner.invoke(
         cli_main.app,
-        ["launch", "claude", "--no-anthropic", "--dry-run", "--model", "moonshotai/Kimi-K2.6", "--enable-tool-search"],
+        ["launch", "claude", "--no-anthropic", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4-Flash", "--enable-tool-search"],
     )
     assert result.exit_code == 0
     assert "ANTHROPIC_BASE_URL=https://api.sference.com" in result.stdout
-    assert "ANTHROPIC_MODEL=moonshotai/Kimi-K2.6" in result.stdout
-    assert "ANTHROPIC_DEFAULT_OPUS_MODEL=moonshotai/Kimi-K2.6" in result.stdout
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL=moonshotai/Kimi-K2.6" in result.stdout
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL=moonshotai/Kimi-K2.6" in result.stdout
-    assert "ANTHROPIC_DEFAULT_FABLE_MODEL=moonshotai/Kimi-K2.6" in result.stdout
-    assert "CLAUDE_CODE_SUBAGENT_MODEL=moonshotai/Kimi-K2.6" in result.stdout
+    assert "ANTHROPIC_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert "ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert "ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert "ANTHROPIC_DEFAULT_FABLE_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert "CLAUDE_CODE_SUBAGENT_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
     assert "ANTHROPIC_AUTH_TOKEN=<redacted>" in result.stdout
     assert "ENABLE_TOOL_SEARCH=true" in result.stdout
     assert "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1" in result.stdout
@@ -1180,17 +1169,17 @@ def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
     assert launch_settings["env"]["ANTHROPIC_BASE_URL"] == "https://api.sference.com"
     # The token must NOT be in argv (ps-visible); env carries it.
     assert "ANTHROPIC_AUTH_TOKEN" not in launch_settings["env"]
-    assert launch_settings["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
+    assert launch_settings["env"]["ANTHROPIC_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
     assert launch_settings["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert captured["args"][3:] == ["--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
-    assert captured["env"]["ANTHROPIC_MODEL"] == "moonshotai/Kimi-K3"
-    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "moonshotai/Kimi-K3"
-    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "moonshotai/Kimi-K3"
-    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "moonshotai/Kimi-K3"
-    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "moonshotai/Kimi-K3"
-    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "moonshotai/Kimi-K3"
-    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "moonshotai/Kimi-K3"
+    assert captured["env"]["ANTHROPIC_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
     assert captured["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert captured["env"]["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] == "1"
 
@@ -1227,8 +1216,8 @@ _FAKE_PI_MODEL_ENTRIES = [
         "pricing": {"input_per_million_usd": 0.6, "output_per_million_usd": 2.2, "cached_input_per_million_usd": 0.1},
     },
     {
-        "id": "Qwen/Qwen3.6-35B-A3B",
-        "display_name": "Qwen3.6 35B A3B (ThinkingCap)",
+        "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+        "display_name": "DeepSeek V4 Flash (0731)",
         "modality": "text_generation",
         "context_tokens": 131072,
         "capabilities": {
@@ -1238,8 +1227,9 @@ _FAKE_PI_MODEL_ENTRIES = [
         "pricing": {"input_per_million_usd": 0.3, "output_per_million_usd": 1.5, "cached_input_per_million_usd": 0.07},
     },
     {
-        "id": "moonshotai/Kimi-K3",
-        "display_name": "Kimi K3",
+        # Synthetic: the live catalog has no non-thinking vision model to borrow.
+        "id": "example/NoThink-Vision",
+        "display_name": "NoThink Vision",
         "modality": "text_generation",
         "context_tokens": 256000,
         "capabilities": {
@@ -1260,17 +1250,17 @@ def test_pi_dry_run_prints_config(monkeypatch, tmp_path: Path):
     )
     result = runner.invoke(
         cli_main.app,
-        ["launch", "pi", "--dry-run", "--model", "moonshotai/Kimi-K3"],
+        ["launch", "pi", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"],
     )
     assert result.exit_code == 0
     assert "Wrote provider 'sference' to" in result.stdout
     assert "baseUrl: https://api.sference.com/v1" in result.stdout
     assert "api: openai-responses (/v1/responses)" in result.stdout
-    assert "model: moonshotai/Kimi-K3" in result.stdout
+    assert "model: deepseek-ai/DeepSeek-V4.1-Flash-1017" in result.stdout
     assert "models registered: 3" in result.stdout
     assert "model scope: sference/** (other providers hidden by default)" in result.stdout
     assert "apiKey: <redacted>" in result.stdout
-    assert "command: /usr/local/bin/pi --provider sference --model moonshotai/Kimi-K3" in result.stdout
+    assert "command: /usr/local/bin/pi --provider sference --model deepseek-ai/DeepSeek-V4.1-Flash-1017" in result.stdout
     assert "--models sference/**" in result.stdout
 
 
@@ -1290,7 +1280,7 @@ def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     assert provider["baseUrl"] == "https://api.sference.com/v1"
     assert provider["apiKey"] == "sk_fake_for_tests"
     models = provider["models"]
-    # all fetched catalog models are registered (default GLM-5.2 is already among them)
+    # all fetched catalog models are registered
     assert {m["id"] for m in models} == {e["id"] for e in _FAKE_PI_MODEL_ENTRIES}
     by_id = {m["id"]: m for m in models}
     # GLM: reasoning on, text-only, cost + context mapped. openai-responses drives
@@ -1309,22 +1299,22 @@ def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     # Reasoning models expose only xhigh (max is rejected by Sference and omitted
     # so a max selection clamps down to xhigh instead of 400ing).
     assert glm["thinkingLevelMap"] == {"xhigh": "xhigh"}
-    # Qwen/ThinkingCap: reasoning on, no per-model thinking format under responses
-    qwen = by_id["Qwen/Qwen3.6-35B-A3B"]
-    assert qwen["reasoning"] is True
-    assert "compat" not in qwen
-    assert qwen["thinkingLevelMap"] == {"xhigh": "xhigh"}
-    assert qwen["contextWindow"] == 131072
-    assert qwen["maxTokens"] == 16384
-    # Kimi: non-reasoning, image input
-    kimi = by_id["moonshotai/Kimi-K3"]
-    assert kimi["reasoning"] is False
-    assert kimi["input"] == ["text", "image"]
-    assert "compat" not in kimi
+    # DeepSeek: reasoning on, no per-model thinking format under responses
+    deepseek = by_id["deepseek-ai/DeepSeek-V4-Flash-0731"]
+    assert deepseek["reasoning"] is True
+    assert "compat" not in deepseek
+    assert deepseek["thinkingLevelMap"] == {"xhigh": "xhigh"}
+    assert deepseek["contextWindow"] == 131072
+    assert deepseek["maxTokens"] == 16384
+    # non-reasoning, image input
+    vision = by_id["example/NoThink-Vision"]
+    assert vision["reasoning"] is False
+    assert vision["input"] == ["text", "image"]
+    assert "compat" not in vision
     # non-reasoning model gets no thinkingLevelMap
-    assert "thinkingLevelMap" not in kimi
-    assert kimi["contextWindow"] == 256000
-    assert kimi["maxTokens"] == 16384
+    assert "thinkingLevelMap" not in vision
+    assert vision["contextWindow"] == 256000
+    assert vision["maxTokens"] == 16384
 
 
 def test_pi_does_not_add_model_absent_from_catalog(monkeypatch, tmp_path: Path):
@@ -1368,26 +1358,26 @@ def test_pi_drops_model_no_longer_in_catalog(monkeypatch, tmp_path: Path):
     models_json = tmp_path / "models.json"
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
 
-    # Default launcher model (GLM-5.2) is in the catalog initially and registered.
+    # The chosen model (GLM-5.2) is in the catalog initially and registered.
     monkeypatch.setattr(
         "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
     )
-    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run", "--model", "zai-org/GLM-5.2"])
     data = json.loads(models_json.read_text())
     ids = {m["id"] for m in data["providers"]["sference"]["models"]}
     assert "zai-org/GLM-5.2" in ids
 
-    # GLM-5.2 is removed from the catalog; default --model should not re-add it.
+    # GLM-5.2 is removed from the catalog; --model should not re-add it.
     monkeypatch.setattr(
         "sference_cli.launch.fetch_sference_model_entries",
         lambda *a: [e for e in _FAKE_PI_MODEL_ENTRIES if e["id"] != "zai-org/GLM-5.2"],
     )
-    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
+    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run", "--model", "zai-org/GLM-5.2"])
     data = json.loads(models_json.read_text())
     ids = [m["id"] for m in data["providers"]["sference"]["models"]]
     assert "zai-org/GLM-5.2" not in ids
-    # live catalog models still registered (Qwen + Kimi), nothing stale
-    assert set(ids) == {"Qwen/Qwen3.6-35B-A3B", "moonshotai/Kimi-K3"}
+    # live catalog models still registered, nothing stale
+    assert set(ids) == {"deepseek-ai/DeepSeek-V4-Flash-0731", "example/NoThink-Vision"}
 
 
 def test_pi_falls_back_when_fetch_fails(monkeypatch, tmp_path: Path):
@@ -1407,8 +1397,8 @@ def test_pi_falls_back_when_fetch_fails(monkeypatch, tmp_path: Path):
     data = json.loads(models_json.read_text())
     models = data["providers"]["sference"]["models"]
     # only the chosen (default) model is registered, as a bare {id, name}
-    assert [m["id"] for m in models] == ["zai-org/GLM-5.2"]
-    assert models[0] == {"id": "zai-org/GLM-5.2", "name": "zai-org/GLM-5.2"}
+    assert [m["id"] for m in models] == [launch_mod.DEFAULT_MODEL]
+    assert models[0] == {"id": launch_mod.DEFAULT_MODEL, "name": launch_mod.DEFAULT_MODEL}
 
 
 def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
@@ -1434,7 +1424,7 @@ def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
         "--provider",
         "sference",
         "--model",
-        "zai-org/GLM-5.2",
+        launch_mod.DEFAULT_MODEL,
         "--models",
         "sference/**",
         "/path/to/project",
@@ -1469,11 +1459,11 @@ def _opencode_entry(model_id: str, *, thinking: bool = True, alias_of: str | Non
     }
 
 
-# GLM-5.2 is an alias served by GLM-5.3 weights (always reasons); Kimi-K3 can turn
+# GLM-5.2 is an alias served by GLM-5.3 weights (always reasons); DeepSeek can turn
 # thinking off; clef is not a thinking model.
 _FAKE_OPENCODE_ENTRIES = [
     _opencode_entry("zai-org/GLM-5.2", alias_of="zai-org/GLM-5.3"),
-    _opencode_entry("moonshotai/Kimi-K3"),
+    _opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017"),
     _opencode_entry("Cloudflare/clef", thinking=False),
 ]
 _FAKE_OPENCODE_MODELS = {e["id"] for e in _FAKE_OPENCODE_ENTRIES}
@@ -1486,14 +1476,14 @@ def test_opencode_dry_run_prints_config(monkeypatch, tmp_path: Path):
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
     result = runner.invoke(
         cli_main.app,
-        ["launch", "opencode", "--dry-run", "--model", "moonshotai/Kimi-K2.6"],
+        ["launch", "opencode", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4-Flash"],
     )
     assert result.exit_code == 0
     assert "Wrote provider 'sference' to" in result.stdout
     assert "baseURL: https://api.sference.com/v1" in result.stdout
-    assert "model: moonshotai/Kimi-K2.6" in result.stdout
+    assert "model: deepseek-ai/DeepSeek-V4-Flash" in result.stdout
     assert "apiKey: {env:SFERENCE_API_KEY}" in result.stdout
-    assert "command: /usr/local/bin/opencode --model sference/moonshotai/Kimi-K2.6" in result.stdout
+    assert "command: /usr/local/bin/opencode --model sference/deepseek-ai/DeepSeek-V4-Flash" in result.stdout
 
 
 def test_opencode_writes_config(monkeypatch, tmp_path: Path):
@@ -1510,9 +1500,8 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
     assert provider["name"] == "Sference"
     assert provider["options"]["baseURL"] == "https://api.sference.com/v1"
     assert provider["options"]["apiKey"] == "{env:SFERENCE_API_KEY}"
-    # default model is GLM-5.2 (the new DEFAULT_LAUNCH_MODEL)
-    assert data["model"] == "sference/zai-org/GLM-5.2"
-    assert provider["models"]["zai-org/GLM-5.2"]["name"] == "zai-org/GLM-5.2"
+    assert data["model"] == f"sference/{launch_mod.DEFAULT_MODEL}"
+    assert provider["models"][launch_mod.DEFAULT_MODEL]["name"] == launch_mod.DEFAULT_MODEL
     # all fetched models appear in the picker
     for m in _FAKE_OPENCODE_MODELS:
         assert m in provider["models"]
@@ -1530,11 +1519,11 @@ def test_opencode_writes_thinking_variants(monkeypatch, tmp_path: Path):
     # opencode merges a variant's keys straight into the model options; the
     # openai-compatible provider only forwards a TOP-LEVEL reasoningEffort. A nested
     # {"options": {...}} variant (0.3.1) was read by nothing and sent the default.
-    for model_id in ("zai-org/GLM-5.2", "moonshotai/Kimi-K3"):
+    for model_id in ("zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"):
         for level, variant in models[model_id]["variants"].items():
             assert variant == {"reasoningEffort": level}
-    # Kimi-K3 can turn thinking off, so it offers every level including none.
-    assert set(models["moonshotai/Kimi-K3"]["variants"]) == {"none", "medium", "high", "xhigh"}
+    # DeepSeek can turn thinking off, so it offers every level including none.
+    assert set(models["deepseek-ai/DeepSeek-V4.1-Flash-1017"]["variants"]) == {"none", "medium", "high", "xhigh"}
     # GLM-5.2 is served by GLM-5.3 weights, which cannot turn thinking off: the API
     # 400s reasoning_effort=none, so no none variant.
     assert set(models["zai-org/GLM-5.2"]["variants"]) == {"medium", "high", "xhigh"}
@@ -1557,8 +1546,8 @@ def test_opencode_variants_without_model_list_omit_none(monkeypatch, tmp_path: P
     result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     assert result.exit_code == 0, result.output
     models = json.loads(config_path.read_text())["provider"]["sference"]["models"]
-    assert set(models) == {"zai-org/GLM-5.2"}  # just the default model
-    assert models["zai-org/GLM-5.2"]["variants"] == {
+    assert set(models) == {launch_mod.DEFAULT_MODEL}  # just the default model
+    assert models[launch_mod.DEFAULT_MODEL]["variants"] == {
         level: {"reasoningEffort": level} for level in ("medium", "high", "xhigh")
     }
 
@@ -1580,18 +1569,18 @@ def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
     )
     monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
-    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run", "--model", "Qwen/Qwen3.6-35B-A3B"])
+    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4-Flash-0731"])
     assert result.exit_code == 0
     data = json.loads(config_path.read_text())
     # User config preserved...
     assert data["keybinds"] == {"ctrl_k": "open"}
     assert data["provider"]["openai"]["options"]["apiKey"] == "sk_user_openai"
     # ...default model overwritten to Sference...
-    assert data["model"] == "sference/Qwen/Qwen3.6-35B-A3B"
+    assert data["model"] == "sference/deepseek-ai/DeepSeek-V4-Flash-0731"
     # ...and sference merged in with all fetched models.
     sference = data["provider"]["sference"]
     assert sference["options"]["baseURL"] == "https://api.sference.com/v1"
-    assert sference["models"]["Qwen/Qwen3.6-35B-A3B"]["name"] == "Qwen/Qwen3.6-35B-A3B"
+    assert sference["models"]["deepseek-ai/DeepSeek-V4-Flash-0731"]["name"] == "deepseek-ai/DeepSeek-V4-Flash-0731"
     for m in _FAKE_OPENCODE_MODELS:
         assert m in sference["models"]
 
@@ -1630,7 +1619,7 @@ def test_opencode_forwards_extra_args(monkeypatch, tmp_path: Path):
     assert captured["args"] == [
         "/usr/local/bin/opencode",
         "--model",
-        "sference/zai-org/GLM-5.2",
+        f"sference/{launch_mod.DEFAULT_MODEL}",
         "/path/to/project",
     ]
     assert captured["env"]["SFERENCE_API_KEY"] == "sk_fake_for_tests"
@@ -1674,7 +1663,7 @@ def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
-    entries = [{**_opencode_entry("zai-org/GLM-5.2"), "context_tokens": 202752}]
+    entries = [{**_opencode_entry(launch_mod.DEFAULT_MODEL), "context_tokens": 202752}]
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
     # No readable bundled catalog: the provider overrides alone (catalog tests below).
     monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: None)
@@ -1683,7 +1672,7 @@ def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0, result.output
     args = captured["args"]
     assert args[0] == "/usr/local/bin/codex"
-    assert args[-4:] == ["--model", "zai-org/GLM-5.2", "exec", "fix the bug"]
+    assert args[-4:] == ["--model", launch_mod.DEFAULT_MODEL, "exec", "fix the bug"]
     assert _codex_overrides(args) == {
         "model_provider": '"sference"',
         "model_providers.sference.name": '"Sference"',
@@ -1709,10 +1698,10 @@ def test_codex_offline_omits_context_window(monkeypatch):
 
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", offline)
     captured = _capture_codex_exec(monkeypatch)
-    result = runner.invoke(cli_main.app, ["launch", "codex", "--model", "moonshotai/Kimi-K3"])
+    result = runner.invoke(cli_main.app, ["launch", "codex", "--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"])
     assert result.exit_code == 0, result.output
     assert "model_context_window" not in _codex_overrides(captured["args"])
-    assert captured["args"][-2:] == ["--model", "moonshotai/Kimi-K3"]
+    assert captured["args"][-2:] == ["--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
 
 
 def test_codex_dry_run_redacts_key(monkeypatch):
@@ -1777,11 +1766,11 @@ def test_codex_catalog_template_skips_gpt_only_entries():
 def test_codex_model_catalog_lists_sference_models():
     entries = [
         {**_opencode_entry("zai-org/GLM-5.3"), "display_name": "GLM-5.3", "context_tokens": 202752},
-        {**_opencode_entry("moonshotai/Kimi-K3"), "capabilities": {"image_input": {"supported": True}}},
+        {**_opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017"), "capabilities": {"image_input": {"supported": True}}},
     ]
     catalog = launch_mod.build_codex_model_catalog(_CODEX_PLAIN_ENTRY, entries)
     glm, kimi = catalog["models"]
-    assert [glm["slug"], kimi["slug"]] == ["zai-org/GLM-5.3", "moonshotai/Kimi-K3"]
+    assert [glm["slug"], kimi["slug"]] == ["zai-org/GLM-5.3", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
     assert glm["display_name"] == "GLM-5.3"
     assert (glm["context_window"], glm["max_context_window"]) == (202752, 202752)
     # No context_tokens: the template's window is kept.
@@ -1805,7 +1794,7 @@ def test_codex_writes_catalog_and_passes_it(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
-    entries = [_opencode_entry("zai-org/GLM-5.2"), _opencode_entry("moonshotai/Kimi-K3")]
+    entries = [_opencode_entry("zai-org/GLM-5.2"), _opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017")]
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
     monkeypatch.setattr(
         "sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY]
@@ -1816,7 +1805,7 @@ def test_codex_writes_catalog_and_passes_it(monkeypatch, tmp_path: Path):
     path = tmp_path / ".sference" / "codex" / "models.json"
     assert _codex_overrides(captured["args"])["model_catalog_json"] == json.dumps(str(path))
     written = json.loads(path.read_text(encoding="utf-8"))
-    assert [m["slug"] for m in written["models"]] == ["zai-org/GLM-5.2", "moonshotai/Kimi-K3"]
+    assert [m["slug"] for m in written["models"]] == ["zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
     assert not (tmp_path / ".codex").exists()
 
 
@@ -2070,11 +2059,11 @@ def test_claude_primes_picker_cache(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0
     entries, base_url = calls["primed"]
     assert base_url == "https://api.sference.com"
-    assert [e["id"] for e in entries] == ["zai-org/GLM-5.2", "moonshotai/Kimi-K3"]
+    assert [e["id"] for e in entries] == ["zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
     # The cache actually landed under the temp CLAUDE_CONFIG_DIR.
     cache = json.loads((tmp_path / "cache" / "gateway-models.json").read_text())
     assert cache["baseUrl"] == "https://api.sference.com"
-    assert [m["id"] for m in cache["models"]] == ["zai-org/GLM-5.2", "moonshotai/Kimi-K3"]
+    assert [m["id"] for m in cache["models"]] == ["zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
     assert cache["models"][0]["display_name"] == "GLM 5.2 via Sference"
     assert "1048k context" in cache["models"][0]["description"]
 
@@ -2166,3 +2155,143 @@ def test_fetch_sference_model_entries_strips_v1_suffix(monkeypatch):
     entries = discovery.fetch_sference_model_entries("https://api.sference.com/v1", "k")
     assert seen["url"] == "https://api.sference.com/v1/models"
     assert entries == [{"id": "m", "modality": "text_generation"}]
+
+
+_STREAM_ID = "123e4567-e89b-12d3-a456-426614174000"
+
+
+def _capture_create_response(monkeypatch) -> list[dict]:
+    calls: list[dict] = []
+
+    class CapturingClient(FakeClient):
+        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
+            calls.append({"model": model, "input": input, "metadata": metadata, **kwargs})
+            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
+    return calls
+
+
+def test_stream_submit_queues_background_responses(monkeypatch, tmp_path: Path):
+    """Stream items are async work: each line becomes a background response
+    tagged with the stream and the 24h window, not a blocking realtime call."""
+    _with_fake_credential(monkeypatch)
+    monkeypatch.delenv("SFERENCE_MODEL", raising=False)
+    calls = _capture_create_response(monkeypatch)
+    p = tmp_path / "items.jsonl"
+    p.write_text(
+        "\n".join(
+            [
+                json.dumps({"content": "plain"}),
+                json.dumps({"input": "bare body", "max_output_tokens": 64}),
+                json.dumps(
+                    {
+                        "custom_id": "r3",
+                        "method": "POST",
+                        "url": "/v1/chat/completions",
+                        "body": {
+                            "model": "zai-org/GLM-5.3",
+                            "messages": [{"role": "user", "content": "chat"}],
+                            "max_tokens": 32,
+                        },
+                    }
+                ),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    r = runner.invoke(cli_main.app, ["stream", "submit", "--stream-id", _STREAM_ID, "--input-file", str(p)])
+    assert r.exit_code == 0, r.output
+    assert len(calls) == 3
+    for call in calls:
+        assert call["background"] is True
+        assert call["metadata"]["stream_id"] == _STREAM_ID
+        assert call["metadata"]["completion_window"] == "24h"
+    assert calls[0]["model"] == launch_mod.DEFAULT_MODEL
+    assert calls[0]["input"] == [{"role": "user", "content": "plain"}]
+    assert calls[1]["max_output_tokens"] == 64
+    assert calls[2]["model"] == "zai-org/GLM-5.3"
+    assert calls[2]["input"] == [{"role": "user", "content": "chat"}]
+    assert calls[2]["max_output_tokens"] == 32
+    assert calls[2]["metadata"]["custom_id"] == "r3"
+    assert "Queued 3 response(s)" in r.stdout
+
+
+def test_stream_submit_rejects_bad_line_before_submitting(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+    calls = _capture_create_response(monkeypatch)
+    p = tmp_path / "items.jsonl"
+    p.write_text('{"content": "ok"}\n{"input": "x", "tools": []}\n', encoding="utf-8")
+    r = runner.invoke(cli_main.app, ["stream", "submit", "--stream-id", _STREAM_ID, "--input-file", str(p)])
+    assert r.exit_code == 1
+    assert "Line 2: unsupported field(s) tools" in r.output
+    assert calls == []
+
+
+def test_responses_create_defaults_to_catalog_model(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.delenv("SFERENCE_MODEL", raising=False)
+    calls = _capture_create_response(monkeypatch)
+    r = runner.invoke(cli_main.app, ["responses", "create", "--content", "hello"])
+    assert r.exit_code == 0, r.output
+    assert calls[0]["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+
+
+def test_responses_create_model_from_env(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("SFERENCE_MODEL", "zai-org/GLM-5.3")
+    calls = _capture_create_response(monkeypatch)
+    r = runner.invoke(cli_main.app, ["responses", "create", "--content", "hello"])
+    assert r.exit_code == 0, r.output
+    assert calls[0]["model"] == "zai-org/GLM-5.3"
+
+
+def test_base_url_env_reaches_client(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    monkeypatch.setenv("SFERENCE_BASE_URL", "http://localhost:8000/")
+    seen: dict = {}
+
+    class RecordingClient(FakeClient):
+        def __init__(self, *args, **kwargs):
+            seen.update(kwargs)
+
+    monkeypatch.setattr(cli_main, "SferenceClient", RecordingClient)
+    r = runner.invoke(cli_main.app, ["auth", "me"])
+    assert r.exit_code == 0, r.output
+    assert seen["base_url"] == "http://localhost:8000"
+
+
+def test_batch_submit_invalid_jsonl_exits_cleanly(monkeypatch, tmp_path: Path):
+    _with_fake_credential(monkeypatch)
+
+    class ParsingClient(FakeClient):
+        def submit_batch(self, **kwargs):
+            raise ValueError("Unsupported JSONL line format at line 1")
+
+    monkeypatch.setattr(cli_main, "SferenceClient", ParsingClient)
+    p = tmp_path / "bad.jsonl"
+    p.write_text('{"nope": 1}\n', encoding="utf-8")
+    r = runner.invoke(cli_main.app, ["batch", "submit", "--input-file", str(p)])
+    assert r.exit_code == 1
+    assert "Unsupported JSONL line format at line 1" in r.output
+    assert r.exception is None or isinstance(r.exception, SystemExit)
+
+
+def test_fetch_model_entries_skips_retired_and_non_text(monkeypatch):
+    import io
+
+    from sference_cli import _discovery as discovery
+
+    payload = {
+        "data": [
+            {"id": "live", "modality": "text_generation"},
+            {"id": "retired-alias", "modality": "text_generation", "alias_of": "live", "retires_on": "2000-01-01"},
+            {"id": "future-retire", "modality": "text_generation", "retires_on": "2999-01-01"},
+            {"id": "clef", "modality": "decisions"},
+        ]
+    }
+    monkeypatch.setattr(
+        discovery.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(json.dumps(payload).encode())
+    )
+    ids = [e["id"] for e in discovery.fetch_sference_model_entries("https://api.example", "k")]
+    assert ids == ["live", "future-retire"]

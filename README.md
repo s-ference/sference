@@ -43,14 +43,14 @@ pipx install sference-cli
 from sference_sdk import SferenceClient
 
 client = SferenceClient(api_key="sk_...")
-batch = client.submit_batch(input_file="workload.jsonl", model="Qwen/Qwen3.6-35B-A3B", window="24h")
+batch = client.submit_batch(input_file="workload.jsonl", model="deepseek-ai/DeepSeek-V4.1-Flash-1017", window="24h")
 done = client.wait_for_completion(batch.id)
 results = client.get_results(done.id)
 ```
 
 ```bash
 sference auth login   # browser device flow; --api-key 'sk_...' for CI
-sference batch submit --input-file workload.jsonl --model Qwen/Qwen3.6-35B-A3B --window 24h
+sference batch submit --input-file workload.jsonl --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --window 24h
 sference batch wait --batch-id <id>
 ```
 
@@ -70,7 +70,7 @@ Orchestration recipes (Prefect, batch `/v1/responses`, etc.) live under [example
 ## Development
 
 ```bash
-uv sync --group dev
+uv sync --group dev --group examples-test  # example tests need the framework deps
 uv run pytest -q
 ```
 

@@ -39,7 +39,7 @@ def _response_payload(response_id: str, *, custom_id: str | None = None) -> dict
         "id": response_id,
         "object": "response",
         "created_at": 1712345678,
-        "model": "Qwen/Qwen3.6-35B-A3B",
+        "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
         "status": "completed",
         "output": [
             {

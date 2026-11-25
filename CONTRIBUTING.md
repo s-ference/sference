@@ -9,7 +9,7 @@ When the public API surface changes, update `contract/openapi.json` in your PR (
 ## Development
 
 ```bash
-uv sync --group dev
+uv sync --group dev --group examples-test  # example tests need the framework deps
 uv run pytest -q
 ```
 
