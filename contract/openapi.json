@@ -12626,6 +12626,51 @@
       },
       "SignupRequest": {
         "properties": {
+          "first_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 100
+          },
+          "last_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 100
+          },
+          "company_name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maxLength": 200
+          },
+          "use_case": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "enum": [
+              "coding",
+              "product",
+              "both",
+              null
+            ]
+          },
           "email": {
             "type": "string",
             "format": "email"
