@@ -25,3 +25,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-sdk/
+          # CLI-only releases reuse the published SDK version; without this the
+          # upload 400s and the chained CLI publish is skipped.
+          skip-existing: true
