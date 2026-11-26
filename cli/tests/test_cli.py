@@ -260,22 +260,11 @@ def test_auth_login_api_key_noninteractive(monkeypatch, tmp_path: Path, validate
 
 
 def _fake_device_start() -> dict:
-    return {
-        "device_code": "dc_test",
-        "user_code": "ABCD-EFGH",
-        "verification_uri": "https://app.sference.com/device",
-        "expires_in": 600,
-        "interval": 5,
-    }
+    return json.loads((FIXTURES / "V1OauthDeviceCodeDeviceCode" / "200.json").read_text(encoding="utf-8"))
 
 
 def _fake_device_tokens() -> dict:
-    return {
-        "access_token": "jwt_access_test",
-        "token_type": "bearer",
-        "expires_in": 86400,
-        "refresh_token": "rt_test",
-    }
+    return json.loads((FIXTURES / "V1OauthTokenToken" / "200.json").read_text(encoding="utf-8"))
 
 
 def test_auth_login_device_flow_opens_browser(monkeypatch, tmp_path: Path):
@@ -291,10 +280,10 @@ def test_auth_login_device_flow_opens_browser(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
     result = runner.invoke(cli_main.app, ["auth", "login", "--no-validate"])
     assert result.exit_code == 0
-    assert opened == ["https://app.sference.com/device?code=ABCD-EFGH"]
+    assert opened == [f"https://app.sference.com/device?code={_fake_device_start()['user_code']}"]
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
-    assert data["access_token"] == "jwt_access_test"
-    assert data["refresh_token"] == "rt_test"
+    assert data["access_token"] == _fake_device_tokens()["access_token"]
+    assert data["refresh_token"] == _fake_device_tokens()["refresh_token"]
     assert data["expires_at"] > 0
 
 
@@ -307,9 +296,9 @@ def test_auth_login_device_flow_no_browser(monkeypatch, tmp_path: Path):
     result = runner.invoke(cli_main.app, ["auth", "login", "--no-browser", "--no-validate"])
     assert result.exit_code == 0
     mock_open.assert_not_called()
-    assert "ABCD-EFGH" in result.stdout
+    assert _fake_device_start()["user_code"] in result.stdout
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
-    assert data["access_token"] == "jwt_access_test"
+    assert data["access_token"] == _fake_device_tokens()["access_token"]
 
 
 def test_auth_login_device_flow_start_failure_exits_1(monkeypatch, tmp_path: Path):
@@ -456,7 +445,7 @@ def test_login_validates_the_credential_it_just_minted(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(cli_main, "_client", fake_client)
     result = runner.invoke(cli_main.app, ["auth", "login", "--no-browser"])
     assert result.exit_code == 0, result.stdout
-    assert seen["token"] == "jwt_access_test"
+    assert seen["token"] == _fake_device_tokens()["access_token"]
 
 
 def test_stale_device_token_is_refreshed_and_the_call_retried(monkeypatch, tmp_path: Path):
@@ -935,111 +924,42 @@ def test_stream_submit_jsonl(monkeypatch, tmp_path: Path):
     assert json.loads(r.stdout)["total_items"] == 1
 
 
-def test_responses_create_returns_json_with_id(monkeypatch):
+_BASE_BODY = {"model": "m", "input": [{"role": "user", "content": "hello"}], "include_reasoning": True}
+
+
+@pytest.mark.parametrize(
+    ("flags", "body", "read_timeout"),
+    [
+        # Blocking by default, and the client outwaits the server's sync deadline.
+        ([], _BASE_BODY, 1860.0),
+        (["--background"], {**_BASE_BODY, "background": True}, 30.0),
+        (["--no-include-reasoning"], {**_BASE_BODY, "include_reasoning": False}, 1860.0),
+        (["--enable-thinking"], {**_BASE_BODY, "enable_thinking": True}, 1860.0),
+        (["--disable-thinking"], {**_BASE_BODY, "enable_thinking": False}, 1860.0),
+        (["--timeout", "120"], _BASE_BODY, 120.0),
+    ],
+)
+def test_responses_create_sends_the_flags(monkeypatch, flags: list[str], body: dict, read_timeout: float):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
+    reply = {"id": "resp_1", "object": "response", "created_at": 1, "model": "m", "status": "completed"}
+    sent = _serve(monkeypatch, lambda _r: httpx.Response(200, json=reply))
+    r = runner.invoke(cli_main.app, ["responses", "create", "--model", "m", "--content", "hello", *flags])
+    assert r.exit_code == 0, r.output
+    assert json.loads(r.stdout)["id"] == "resp_1"
+    assert json.loads(sent[0].content) == body
+    assert sent[0].extensions["timeout"]["read"] == read_timeout
+
+
+def test_decisions_create_outwaits_the_servers_decision_deadline(monkeypatch):
+    _with_fake_credential(monkeypatch)
+    reply = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
+    sent = _serve(monkeypatch, lambda _r: httpx.Response(200, json=reply))
     r = runner.invoke(
         cli_main.app,
-        ["responses", "create", "--model", "m", "--content", "hello"],
+        ["decisions", "create", "--model", "m", "--state", "x", "--questions", '{"ok": {"type": "noul"}}'],
     )
-    assert r.exit_code == 0
-    payload = json.loads(r.stdout)
-    assert payload["id"].startswith("resp_")
-
-
-def test_responses_create_passes_include_reasoning_flag(monkeypatch):
-    _with_fake_credential(monkeypatch)
-
-    captured: dict = {}
-
-    class CapturingClient(FakeClient):
-        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
-            captured.update(kwargs)
-            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
-
-    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
-    r = runner.invoke(
-        cli_main.app,
-        ["responses", "create", "--model", "m", "--content", "hello", "--no-include-reasoning"],
-    )
-    assert r.exit_code == 0
-    assert captured.get("include_reasoning") is False
-
-
-def test_responses_create_passes_enable_thinking_flag(monkeypatch):
-    _with_fake_credential(monkeypatch)
-
-    captured: dict = {}
-
-    class CapturingClient(FakeClient):
-        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
-            captured.update(kwargs)
-            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
-
-    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
-    r = runner.invoke(
-        cli_main.app,
-        ["responses", "create", "--model", "m", "--content", "hello", "--enable-thinking"],
-    )
-    assert r.exit_code == 0
-    assert captured.get("enable_thinking") is True
-
-
-def test_responses_create_defaults_to_foreground(monkeypatch):
-    _with_fake_credential(monkeypatch)
-
-    captured: dict = {}
-
-    class CapturingClient(FakeClient):
-        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
-            captured.update(kwargs)
-            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
-
-    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
-    r = runner.invoke(
-        cli_main.app,
-        ["responses", "create", "--model", "m", "--content", "hello"],
-    )
-    assert r.exit_code == 0
-    assert captured.get("background") is False
-
-
-def test_responses_create_background_flag_returns_immediately(monkeypatch):
-    _with_fake_credential(monkeypatch)
-
-    captured: dict = {}
-
-    class CapturingClient(FakeClient):
-        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
-            captured.update(kwargs)
-            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
-
-    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
-    r = runner.invoke(
-        cli_main.app,
-        ["responses", "create", "--model", "m", "--content", "hello", "--background"],
-    )
-    assert r.exit_code == 0
-    assert captured.get("background") is True
-
-
-def test_responses_create_passes_timeout_to_client(monkeypatch):
-    _with_fake_credential(monkeypatch)
-
-    captured: dict = {}
-
-    class CapturingClient(FakeClient):
-        def __init__(self, *args, **kwargs):
-            captured.update(kwargs)
-            super().__init__(*args, **kwargs)
-
-    monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
-    r = runner.invoke(
-        cli_main.app,
-        ["responses", "create", "--model", "m", "--content", "hello", "--timeout", "120"],
-    )
-    assert r.exit_code == 0
-    assert captured.get("timeout") == 120.0
+    assert r.exit_code == 0, r.output
+    assert sent[0].extensions["timeout"]["read"] == 45.0
 
 
 def test_responses_result_returns_json(monkeypatch):

@@ -85,11 +85,9 @@ def test_response_status_literal_matches_contract_enum() -> None:
 def test_mock_fixtures_validate_against_openapi_contract() -> None:
     openapi = _load_openapi()
     fixtures_root = Path(__file__).resolve().parent / "fixtures"
-    if not fixtures_root.exists():
-        # No API-mocking fixtures owned by this suite yet.
-        return
-
     fixture_files = sorted(fixtures_root.rglob("*.json"))
+    # The surface table loads its API replies from here; an empty walk would pass vacuously.
+    assert fixture_files, f"no fixtures under {fixtures_root}"
     for f in fixture_files:
         rel = f.relative_to(fixtures_root)
         if len(rel.parts) != 2:

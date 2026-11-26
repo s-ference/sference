@@ -619,7 +619,10 @@ def decisions_create(
     state_json: Optional[str] = typer.Option(
         None, "--state-json", help="State as a JSON value instead of text; @path reads a file, @- stdin."
     ),
-    timeout: float = typer.Option(30.0, "--timeout", help="HTTP read timeout in seconds."),
+    # Unset leaves the SDK's per-call read timeout, which outlasts the server's own deadline.
+    timeout: Optional[float] = typer.Option(
+        None, "--timeout", help="HTTP read timeout in seconds (default: as long as the server may take)."
+    ),
     base_url: Optional[str] = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
@@ -780,7 +783,10 @@ def responses_create(
             "cancelled and the command fails — use --background for long requests."
         ),
     ),
-    timeout: float = typer.Option(600.0, "--timeout", help="HTTP read timeout in seconds."),
+    # Unset leaves the SDK's per-call read timeout, which outlasts the server's own deadline.
+    timeout: Optional[float] = typer.Option(
+        None, "--timeout", help="HTTP read timeout in seconds (default: as long as the server may take)."
+    ),
     base_url: Optional[str] = BASE_URL_OPTION,
 ) -> None:
     """Create one response (POST /v1/responses) and print it as JSON."""
