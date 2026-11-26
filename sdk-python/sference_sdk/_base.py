@@ -11,7 +11,7 @@ import json
 import os
 import warnings
 from collections.abc import Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -181,15 +181,13 @@ class BaseClient:
         headers = {"content-type": "application/json"}
         if self._token:
             headers["authorization"] = f"Bearer {self._token}"
-        try:
+        # OpenTelemetry is optional; tracing must never break a request.
+        with suppress(Exception):
             from opentelemetry.propagate import inject
 
             carrier: dict[str, str] = {}
             inject(carrier)
             headers.update(carrier)
-        except Exception:
-            # OpenTelemetry is optional; tracing must never break a request.
-            pass
         scoped = _request_extra_headers.get()
         if scoped:
             headers.update(scoped)

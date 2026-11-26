@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from typing import Optional
 
 DEFAULT_API_BASE_URL = "https://api.sference.com"
 
@@ -14,7 +13,7 @@ DEFAULT_API_BASE_URL = "https://api.sference.com"
 DEFAULT_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
 
 
-def resolve_api_base_url(explicit: Optional[str] = None) -> str:
+def resolve_api_base_url(explicit: str | None = None) -> str:
     """``--base-url`` > ``SFERENCE_BASE_URL`` > the public API."""
     if explicit and explicit.strip():
         return explicit.strip().rstrip("/")
@@ -24,13 +23,13 @@ def resolve_api_base_url(explicit: Optional[str] = None) -> str:
     return DEFAULT_API_BASE_URL
 
 
-def resolve_openai_base_url(explicit: Optional[str] = None) -> str:
+def resolve_openai_base_url(explicit: str | None = None) -> str:
     """OpenAI-compatible base URL (``.../v1``) for tool config files."""
     base = resolve_api_base_url(explicit)
     return base if base.endswith("/v1") else f"{base}/v1"
 
 
-def resolve_model(explicit: Optional[str] = None) -> str:
+def resolve_model(explicit: str | None = None) -> str:
     """``--model`` > ``SFERENCE_MODEL`` > :data:`DEFAULT_MODEL`."""
     if explicit and explicit.strip():
         return explicit.strip()

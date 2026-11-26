@@ -190,6 +190,7 @@ def test_example_script(
     with combined_path.open("w", encoding="utf-8") as combined_file:
         proc = subprocess.run(
             [sys.executable, str(script), *out_args],
+            check=False,
             cwd=REPO_ROOT,
             env=env,
             stdout=combined_file,

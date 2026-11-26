@@ -4,7 +4,6 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 BatchStatus = Literal["pending", "running", "completed", "failed", "cancelled"]
 
 # Completion window accepted by batches, streams, and background responses.

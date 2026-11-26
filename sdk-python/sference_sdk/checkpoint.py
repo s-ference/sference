@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +51,7 @@ def save_checkpoint(
     data = _load_all(path)
     data[key] = {
         "last_completion_id": last_completion_id,
-        "updated_at": datetime.now(tz=timezone.utc).isoformat(),
+        "updated_at": datetime.now(tz=UTC).isoformat(),
     }
     _write_all(path, data)
 

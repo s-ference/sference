@@ -6,9 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-
 import sference_cli.device_auth as da
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

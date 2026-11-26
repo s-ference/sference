@@ -6,11 +6,6 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from typer.testing import CliRunner
-
-from sference_sdk import ApiError
-from sference_sdk.models import StreamEventList
-
 import sference_cli.launch as launch_mod
 import sference_cli.main as cli_main
 from sference_cli.stream_cache import (
@@ -18,7 +13,9 @@ from sference_cli.stream_cache import (
     get_cached_batch_id,
     set_cached_batch,
 )
-
+from sference_sdk import ApiError
+from sference_sdk.models import StreamEventList
+from typer.testing import CliRunner
 
 runner = CliRunner()
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

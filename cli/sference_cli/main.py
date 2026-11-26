@@ -10,17 +10,17 @@ import warnings
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NoReturn, Optional, TypeVar
-
-import typer
+from typing import Any, NoReturn, TypeVar
 
 import sference_sdk
+import typer
 from sference_sdk import COMPLETION_WINDOWS, ApiError, SferenceClient
-
-from sference_cli import __version__ as _CLI_VERSION
 from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 
+from sference_cli import __version__ as _CLI_VERSION
+
 from . import stream_cache as stream_cache_mod
+from ._discovery import is_retired
 from .device_auth import (
     CLIENT_ID_SFERENCE_CLI,
     EXPIRY_SKEW_SECONDS,
@@ -29,7 +29,6 @@ from .device_auth import (
     refresh_tokens,
     start_device_login,
 )
-from ._discovery import is_retired
 from .launch import register_launch_commands
 from .settings import (
     DEFAULT_API_BASE_URL,
@@ -143,7 +142,7 @@ def _read_credentials_file() -> dict | None:
         return None
     try:
         payload = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
 
@@ -294,10 +293,10 @@ _active_client: SferenceClient | None = None
 
 
 def _client(
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     *,
     timeout: float | None = None,
-    token: Optional[str] = None,
+    token: str | None = None,
 ) -> SferenceClient:
     """Build a client. ``token`` pins the credential instead of resolving one —
     used right after a login, which must validate what it just minted rather
@@ -396,7 +395,7 @@ def _get_batch_or_missing(client: SferenceClient, batch_id: str) -> Any | None:
 
 
 def _submit_batch(
-    client: SferenceClient, *, input_file: str, model: Optional[str], window: str
+    client: SferenceClient, *, input_file: str, model: str | None, window: str
 ) -> Any:
     """Submit a JSONL file, turning local parse errors into a clean exit."""
     with warnings.catch_warnings():
@@ -588,7 +587,7 @@ def _responses_root(ctx: typer.Context) -> None:
 def _models_root(
     ctx: typer.Context,
     as_json: bool = JSON_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """List models (GET /v1/models)."""
     if ctx.invoked_subcommand is not None:
@@ -600,7 +599,7 @@ def _models_root(
 @models_app.command("list")
 def models_list(
     as_json: bool = JSON_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """List models (GET /v1/models)."""
     _ensure_api_credential()
@@ -621,11 +620,11 @@ def embeddings_create(
     encoding_format: str = typer.Option(
         "float", "--encoding-format", help='"float" or "base64".'
     ),
-    dimensions: Optional[int] = typer.Option(None, "--dimensions"),
+    dimensions: int | None = typer.Option(None, "--dimensions"),
     timeout: float = typer.Option(
         600.0, "--timeout", help="HTTP read timeout in seconds."
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     _as_json: bool = typer.Option(
         False, "--json", hidden=True, help="No-op: output is always JSON."
     ),
@@ -689,19 +688,19 @@ def decisions_create(
         "--questions",
         help='JSON object {name: {"type": "choice"|"score"|"noul", ...}}; @path reads a file, @- stdin.',
     ),
-    state: Optional[str] = typer.Option(None, "--state", help="Text to decide about."),
-    state_json: Optional[str] = typer.Option(
+    state: str | None = typer.Option(None, "--state", help="Text to decide about."),
+    state_json: str | None = typer.Option(
         None,
         "--state-json",
         help="State as a JSON value instead of text; @path reads a file, @- stdin.",
     ),
     # Unset leaves the SDK's per-call read timeout, which outlasts the server's own deadline.
-    timeout: Optional[float] = typer.Option(
+    timeout: float | None = typer.Option(
         None,
         "--timeout",
         help="HTTP read timeout in seconds (default: as long as the server may take).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Answer up to 64 questions about one state in a single realtime call (POST /v1/decisions)."""
@@ -733,7 +732,7 @@ def decisions_create(
     typer.echo(f"input_tokens: {payload['usage']['input_tokens']}")
 
 
-def _validate_login(base_url: Optional[str], token: str, as_json: bool) -> None:
+def _validate_login(base_url: str | None, token: str, as_json: bool) -> None:
     """Call GET /v1/auth/me with the credential just saved and say who it is."""
     me = _plain(_call_api(_client(base_url, token=token).get_me))
     if as_json:
@@ -746,7 +745,7 @@ def _validate_login(base_url: Optional[str], token: str, as_json: bool) -> None:
 
 @auth_app.command("login")
 def auth_login(
-    api_key: Optional[str] = typer.Option(
+    api_key: str | None = typer.Option(
         None,
         "--api-key",
         help="API key (sk_...) or JWT. Non-interactive: saves immediately (e.g. CI).",
@@ -759,8 +758,8 @@ def auth_login(
         "--validate/--no-validate",
         help="Validate the credential by calling GET /v1/auth/me and print the authenticated user.",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
-    console_url: Optional[str] = typer.Option(
+    base_url: str | None = BASE_URL_OPTION,
+    console_url: str | None = typer.Option(
         None,
         "--console-url",
         envvar="SFERENCE_CONSOLE_URL",
@@ -791,7 +790,7 @@ def auth_login(
     api_base = resolve_api_base_url(base_url)
     try:
         device_label = platform.node() or None
-    except Exception:
+    except OSError:
         device_label = None
     try:
         start = start_device_login(api_base, CLIENT_ID_SFERENCE_CLI, device_label)
@@ -810,7 +809,7 @@ def auth_login(
         typer.echo(f"Opening {approve_url} in your browser...")
         try:
             webbrowser.open(approve_url)
-        except Exception:
+        except (webbrowser.Error, OSError):
             typer.echo("Could not open the browser automatically.")
     typer.echo("")
     typer.echo(f"Approve this device at: {approve_url}")
@@ -836,7 +835,7 @@ def auth_login(
 
 @auth_app.command("me")
 def auth_me(
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show the user the current credential belongs to (GET /v1/auth/me)."""
@@ -847,17 +846,17 @@ def auth_me(
 @responses_app.command("create")
 def responses_create(
     content: str = typer.Option(..., "--content", help="User message text."),
-    model: Optional[str] = MODEL_OPTION,
-    instructions: Optional[str] = typer.Option(
+    model: str | None = MODEL_OPTION,
+    instructions: str | None = typer.Option(
         None, "--instructions", help="System prompt."
     ),
-    max_output_tokens: Optional[int] = typer.Option(None, "--max-output-tokens"),
+    max_output_tokens: int | None = typer.Option(None, "--max-output-tokens"),
     include_reasoning: bool = typer.Option(
         True,
         "--include-reasoning/--no-include-reasoning",
         help="Include extracted reasoning in the response output.",
     ),
-    enable_thinking: Optional[bool] = typer.Option(
+    enable_thinking: bool | None = typer.Option(
         None,
         "--enable-thinking/--disable-thinking",
         help="Turn thinking on/off for thinking-capable models (omit for the model default). "
@@ -874,12 +873,12 @@ def responses_create(
         ),
     ),
     # Unset leaves the SDK's per-call read timeout, which outlasts the server's own deadline.
-    timeout: Optional[float] = typer.Option(
+    timeout: float | None = typer.Option(
         None,
         "--timeout",
         help="HTTP read timeout in seconds (default: as long as the server may take).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Create one response (POST /v1/responses) and print it as JSON."""
     _ensure_api_credential()
@@ -909,7 +908,7 @@ def responses_result(
         "--poll-interval",
         help="Seconds between status polls while waiting for completion.",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Wait for a response to reach a terminal status and print the final JSON. Ctrl-C stops waiting."""
     _ensure_api_credential()
@@ -927,7 +926,7 @@ def responses_result(
 
 @responses_app.command("tail")
 def responses_tail(
-    stream_id: Optional[str] = typer.Option(
+    stream_id: str | None = typer.Option(
         None,
         "--stream-id",
         help="Optional stream UUID; omit to tail non-stream completion events only.",
@@ -948,7 +947,7 @@ def responses_tail(
         "--poll-interval",
         help="Seconds to long-poll while catching up (capped at 30s server-side).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     _as_json: bool = typer.Option(
         False, "--json", hidden=True, help="No-op: output is always JSONL."
     ),
@@ -973,7 +972,7 @@ def responses_tail(
     try:
         while True:
             page = _call_api(
-                lambda: client.list_responses_events(
+                lambda last=last: client.list_responses_events(
                     stream_id=stream_id, limit=50, starting_after=last, wait_ms=wait_ms
                 )
             )
@@ -992,7 +991,7 @@ def responses_tail(
 
 @batch_app.command("list")
 def batch_list(
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """List batches."""
@@ -1028,9 +1027,9 @@ def batch_submit(
     input_file: str = typer.Option(
         ..., "--input-file", help="JSONL file (see README: JSONL input formats)."
     ),
-    model: Optional[str] = BATCH_MODEL_OPTION,
+    model: str | None = BATCH_MODEL_OPTION,
     window: str = _WINDOW_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Submit a JSONL file as one batch (POST /v1/batches)."""
@@ -1043,7 +1042,7 @@ def batch_submit(
 @batch_app.command("status")
 def batch_status(
     batch_id: str = typer.Option(..., "--batch-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show one batch."""
@@ -1060,7 +1059,7 @@ def batch_stream(
     input_file: str = typer.Option(
         ..., "--input-file", help="JSONL file (see README: JSONL input formats)."
     ),
-    model: Optional[str] = BATCH_MODEL_OPTION,
+    model: str | None = BATCH_MODEL_OPTION,
     window: str = _WINDOW_OPTION,
     poll_interval: float = typer.Option(
         2.0,
@@ -1070,7 +1069,7 @@ def batch_stream(
     no_cache: bool = typer.Option(
         False, "--no-cache", help="Skip resumable cache; always submit a new batch."
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Submit a JSONL batch, wait until it finishes, print JSONL results to stdout (progress on stderr).
 
@@ -1134,7 +1133,7 @@ def batch_wait(
     timeout: float = typer.Option(
         30.0, "--timeout", help="Give up after this many seconds."
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Poll a batch until it reaches a terminal status (or --timeout)."""
@@ -1156,7 +1155,7 @@ def batch_wait(
 @batch_app.command("results")
 def batch_results(
     batch_id: str = typer.Option(..., "--batch-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show a finished batch's results (GET /v1/batches/{id}/results)."""
@@ -1168,7 +1167,7 @@ def batch_results(
 @batch_app.command("cancel")
 def batch_cancel(
     batch_id: str = typer.Option(..., "--batch-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Cancel a batch."""
@@ -1184,7 +1183,7 @@ def batch_download_results(
     format: str = typer.Option(
         "jsonl", "--format", help="Download format (only jsonl is supported)."
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Download a batch's results as JSONL to a file."""
     _ensure_api_credential()
@@ -1201,7 +1200,7 @@ def batch_download_results(
 def stream_create(
     name: str = typer.Option(..., "--name"),
     window: str = _WINDOW_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Create a stream."""
@@ -1215,7 +1214,7 @@ def stream_create(
 
 @stream_app.command("list")
 def stream_list(
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """List streams."""
@@ -1227,7 +1226,7 @@ def stream_list(
 @stream_app.command("status")
 def stream_status(
     stream_id: str = typer.Option(..., "--stream-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show one stream with its counters."""
@@ -1250,7 +1249,7 @@ _STREAM_LINE_FIELDS = (
 
 
 def _stream_line_request(
-    line_no: int, data: object, *, model: Optional[str], stream_id: str
+    line_no: int, data: object, *, model: str | None, stream_id: str
 ) -> dict[str, Any]:
     """Map one ``stream submit`` JSONL line to ``create_response`` kwargs.
 
@@ -1308,13 +1307,13 @@ def stream_submit(
         dir_okay=False,
         help="JSONL: {content}, {input, ...}, or a batch envelope {custom_id?, body: {...}} per line.",
     ),
-    model: Optional[str] = typer.Option(
+    model: str | None = typer.Option(
         None,
         "--model",
         "-m",
         help=f"Model for lines without their own (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Queue one background response per JSONL line on a stream (POST /v1/responses).
@@ -1359,7 +1358,7 @@ def stream_submit(
 @stream_app.command("archive")
 def stream_archive(
     stream_id: str = typer.Option(..., "--stream-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Finalize a stream; it accepts no new items."""
@@ -1371,7 +1370,7 @@ def stream_archive(
 @stream_app.command("cancel")
 def stream_cancel(
     stream_id: str = typer.Option(..., "--stream-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Stop accepting new items and stop enqueueing pending work; in-flight items are not auto-cancelled."""

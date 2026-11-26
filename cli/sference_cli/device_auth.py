@@ -72,8 +72,7 @@ def post_json(
 
 def _api_root(base_url: str) -> str:
     root = base_url.rstrip("/")
-    if root.endswith("/v1"):
-        root = root[: -len("/v1")]
+    root = root.removesuffix("/v1")
     return root + "/v1"
 
 
@@ -190,8 +189,7 @@ def control_request(
     at the origin root.
     """
     origin = base_url.rstrip("/")
-    if origin.endswith("/v1"):
-        origin = origin[: -len("/v1")]
+    origin = origin.removesuffix("/v1")
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     if data is not None:

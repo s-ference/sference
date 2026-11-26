@@ -15,7 +15,6 @@ import sys
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 

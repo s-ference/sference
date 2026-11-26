@@ -8,11 +8,10 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
-
 import sference_cli.cursor_config as cc
 import sference_cli.launch as launch_mod
 import sference_cli.main as cli_main
+from typer.testing import CliRunner
 
 runner = CliRunner()
 

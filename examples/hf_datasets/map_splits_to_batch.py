@@ -15,7 +15,6 @@ import os
 import sys
 
 from datasets import Dataset
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 

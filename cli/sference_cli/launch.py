@@ -12,7 +12,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -292,7 +291,7 @@ def _build_pi_models(*, base_url: str, api_key: str, model: str) -> list[dict]:
     """
     try:
         entries = fetch_sference_model_entries(base_url, api_key)
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog is optional; fall back
         typer.echo(
             f"note: could not fetch model catalog from {base_url}/models; "
             f"registered only --model {model}. The /model picker will show just "
@@ -421,7 +420,7 @@ def _thinks_always(entry: dict) -> bool:
     return any("glm-5.3" in i.lower() for i in ids)
 
 
-def _opencode_variants(entry: Optional[dict]) -> dict:
+def _opencode_variants(entry: dict | None) -> dict:
     """The thinking-effort variants for one model entry (empty: no variants).
 
     No entry (the model list could not be fetched, or the model was typed but not
@@ -440,7 +439,7 @@ def _opencode_variants(entry: Optional[dict]) -> dict:
     return {level: {"reasoningEffort": level} for level in levels}
 
 
-def _opencode_model_entry(model_id: str, entry: Optional[dict]) -> dict:
+def _opencode_model_entry(model_id: str, entry: dict | None) -> dict:
     config: dict = {"name": model_id}
     variants = _opencode_variants(entry)
     if variants:
@@ -453,7 +452,7 @@ def _write_opencode_config(
     base_url: str,
     model: str,
     models: set[str],
-    entries: Optional[dict[str, dict]] = None,
+    entries: dict[str, dict] | None = None,
 ) -> Path:
     """Merge a ``sference`` OpenAI-compatible provider into the opencode config.
 
@@ -550,7 +549,7 @@ def launch_opencode(
     # still works.
     try:
         entries = {e["id"]: e for e in fetch_sference_model_entries(base_url, api_key)}
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog is optional; fall back
         entries = {}
     models = set(entries)
 
@@ -613,7 +612,7 @@ _CODEX_CATALOG_ENTRY_OVERRIDES: dict = {
 }
 
 
-def bundled_codex_catalog(codex_bin: str) -> Optional[list[dict]]:
+def bundled_codex_catalog(codex_bin: str) -> list[dict] | None:
     """The model catalog shipped with the installed Codex, or None if unavailable.
 
     Read from ``codex debug models --bundled`` at launch rather than vendored, so the
@@ -633,7 +632,7 @@ def bundled_codex_catalog(codex_bin: str) -> Optional[list[dict]]:
     return models if isinstance(models, list) else None
 
 
-def codex_catalog_template(models: list[dict]) -> Optional[dict]:
+def codex_catalog_template(models: list[dict]) -> dict | None:
     """The first bundled entry Codex doesn't run in a GPT-only mode, or None."""
     for entry in models:
         if (
@@ -692,11 +691,7 @@ def write_codex_catalog(catalog: dict) -> Path:
 
 
 def build_codex_overrides(
-    *,
-    base_url: str,
-    model: str,
-    entry: Optional[dict],
-    model_catalog: Optional[Path] = None,
+    *, base_url: str, model: str, entry: dict | None, model_catalog: Path | None = None
 ) -> list[str]:
     """``-c`` overrides that point Codex at Sference for this process only.
 
@@ -780,11 +775,11 @@ def launch_codex(
 
     try:
         entry_list = fetch_sference_model_entries(base_url, api_key)
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog is optional; fall back
         entry_list = []
     entries = {e["id"]: e for e in entry_list}
 
-    catalog: Optional[dict] = None
+    catalog: dict | None = None
     if entry_list:
         bundled = bundled_codex_catalog(codex_bin)
         template = codex_catalog_template(bundled) if bundled else None
@@ -890,13 +885,13 @@ def _revoke_cursor_api_key(base_url: str, credential: str, key_id: str) -> bool:
 
 def _cursor_resolve_key(
     *,
-    explicit: Optional[str],
-    credential: Optional[str],
-    backup: Optional[dict],
+    explicit: str | None,
+    credential: str | None,
+    backup: dict | None,
     plan_state: dict,
     base_url: str,
     dry_run: bool,
-) -> tuple[Optional[str], Optional[dict], str]:
+) -> tuple[str | None, dict | None, str]:
     """Pick the Sference key Cursor will use; never writes anything.
 
     Returns ``(key, provisioned, source_label)``. ``key`` is None only in a dry
@@ -932,10 +927,10 @@ def _cursor_resolve_key(
 
 def _cursor_on(
     *,
-    model: Optional[str],
-    models: Optional[str],
-    base_url: Optional[str],
-    api_key: Optional[str],
+    model: str | None,
+    models: str | None,
+    base_url: str | None,
+    api_key: str | None,
     sference_only: bool,
     replace_existing_key: bool,
     force: bool,
@@ -1009,7 +1004,7 @@ def _cursor_on(
                 try:
                     entries = fetch_sference_model_entries(openai_base_url, fetch_key)
                     model_ids = [e["id"] for e in entries]
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - catalog is optional; fall back
                     typer.echo(
                         f"note: could not fetch the model catalog ({e}); registering only {default_model}.",
                         err=True,
@@ -1251,13 +1246,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def claude(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Pinned catalog model (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1269,12 +1264,12 @@ def register_launch_commands(app: typer.Typer) -> None:
             hidden=True,
             help="Deprecated no-op: the direct env-var mode is now the only mode.",
         ),
-        models: Optional[str] = typer.Option(
+        models: str | None = typer.Option(
             None,
             "--models",
             help="Comma-separated catalog ids for the /model picker (default: live GET /v1/models).",
         ),
-        proxy_port: Optional[int] = typer.Option(
+        proxy_port: int | None = typer.Option(
             None,
             "--proxy-port",
             hidden=True,
@@ -1389,13 +1384,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def pi(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1441,13 +1436,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def opencode(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1483,13 +1478,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def codex(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1569,10 +1564,10 @@ def register_launch_commands(app: typer.Typer) -> None:
     @cursor_app.callback()
     def cursor_root(
         ctx: typer.Context,
-        model: Optional[str] = model_opt,
-        models: Optional[str] = models_opt,
-        base_url: Optional[str] = base_url_opt,
-        api_key: Optional[str] = api_key_opt,
+        model: str | None = model_opt,
+        models: str | None = models_opt,
+        base_url: str | None = base_url_opt,
+        api_key: str | None = api_key_opt,
         sference_only: bool = sference_only_opt,
         replace_existing_key: bool = replace_key_opt,
         force: bool = force_opt,
@@ -1596,10 +1591,10 @@ def register_launch_commands(app: typer.Typer) -> None:
         "on", help="Turn Sference routing on (same as `sference launch cursor`)."
     )
     def cursor_on_cmd(
-        model: Optional[str] = model_opt,
-        models: Optional[str] = models_opt,
-        base_url: Optional[str] = base_url_opt,
-        api_key: Optional[str] = api_key_opt,
+        model: str | None = model_opt,
+        models: str | None = models_opt,
+        base_url: str | None = base_url_opt,
+        api_key: str | None = api_key_opt,
         sference_only: bool = sference_only_opt,
         replace_existing_key: bool = replace_key_opt,
         force: bool = force_opt,

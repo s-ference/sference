@@ -24,7 +24,6 @@ import sys
 import pandas as pd
 import ray
 from ray.data import from_pandas
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 

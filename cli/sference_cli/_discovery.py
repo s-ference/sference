@@ -60,8 +60,7 @@ def fetch_sference_model_entries(base_url: str, api_key: str) -> list[dict[str, 
     to the same ``/v1/models``.
     """
     origin = base_url.rstrip("/")
-    if origin.endswith("/v1"):
-        origin = origin[: -len("/v1")]
+    origin = origin.removesuffix("/v1")
     api_root = origin + "/v1"
     req = urllib.request.Request(
         f"{api_root}/models",

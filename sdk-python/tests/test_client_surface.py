@@ -19,7 +19,6 @@ from typing import Any
 import httpx
 import jsonschema
 import pytest
-
 from sference_sdk import (
     AsyncSferenceClient,
     ChoiceQuestion,
@@ -66,8 +65,8 @@ _RESULTS = {
     "results": [{"custom_id": "r1", "status": "completed"}],
 }
 _SSE = (
-    'event: response.completed\ndata: {"type": "response.completed", "response": %s}\n\n'
-    % json.dumps(_RESPONSE)
+    "event: response.completed\n"
+    f'data: {{"type": "response.completed", "response": {json.dumps(_RESPONSE)}}}\n\n'
 ).encode()
 
 

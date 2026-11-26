@@ -44,7 +44,6 @@ from typing import Any
 
 import pandas as pd
 from prefect import flow, task
-
 from sference_sdk import SferenceClient
 
 DEFAULT_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017"

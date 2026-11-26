@@ -4,7 +4,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from sference_sdk.async_client import AsyncSferenceClient
 from sference_sdk.client import ApiError
 

@@ -17,7 +17,6 @@ import sys
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 

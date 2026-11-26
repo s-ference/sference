@@ -1,4 +1,5 @@
-from importlib.metadata import PackageNotFoundError, version as _distribution_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _distribution_version
 
 
 def _package_version(distribution_name: str) -> str:
@@ -57,11 +58,11 @@ from .models import (
     ResponseIncompleteDetails,
     ResponseList,
     ResponseListItem,
-    ResponseStreamEvent,
     ResponseOutputMessage,
     ResponseOutputReasoning,
     ResponseOutputText,
     ResponseStatus,
+    ResponseStreamEvent,
     ResponseUsage,
     ScoreAnswer,
     ScoreQuestion,
@@ -83,15 +84,10 @@ from .models import (
 )
 
 __all__ = [
-    "__version__",
-    "ApiError",
-    "AsyncSferenceClient",
-    "SferenceClient",
-    "clear_checkpoint",
-    "load_checkpoint",
-    "save_checkpoint",
     "COMPLETION_WINDOWS",
+    "ApiError",
     "ApiModel",
+    "AsyncSferenceClient",
     "Batch",
     "BatchList",
     "BatchResultRow",
@@ -131,15 +127,16 @@ __all__ = [
     "ResponseIncompleteDetails",
     "ResponseList",
     "ResponseListItem",
-    "ResponseStreamEvent",
     "ResponseOutputMessage",
     "ResponseOutputReasoning",
     "ResponseOutputText",
     "ResponseStatus",
+    "ResponseStreamEvent",
     "ResponseUsage",
     "ScoreAnswer",
     "ScoreQuestion",
     "ServiceTier",
+    "SferenceClient",
     "Stream",
     "StreamEventList",
     "StreamInferenceCompletionEvent",
@@ -153,5 +150,9 @@ __all__ = [
     "UsageSummaryResponse",
     "User",
     "UserUsageSummary",
+    "__version__",
+    "clear_checkpoint",
+    "load_checkpoint",
     "reasoning_summary_plaintext",
+    "save_checkpoint",
 ]

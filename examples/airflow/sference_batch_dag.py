@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 from airflow.sdk import dag, task
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 

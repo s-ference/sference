@@ -1,4 +1,5 @@
-from importlib.metadata import PackageNotFoundError, version as _distribution_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _distribution_version
 
 
 def _package_version(distribution_name: str) -> str:

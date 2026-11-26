@@ -20,10 +20,10 @@ def _load_openapi() -> dict[str, Any]:
 def _build_operation_index(openapi: dict[str, Any]) -> dict[str, dict[str, Any]]:
     paths = openapi.get("paths") or {}
     out: dict[str, dict[str, Any]] = {}
-    for _path, spec in paths.items():
+    for spec in paths.values():
         if not isinstance(spec, dict):
             continue
-        for _method, op in spec.items():
+        for op in spec.values():
             if not isinstance(op, dict):
                 continue
             operation_id = op.get("operationId")

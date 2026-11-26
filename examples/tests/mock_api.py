@@ -69,7 +69,7 @@ class MockSferenceState:
 class MockSferenceHandler(BaseHTTPRequestHandler):
     state: MockSferenceState
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
     def _read_json(self) -> dict[str, Any]:
@@ -77,7 +77,7 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         parsed = json.loads(raw.decode("utf-8"))
         if not isinstance(parsed, dict):
-            raise ValueError("expected JSON object")
+            raise TypeError("expected JSON object")
         return parsed
 
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
@@ -88,7 +88,7 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         path = urlparse(self.path).path
         if path == "/v1/batches":
             body = self._read_json()
@@ -127,7 +127,7 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"detail": "not found"})
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         path = urlparse(self.path).path
 
         batch_match = re.fullmatch(r"/v1/batches/([^/]+)", path)

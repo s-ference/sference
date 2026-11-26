@@ -31,7 +31,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REACTIVE_KEY = (
     "src.vs.platform.reactivestorage.browser.reactiveStorageServiceImpl"
@@ -88,7 +88,7 @@ def backup_path() -> Path:
     return Path.home() / ".sference" / "cursor" / "backup.json"
 
 
-def cursor_running_pid(config_dir: Path) -> Optional[int]:
+def cursor_running_pid(config_dir: Path) -> int | None:
     """The pid of the running Cursor main process, or None.
 
     Cursor writes its pid to ``code.lock`` next to ``User/``; a stale lock
@@ -115,7 +115,7 @@ def connect(config_dir: Path) -> sqlite3.Connection:
     return conn
 
 
-def _read_item(conn: sqlite3.Connection, key: str) -> Optional[str]:
+def _read_item(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute("SELECT value FROM ItemTable WHERE key = ?", (key,)).fetchone()
     if row is None or row[0] is None:
         return None
@@ -178,6 +178,7 @@ def _keychain_item_present() -> bool:
                 KEYCHAIN_ACCOUNT,
             ],
             capture_output=True,
+            check=False,
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
@@ -204,6 +205,7 @@ def _keychain_delete() -> bool:
                 KEYCHAIN_ACCOUNT,
             ],
             capture_output=True,
+            check=False,
             timeout=60,
         )
     except (OSError, subprocess.SubprocessError):
@@ -325,7 +327,7 @@ def preflight_on(
     api_key: str,
     replace_existing_key: bool,
     force: bool,
-    backup: Optional[dict[str, Any]] = None,
+    backup: dict[str, Any] | None = None,
     already_on: bool = False,
 ) -> None:
     """Raise CursorConfigError when turning on is not safe right now.
@@ -389,7 +391,7 @@ def apply_on(
     conn: sqlite3.Connection,
     *,
     openai_base_url: str,
-    api_key: Optional[str],
+    api_key: str | None,
     model_ids: list[str],
     default_model: str,
     sference_only: bool,
@@ -465,7 +467,7 @@ def write_backup(backup: dict[str, Any]) -> Path:
     return path
 
 
-def read_backup() -> Optional[dict[str, Any]]:
+def read_backup() -> dict[str, Any] | None:
     path = backup_path()
     if not path.exists():
         return None

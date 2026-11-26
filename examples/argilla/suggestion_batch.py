@@ -108,7 +108,7 @@ def push_to_argilla(suggestions: list[dict[str, Any]]) -> None:
     )
     try:
         dataset = client_rg.datasets(name=dataset_name, workspace=workspace)
-    except Exception:
+    except Exception:  # noqa: BLE001 - argilla raises varied errors for a missing dataset
         settings = rg.Settings(
             guidelines="Review AI-drafted replies before sending to customers.",
             fields=[rg.TextField(name="message"), rg.TextField(name="draft_reply")],

@@ -1,12 +1,11 @@
 import json
 import warnings
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
-
 import sference_sdk
 from sference_sdk.client import ApiError, SferenceClient
 from sference_sdk.models import InferenceRequest, reasoning_summary_plaintext
@@ -80,32 +79,36 @@ def test_submit_batch_raises_api_error_on_http_failure() -> None:
             return httpx.Response(status_code=401, json={"detail": "Unauthorized"})
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
-    with SferenceClient(transport=httpx.MockTransport(handler)) as client:
-        with pytest.raises(ApiError, match="401"):
-            client.submit_batch(
-                requests=[
-                    {
-                        "custom_id": "request-1",
-                        "method": "POST",
-                        "url": "/v1/chat/completions",
-                        "body": {
-                            "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
-                            "messages": [{"role": "user", "content": "hi"}],
-                        },
-                    }
-                ]
-            )
+    with (
+        SferenceClient(transport=httpx.MockTransport(handler)) as client,
+        pytest.raises(ApiError, match="401"),
+    ):
+        client.submit_batch(
+            requests=[
+                {
+                    "custom_id": "request-1",
+                    "method": "POST",
+                    "url": "/v1/chat/completions",
+                    "body": {
+                        "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
+                }
+            ]
+        )
 
 
 def test_submit_batch_rejects_unknown_window() -> None:
-    with SferenceClient(
-        transport=httpx.MockTransport(lambda r: httpx.Response(500)), api_key="tok"
-    ) as client:
-        with pytest.raises(ValueError, match='"24h"'):
-            client.submit_batch(
-                requests=[{"custom_id": "r1", "body": {"model": "m", "messages": []}}],
-                window="2h",
-            )
+    with (
+        SferenceClient(
+            transport=httpx.MockTransport(lambda r: httpx.Response(500)), api_key="tok"
+        ) as client,
+        pytest.raises(ValueError, match='"24h"'),
+    ):
+        client.submit_batch(
+            requests=[{"custom_id": "r1", "body": {"model": "m", "messages": []}}],
+            window="2h",
+        )
 
 
 def test_submit_batch_sends_selected_window() -> None:
@@ -414,13 +417,13 @@ def test_create_decision_rejects_unknown_question_type() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("must not reach the API")
 
-    with SferenceClient(
-        transport=httpx.MockTransport(handler), api_key="tok"
-    ) as client:
-        with pytest.raises(ValueError):
-            client.create_decision(
-                model="Cloudflare/clef", state="x", questions={"q": {"type": "rank"}}
-            )
+    with (
+        SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client,
+        pytest.raises(ValueError),
+    ):
+        client.create_decision(
+            model="Cloudflare/clef", state="x", questions={"q": {"type": "rank"}}
+        )
 
 
 def test_checkpoint_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -716,11 +719,11 @@ def test_api_error_exposes_openai_error_fields() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(402, json=body)
 
-    with SferenceClient(
-        transport=httpx.MockTransport(handler), api_key="tok"
-    ) as client:
-        with pytest.raises(ApiError) as excinfo:
-            client.create_response(model="m", input="hi")
+    with (
+        SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client,
+        pytest.raises(ApiError) as excinfo,
+    ):
+        client.create_response(model="m", input="hi")
 
     err = excinfo.value
     assert (err.status_code, err.type, err.code, err.message) == (
@@ -864,11 +867,13 @@ def test_stream_response_raises_refusal_before_stream() -> None:
             }
         },
     )
-    with SferenceClient(
-        transport=httpx.MockTransport(lambda _r: refusal), api_key="tok"
-    ) as client:
-        with pytest.raises(ApiError) as excinfo:
-            list(client.stream_response(model="m", input="hi"))
+    with (
+        SferenceClient(
+            transport=httpx.MockTransport(lambda _r: refusal), api_key="tok"
+        ) as client,
+        pytest.raises(ApiError) as excinfo,
+    ):
+        list(client.stream_response(model="m", input="hi"))
 
     assert excinfo.value.status_code == 402
     assert excinfo.value.code == "insufficient_balance"
