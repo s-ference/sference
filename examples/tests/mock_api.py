@@ -33,7 +33,9 @@ def _batch_result_row(custom_id: str | None) -> dict[str, Any]:
     }
 
 
-def _response_payload(response_id: str, *, custom_id: str | None = None) -> dict[str, Any]:
+def _response_payload(
+    response_id: str, *, custom_id: str | None = None
+) -> dict[str, Any]:
     text = _mock_completion_text(custom_id)
     return {
         "id": response_id,
@@ -154,7 +156,9 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
             batch_id = results_match.group(1)
             requests = self.state.batches.get(batch_id, [])
             results = [
-                _batch_result_row(req.get("custom_id") if isinstance(req, dict) else None)
+                _batch_result_row(
+                    req.get("custom_id") if isinstance(req, dict) else None
+                )
                 for req in requests
             ]
             self._send_json(

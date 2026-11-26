@@ -81,7 +81,9 @@ def enrich_taglines(batch_id: str) -> list[dict[str, str]]:
     return [
         {
             "sku": item["sku"],
-            "tagline": (by_id[item["sku"]].completion_text if item["sku"] in by_id else ""),
+            "tagline": (
+                by_id[item["sku"]].completion_text if item["sku"] in by_id else ""
+            ),
         }
         for item in PRODUCT_BLURBS
     ]

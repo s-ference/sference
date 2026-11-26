@@ -113,8 +113,15 @@ def main(out: Path = PREDICTIONS_PATH) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Pre-label Label Studio tasks with a sference batch.")
-    parser.add_argument("--out", type=Path, default=PREDICTIONS_PATH, help="Where to write the predictions JSON.")
+    parser = argparse.ArgumentParser(
+        description="Pre-label Label Studio tasks with a sference batch."
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=PREDICTIONS_PATH,
+        help="Where to write the predictions JSON.",
+    )
     args = parser.parse_args()
     print(f"Model: {model_id()}  window: {COMPLETION_WINDOW}")
     main(args.out)

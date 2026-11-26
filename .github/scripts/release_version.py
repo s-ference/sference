@@ -37,19 +37,25 @@ def check_tag(package_dir: str, tag: str) -> int:
         version = _version(f.read())
     expected = f"{prefix}{version}"
     if tag != expected:
-        print(f"::error::tag {tag!r} does not match {package_dir} version; expected {expected!r}")
+        print(
+            f"::error::tag {tag!r} does not match {package_dir} version; expected {expected!r}"
+        )
         return 1
     return 0
 
 
 def _git(*args: str) -> str:
-    return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
+    return subprocess.run(
+        ["git", *args], check=True, capture_output=True, text=True
+    ).stdout
 
 
 def check_bumps(base_ref: str) -> int:
     failed = False
     for package_dir, (_, source_dir) in PACKAGES.items():
-        if not _git("diff", "--name-only", f"{base_ref}...HEAD", "--", source_dir).strip():
+        if not _git(
+            "diff", "--name-only", f"{base_ref}...HEAD", "--", source_dir
+        ).strip():
             continue
         pyproject = f"{package_dir}/pyproject.toml"
         before = _version(_git("show", f"{base_ref}:{pyproject}"))
@@ -72,11 +78,22 @@ def _previous_tag(package_dir: str, tag: str) -> str | None:
     back to the newest of those reachable from ``tag``.
     """
     prefix, _ = PACKAGES[package_dir]
-    older = [t for t in _git("tag", "--list", f"{prefix}*", "--sort=-v:refname", "--merged", tag).split() if t != tag]
+    older = [
+        t
+        for t in _git(
+            "tag", "--list", f"{prefix}*", "--sort=-v:refname", "--merged", tag
+        ).split()
+        if t != tag
+    ]
     if older:
         return older[0]
     try:
-        return _git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", f"{tag}^").strip() or None
+        return (
+            _git(
+                "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", f"{tag}^"
+            ).strip()
+            or None
+        )
     except subprocess.CalledProcessError:
         return None
 
@@ -93,8 +110,13 @@ def release_notes(package_dir: str, tag: str, repo: str) -> str:
     # First-parent history of main: one entry per merged PR. Tests don't ship,
     # so a test-only PR is left out.
     log = _git(
-        "log", "--first-parent", "--format=%s%x1f%b%x1e", span,
-        "--", package_dir, f":(exclude){package_dir}/tests",
+        "log",
+        "--first-parent",
+        "--format=%s%x1f%b%x1e",
+        span,
+        "--",
+        package_dir,
+        f":(exclude){package_dir}/tests",
     )
     changes: list[str] = []
     for entry in filter(None, (e.strip() for e in log.split("\x1e"))):
@@ -107,9 +129,17 @@ def release_notes(package_dir: str, tag: str, repo: str) -> str:
         else:
             changes.append(f"- {subject}")
     name = "sference-sdk" if package_dir == "sdk-python" else "sference-cli"
-    lines = [f"`pip install -U {name}`", "", "## Changes", *(changes or ["- No changes to the package source."])]
+    lines = [
+        f"`pip install -U {name}`",
+        "",
+        "## Changes",
+        *(changes or ["- No changes to the package source."]),
+    ]
     if previous:
-        lines += ["", f"**Full diff:** https://github.com/{repo}/compare/{previous}...{tag}"]
+        lines += [
+            "",
+            f"**Full diff:** https://github.com/{repo}/compare/{previous}...{tag}",
+        ]
     return "\n".join(lines) + "\n"
 
 

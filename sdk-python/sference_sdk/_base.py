@@ -45,7 +45,9 @@ STREAM_READ_TIMEOUT = 360.0
 DECISION_READ_TIMEOUT = 45.0
 
 TERMINAL_BATCH_STATUSES = frozenset({"completed", "failed", "cancelled"})
-TERMINAL_RESPONSE_STATUSES = frozenset({"completed", "failed", "cancelled", "incomplete"})
+TERMINAL_RESPONSE_STATUSES = frozenset(
+    {"completed", "failed", "cancelled", "incomplete"}
+)
 
 # Checkpoint key for the event feed when no stream_id filter is given.
 EVENTS_CHECKPOINT_KEY = "__responses_events__"
@@ -58,7 +60,9 @@ class ApiError(Exception):
     OpenAI/Anthropic-style ``{"error": {...}}`` envelope when the API sends one.
     """
 
-    def __init__(self, message: str, *, status_code: int | None = None, body: Any = None) -> None:
+    def __init__(
+        self, message: str, *, status_code: int | None = None, body: Any = None
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.body = body
@@ -77,7 +81,11 @@ class ApiError(Exception):
             body: Any = response.json()
         except ValueError:
             body = {"detail": response.text}
-        return cls(f"{response.status_code}: {body}", status_code=response.status_code, body=body)
+        return cls(
+            f"{response.status_code}: {body}",
+            status_code=response.status_code,
+            body=body,
+        )
 
 
 def raise_for_status(response: httpx.Response) -> None:
@@ -119,16 +127,20 @@ def parse_stream_event(data: str) -> ResponseStreamEvent | None:
     return ResponseStreamEvent.model_validate(body)
 
 
-_request_extra_headers: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
-    "sference_request_extra_headers",
-    default=None,
+_request_extra_headers: contextvars.ContextVar[dict[str, str] | None] = (
+    contextvars.ContextVar(
+        "sference_request_extra_headers",
+        default=None,
+    )
 )
 
 
 class BaseClient:
     """Credential, header and request-building logic common to both clients."""
 
-    def __init__(self, base_url: str | None, api_key: str | None, timeout: float | None = None) -> None:
+    def __init__(
+        self, base_url: str | None, api_key: str | None, timeout: float | None = None
+    ) -> None:
         self.base_url = base_url or os.getenv("SFERENCE_BASE_URL", DEFAULT_BASE_URL)
         self._token = api_key or os.getenv("SFERENCE_API_KEY")
         self._timeout_chosen = timeout is not None
@@ -197,7 +209,11 @@ class BaseClient:
         user: str | None,
     ) -> dict[str, Any]:
         payload = CreateEmbeddingPayload(
-            model=model, input=input, encoding_format=encoding_format, dimensions=dimensions, user=user
+            model=model,
+            input=input,
+            encoding_format=encoding_format,
+            dimensions=dimensions,
+            user=user,
         )
         return payload.model_dump(exclude_none=True)
 
@@ -210,9 +226,16 @@ class BaseClient:
         images: Sequence[str | DecisionImage | Mapping[str, Any]] | None,
     ) -> dict[str, Any]:
         payload = CreateDecisionPayload.model_validate(
-            {"model": model, "state": state, "questions": dict(questions), "images": list(images or [])}
+            {
+                "model": model,
+                "state": state,
+                "questions": dict(questions),
+                "images": list(images or []),
+            }
         )
-        return payload.model_dump(mode="json", exclude={"images"} if images is None else set())
+        return payload.model_dump(
+            mode="json", exclude={"images"} if images is None else set()
+        )
 
     @classmethod
     def _batch_payload(
@@ -231,7 +254,9 @@ class BaseClient:
         else:
             resolved = [_coerce_request(r) for r in requests or []]
         if not resolved:
-            raise ValueError("At least one request is required (use input_file or non-empty requests)")
+            raise ValueError(
+                "At least one request is required (use input_file or non-empty requests)"
+            )
         return BatchCreatePayload(window=window, requests=resolved).model_dump()  # type: ignore[arg-type]
 
     @staticmethod
@@ -271,7 +296,9 @@ class BaseClient:
             "enable_thinking": enable_thinking,
             "reasoning": dict(reasoning) if reasoning is not None else None,
             "tools": [dict(t) for t in tools] if tools is not None else None,
-            "tool_choice": tool_choice if isinstance(tool_choice, (str, type(None))) else dict(tool_choice),
+            "tool_choice": tool_choice
+            if isinstance(tool_choice, (str, type(None)))
+            else dict(tool_choice),
             "include": list(include) if include is not None else None,
             "text": dict(text) if text is not None else None,
             "service_tier": service_tier,
@@ -292,7 +319,9 @@ class BaseClient:
         return {k: v for k, v in params.items() if v is not None}
 
     @staticmethod
-    def parse_inference_requests_jsonl(path: Path, model: str | None = None) -> list[InferenceRequest]:
+    def parse_inference_requests_jsonl(
+        path: Path, model: str | None = None
+    ) -> list[InferenceRequest]:
         """Parse a batch JSONL file.
 
         Each line is either an OpenAI batch envelope (``{"custom_id", "method",
@@ -306,27 +335,43 @@ class BaseClient:
                 if not line:
                     continue
                 obj = json.loads(line)
-                if isinstance(obj, dict) and {"method", "url", "body"}.issubset(obj.keys()):
+                if isinstance(obj, dict) and {"method", "url", "body"}.issubset(
+                    obj.keys()
+                ):
                     if model:
                         warn_model_ignored = True
                     body = obj.get("body")
                     if not isinstance(body, dict) or not body.get("model"):
-                        raise ValueError(f"Invalid JSONL line {idx}: body.model is required")
-                    parsed.append(InferenceRequest(custom_id=obj.get("custom_id"), body=body))
+                        raise ValueError(
+                            f"Invalid JSONL line {idx}: body.model is required"
+                        )
+                    parsed.append(
+                        InferenceRequest(custom_id=obj.get("custom_id"), body=body)
+                    )
                     continue
                 if isinstance(obj, dict) and "content" in obj:
                     if not model:
-                        raise ValueError("model is required for content-only JSONL format")
+                        raise ValueError(
+                            "model is required for content-only JSONL format"
+                        )
                     parsed.append(
                         InferenceRequest(
                             custom_id=obj.get("custom_id") or f"request-{idx}",
-                            body={"model": model, "messages": [{"role": "user", "content": obj["content"]}]},
+                            body={
+                                "model": model,
+                                "messages": [
+                                    {"role": "user", "content": obj["content"]}
+                                ],
+                            },
                         )
                     )
                     continue
                 raise ValueError(f"Unsupported JSONL line format at line {idx}")
         if warn_model_ignored:
-            warnings.warn("model argument is ignored for OpenAI-compatible JSONL lines", stacklevel=2)
+            warnings.warn(
+                "model argument is ignored for OpenAI-compatible JSONL lines",
+                stacklevel=2,
+            )
         return parsed
 
 

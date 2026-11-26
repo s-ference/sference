@@ -54,7 +54,9 @@ batch = client.submit_batch(
     model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
     window="24h",
 )
-done = client.wait_for_completion(batch.id)  # polls until terminal; pass timeout= to bound it
+done = client.wait_for_completion(
+    batch.id
+)  # polls until terminal; pass timeout= to bound it
 results = client.get_results(done.id)
 by_id = results.index_by_custom_id()
 print(by_id["row-a"].completion_text)
@@ -127,13 +129,17 @@ Reasoning arrives as `response.reasoning_summary_text.delta` events. If the serv
 ### Models, usage and billing
 
 ```python
-models = client.list_models()                  # typed catalog: modality, pricing, capabilities, retires_on
+models = (
+    client.list_models()
+)  # typed catalog: modality, pricing, capabilities, retires_on
 live = [m.id for m in models.data if not m.retires_on]
 
-client.get_billing_balance().credit_balance_micros          # micro-USD
+client.get_billing_balance().credit_balance_micros  # micro-USD
 client.get_usage_summary(days=7).summary.total_cost_micros
-client.get_usage_by_key(month="2026-11").items              # spend per API key
-page = client.list_billing_transactions(limit=50)           # next page: starting_after=page.next_starting_after
+client.get_usage_by_key(month="2026-11").items  # spend per API key
+page = client.list_billing_transactions(
+    limit=50
+)  # next page: starting_after=page.next_starting_after
 ```
 
 Batches, streams and completion events also report cost in micro-USD (`total_cost_micros`, `cost_micros`).
@@ -178,14 +184,16 @@ decision = client.create_decision(
     model="Cloudflare/clef",
     state="I was charged twice this month, please refund me.",
     questions={
-        "route": ChoiceQuestion(criteria={"billing": "Payments and invoices", "support": "Everything else"}),
+        "route": ChoiceQuestion(
+            criteria={"billing": "Payments and invoices", "support": "Everything else"}
+        ),
         "urgency": ScoreQuestion(criteria=["Low", "Medium", "High"]),
         "refund": NoulQuestion(instructions="Does the customer ask for a refund?"),
     },
 )
-decision.answers["route"].choice      # "billing"
-decision.answers["urgency"].score     # 0..2, expected value over the scale
-decision.answers["refund"].noul       # probability of true
+decision.answers["route"].choice  # "billing"
+decision.answers["urgency"].score  # 0..2, expected value over the scale
+decision.answers["refund"].noul  # probability of true
 ```
 
 Questions may also be plain dicts (`{"type": "noul"}`). `429` means no decision capacity right now and is safe to retry; `504` means the deadline passed and nothing was charged.
@@ -247,7 +255,9 @@ async def main() -> None:
             model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
             window="24h",
         )
-        done = await client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
+        done = await client.wait_for_completion(
+            batch.id, poll_interval=2.0, timeout=3600.0
+        )
         results = await client.get_results(done.id)
         print(results.status, results.output_url)
 
@@ -277,7 +287,9 @@ async def main() -> None:
             input=[{"role": "user", "content": "Hello"}],
             metadata={"stream_id": stream.id, "completion_window": "24h"},
         )
-        async for ev in client.iter_responses_events(stream_id=stream.id, checkpoint=False):
+        async for ev in client.iter_responses_events(
+            stream_id=stream.id, checkpoint=False
+        ):
             print(ev.completion_id, ev.status)
 
 

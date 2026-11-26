@@ -90,7 +90,9 @@ def picker_cache_path() -> Path:
 def _picker_entry(item: dict[str, Any]) -> dict[str, str]:
     entry = {"id": str(item["id"])}
     name = str(item.get("display_name") or item["id"])
-    entry["display_name"] = name if "sference" in name.lower() else f"{name} via Sference"
+    entry["display_name"] = (
+        name if "sference" in name.lower() else f"{name} via Sference"
+    )
     ctx = item.get("context_tokens")
     if isinstance(ctx, int) and ctx > 0:
         entry["description"] = f"Sference inference — {ctx // 1000}k context"
@@ -110,7 +112,9 @@ def prime_picker_cache(entries: list[dict[str, Any]], base_url: str) -> Path:
     }
     path = picker_cache_path()
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".gateway-models-", suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(
+        dir=path.parent, prefix=".gateway-models-", suffix=".tmp"
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:  # mkstemp is already 0600
             f.write(json.dumps(body) + "\n")

@@ -43,7 +43,9 @@ def load_checkpoint(base_url: str, stream_id: str, consumer_name: str) -> str | 
     return str(last) if last else None
 
 
-def save_checkpoint(base_url: str, stream_id: str, consumer_name: str, last_completion_id: str) -> None:
+def save_checkpoint(
+    base_url: str, stream_id: str, consumer_name: str, last_completion_id: str
+) -> None:
     path = _store_path()
     key = _checkpoint_key(base_url, stream_id, consumer_name)
     data = _load_all(path)

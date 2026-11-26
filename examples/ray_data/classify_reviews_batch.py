@@ -104,7 +104,9 @@ def main() -> None:
         enriched.append(
             {
                 **row,
-                "sentiment": (result_row.completion_text if result_row else "").strip().lower(),
+                "sentiment": (result_row.completion_text if result_row else "")
+                .strip()
+                .lower(),
                 "inference_status": result_row.status if result_row else None,
             }
         )

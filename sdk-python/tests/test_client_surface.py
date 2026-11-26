@@ -20,25 +20,54 @@ import httpx
 import jsonschema
 import pytest
 
-from sference_sdk import AsyncSferenceClient, ChoiceQuestion, NoulQuestion, ScoreQuestion, SferenceClient
+from sference_sdk import (
+    AsyncSferenceClient,
+    ChoiceQuestion,
+    NoulQuestion,
+    ScoreQuestion,
+    SferenceClient,
+)
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-CONTRACT = json.loads((Path(__file__).resolve().parents[2] / "contract" / "openapi.json").read_text(encoding="utf-8"))
+CONTRACT = json.loads(
+    (Path(__file__).resolve().parents[2] / "contract" / "openapi.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 # Methods that never reach the API on their own.
-LOCAL_METHODS = {"close", "aclose", "extra_headers", "set_api_key", "parse_inference_requests_jsonl"}
+LOCAL_METHODS = {
+    "close",
+    "aclose",
+    "extra_headers",
+    "set_api_key",
+    "parse_inference_requests_jsonl",
+}
 
 
 def _fixture(operation: str, status: int = 200) -> Any:
-    return json.loads((FIXTURES / operation / f"{status}.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (FIXTURES / operation / f"{status}.json").read_text(encoding="utf-8")
+    )
 
 
 _BATCH = _fixture("V1BatchesCreateBatch", 201)
 _STREAM = _fixture("V1StreamsCreateStream", 201)
-_RESPONSE = {"id": "r", "object": "response", "created_at": 1, "model": "m", "status": "completed"}
-_RESULTS = {"batch_id": "b", "status": "completed", "results": [{"custom_id": "r1", "status": "completed"}]}
+_RESPONSE = {
+    "id": "r",
+    "object": "response",
+    "created_at": 1,
+    "model": "m",
+    "status": "completed",
+}
+_RESULTS = {
+    "batch_id": "b",
+    "status": "completed",
+    "results": [{"custom_id": "r1", "status": "completed"}],
+}
 _SSE = (
-    'event: response.completed\ndata: {"type": "response.completed", "response": %s}\n\n' % json.dumps(_RESPONSE)
+    'event: response.completed\ndata: {"type": "response.completed", "response": %s}\n\n'
+    % json.dumps(_RESPONSE)
 ).encode()
 
 
@@ -54,10 +83,20 @@ class Case:
 
 CASES: dict[str, Case] = {
     "health": Case(lambda c, _: c.health(), "GET", "/v1/health", {"status": "ok"}),
-    "get_me": Case(lambda c, _: c.get_me(), "GET", "/v1/auth/me", _fixture("V1AuthMeMe")),
-    "list_models": Case(lambda c, _: c.list_models(), "GET", "/v1/models", {"object": "list", "data": []}),
+    "get_me": Case(
+        lambda c, _: c.get_me(), "GET", "/v1/auth/me", _fixture("V1AuthMeMe")
+    ),
+    "list_models": Case(
+        lambda c, _: c.list_models(),
+        "GET",
+        "/v1/models",
+        {"object": "list", "data": []},
+    ),
     "get_billing_balance": Case(
-        lambda c, _: c.get_billing_balance(), "GET", "/v1/billing/balance", {"credit_balance_micros": 1}
+        lambda c, _: c.get_billing_balance(),
+        "GET",
+        "/v1/billing/balance",
+        {"credit_balance_micros": 1},
     ),
     "get_billing_summary": Case(
         lambda c, _: c.get_billing_summary(days=7),
@@ -65,8 +104,13 @@ CASES: dict[str, Case] = {
         "/v1/billing/summary",
         {
             "summary": {
-                "days": 7, "total_prompt_tokens": 0, "total_completion_tokens": 0, "total_tokens": 0,
-                "total_requests": 0, "estimated_cost_micros": 0, "credit_balance_micros": 0,
+                "days": 7,
+                "total_prompt_tokens": 0,
+                "total_completion_tokens": 0,
+                "total_tokens": 0,
+                "total_requests": 0,
+                "estimated_cost_micros": 0,
+                "credit_balance_micros": 0,
             },
             "by_model": [],
         },
@@ -84,13 +128,20 @@ CASES: dict[str, Case] = {
         "GET",
         "/v1/usage/summary",
         {
-            "summary": {"total_prompt_tokens": 0, "total_completion_tokens": 0, "total_tokens": 0, "total_requests": 0},
+            "summary": {
+                "total_prompt_tokens": 0,
+                "total_completion_tokens": 0,
+                "total_tokens": 0,
+                "total_requests": 0,
+            },
             "by_model": [],
         },
         {"days": "7"},
     ),
     # Unset filters are omitted so the server's defaults apply.
-    "get_usage_daily": Case(lambda c, _: c.get_usage_daily(), "GET", "/v1/usage/daily", {"items": []}),
+    "get_usage_daily": Case(
+        lambda c, _: c.get_usage_daily(), "GET", "/v1/usage/daily", {"items": []}
+    ),
     "get_usage_by_key": Case(
         lambda c, _: c.get_usage_by_key(month="2026-11", tag="prod"),
         "GET",
@@ -108,12 +159,22 @@ CASES: dict[str, Case] = {
         lambda c, _: c.create_decision(
             model="Cloudflare/clef",
             state={"ticket": "I was charged twice"},
-            images=["data:image/png;base64,eA==", {"content_type": "image/jpeg", "base64": "eA=="}],
+            images=[
+                "data:image/png;base64,eA==",
+                {"content_type": "image/jpeg", "base64": "eA=="},
+            ],
             questions={
-                "route": ChoiceQuestion(criteria={"billing": "Payments", "support": "Everything else"}),
-                "urgency": ScoreQuestion(criteria=["Low", "High"], instructions="How urgent?"),
+                "route": ChoiceQuestion(
+                    criteria={"billing": "Payments", "support": "Everything else"}
+                ),
+                "urgency": ScoreQuestion(
+                    criteria=["Low", "High"], instructions="How urgent?"
+                ),
                 "refund": NoulQuestion(),
-                "fraud": {"type": "noul", "criteria": {"true": "Unauthorised", "false": "Customer error"}},
+                "fraud": {
+                    "type": "noul",
+                    "criteria": {"true": "Unauthorised", "false": "Customer error"},
+                },
             },
         ),
         "POST",
@@ -122,38 +183,82 @@ CASES: dict[str, Case] = {
     ),
     "submit_batch": Case(
         lambda c, _: c.submit_batch(
-            requests=[{"custom_id": "r1", "body": {"model": "m", "messages": [{"role": "user", "content": "hi"}]}}]
+            requests=[
+                {
+                    "custom_id": "r1",
+                    "body": {
+                        "model": "m",
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
+                }
+            ]
         ),
         "POST",
         "/v1/batches",
         _BATCH,
         status=201,
     ),
-    "list_batches": Case(lambda c, _: c.list_batches(), "GET", "/v1/batches", _fixture("V1BatchesListBatches")),
+    "list_batches": Case(
+        lambda c, _: c.list_batches(),
+        "GET",
+        "/v1/batches",
+        _fixture("V1BatchesListBatches"),
+    ),
     "get_batch": Case(lambda c, _: c.get_batch("b"), "GET", "/v1/batches/b", _BATCH),
     "wait_for_completion": Case(
-        lambda c, _: c.wait_for_completion("b", poll_interval=0), "GET", "/v1/batches/b", {**_BATCH, "status": "completed"}
+        lambda c, _: c.wait_for_completion("b", poll_interval=0),
+        "GET",
+        "/v1/batches/b",
+        {**_BATCH, "status": "completed"},
     ),
     "cancel_batch": Case(
-        lambda c, _: c.cancel_batch("b"), "POST", "/v1/batches/b/cancel", _fixture("V1BatchesBatchIdCancelCancelBatch")
+        lambda c, _: c.cancel_batch("b"),
+        "POST",
+        "/v1/batches/b/cancel",
+        _fixture("V1BatchesBatchIdCancelCancelBatch"),
     ),
-    "get_results": Case(lambda c, _: c.get_results("b"), "GET", "/v1/batches/b/results", _RESULTS),
-    "get_results_indexed": Case(lambda c, _: c.get_results_indexed("b"), "GET", "/v1/batches/b/results", _RESULTS),
+    "get_results": Case(
+        lambda c, _: c.get_results("b"), "GET", "/v1/batches/b/results", _RESULTS
+    ),
+    "get_results_indexed": Case(
+        lambda c, _: c.get_results_indexed("b"),
+        "GET",
+        "/v1/batches/b/results",
+        _RESULTS,
+    ),
     "download_results_jsonl": Case(
-        lambda c, tmp: c.download_results_jsonl("b", tmp / "out.jsonl"), "GET", "/v1/batches/b/results.jsonl", b"{}\n"
+        lambda c, tmp: c.download_results_jsonl("b", tmp / "out.jsonl"),
+        "GET",
+        "/v1/batches/b/results.jsonl",
+        b"{}\n",
     ),
     "create_stream": Case(
-        lambda c, _: c.create_stream("daily", window="24h"), "POST", "/v1/streams", _STREAM, status=201
+        lambda c, _: c.create_stream("daily", window="24h"),
+        "POST",
+        "/v1/streams",
+        _STREAM,
+        status=201,
     ),
-    "list_streams": Case(lambda c, _: c.list_streams(), "GET", "/v1/streams", _fixture("V1StreamsListStreams")),
+    "list_streams": Case(
+        lambda c, _: c.list_streams(),
+        "GET",
+        "/v1/streams",
+        _fixture("V1StreamsListStreams"),
+    ),
     "get_stream": Case(lambda c, _: c.get_stream("s"), "GET", "/v1/streams/s", _STREAM),
-    "archive_stream": Case(lambda c, _: c.archive_stream("s"), "PATCH", "/v1/streams/s", _STREAM),
-    "cancel_stream": Case(lambda c, _: c.cancel_stream("s"), "PATCH", "/v1/streams/s", _STREAM),
+    "archive_stream": Case(
+        lambda c, _: c.archive_stream("s"), "PATCH", "/v1/streams/s", _STREAM
+    ),
+    "cancel_stream": Case(
+        lambda c, _: c.cancel_stream("s"), "PATCH", "/v1/streams/s", _STREAM
+    ),
     "create_response": Case(
         lambda c, _: c.create_response(
             model="m",
             input=[{"role": "user", "content": "hi"}],
-            tools=[{"type": "function", "name": "lookup", "parameters": {"type": "object"}}],
+            tools=[
+                {"type": "function", "name": "lookup", "parameters": {"type": "object"}}
+            ],
             service_tier="flex",
             background=True,
             metadata={"completion_window": "24h"},
@@ -163,13 +268,26 @@ CASES: dict[str, Case] = {
         _RESPONSE,
         status=201,
     ),
-    "stream_response": Case(lambda c, _: c.stream_response(model="m", input="hi"), "POST", "/v1/responses", _SSE),
-    "get_response": Case(lambda c, _: c.get_response("r"), "GET", "/v1/responses/r", _RESPONSE),
+    "stream_response": Case(
+        lambda c, _: c.stream_response(model="m", input="hi"),
+        "POST",
+        "/v1/responses",
+        _SSE,
+    ),
+    "get_response": Case(
+        lambda c, _: c.get_response("r"), "GET", "/v1/responses/r", _RESPONSE
+    ),
     "wait_for_response": Case(
-        lambda c, _: c.wait_for_response("r", poll_interval=0), "GET", "/v1/responses/r", _RESPONSE
+        lambda c, _: c.wait_for_response("r", poll_interval=0),
+        "GET",
+        "/v1/responses/r",
+        _RESPONSE,
     ),
     "cancel_response": Case(
-        lambda c, _: c.cancel_response("r"), "DELETE", "/v1/responses/r", {**_RESPONSE, "status": "cancelled"}
+        lambda c, _: c.cancel_response("r"),
+        "DELETE",
+        "/v1/responses/r",
+        {**_RESPONSE, "status": "cancelled"},
     ),
     "list_responses": Case(
         lambda c, _: c.list_responses(limit=5, stream_id="s"),
@@ -179,7 +297,9 @@ CASES: dict[str, Case] = {
         {"limit": "5", "stream_id": "s"},
     ),
     "list_responses_events": Case(
-        lambda c, _: c.list_responses_events(stream_id="s", limit=10, starting_after="e", wait_ms=1000),
+        lambda c, _: c.list_responses_events(
+            stream_id="s", limit=10, starting_after="e", wait_ms=1000
+        ),
         "GET",
         "/v1/responses/events",
         _fixture("V1ResponsesEventsListResponseEvents"),
@@ -206,9 +326,14 @@ def test_every_public_method_has_a_case() -> None:
 
 def _contract_operation(method: str, path: str) -> dict[str, Any]:
     for template, spec in CONTRACT["paths"].items():
-        if re.fullmatch(re.sub(r"\{[^/]+\}", "[^/]+", template), path) and method.lower() in spec:
+        if (
+            re.fullmatch(re.sub(r"\{[^/]+\}", "[^/]+", template), path)
+            and method.lower() in spec
+        ):
             return spec[method.lower()]
-    raise AssertionError(f"{method} {path} is not an operation in contract/openapi.json")
+    raise AssertionError(
+        f"{method} {path} is not an operation in contract/openapi.json"
+    )
 
 
 def _deref(node: Any) -> Any:
@@ -234,11 +359,19 @@ def _recorder(case: Case, sent: list[httpx.Request]) -> httpx.MockTransport:
 
 def _wire(request: httpx.Request) -> tuple[str, str, dict[str, str], Any, str | None]:
     body = json.loads(request.content) if request.content else None
-    return request.method, request.url.path, dict(request.url.params), body, request.headers.get("authorization")
+    return (
+        request.method,
+        request.url.path,
+        dict(request.url.params),
+        body,
+        request.headers.get("authorization"),
+    )
 
 
 @pytest.mark.parametrize("name", sorted(CASES))
-async def test_method_sends_a_contract_request_from_both_clients(name: str, tmp_path: Path) -> None:
+async def test_method_sends_a_contract_request_from_both_clients(
+    name: str, tmp_path: Path
+) -> None:
     case = CASES[name]
     sync_sent: list[httpx.Request] = []
     async_sent: list[httpx.Request] = []
@@ -248,7 +381,9 @@ async def test_method_sends_a_contract_request_from_both_clients(name: str, tmp_
         if inspect.isgenerator(result):
             list(result)
 
-    async with AsyncSferenceClient(transport=_recorder(case, async_sent), api_key="tok") as aclient:
+    async with AsyncSferenceClient(
+        transport=_recorder(case, async_sent), api_key="tok"
+    ) as aclient:
         result = case.call(aclient, tmp_path)
         if inspect.isawaitable(result):
             await result
@@ -256,7 +391,12 @@ async def test_method_sends_a_contract_request_from_both_clients(name: str, tmp_
             [_ async for _ in result]
 
     method, path, params, body, auth = _wire(sync_sent[0])
-    assert (method, path, params, auth) == (case.method, case.path, case.params, "Bearer tok")
+    assert (method, path, params, auth) == (
+        case.method,
+        case.path,
+        case.params,
+        "Bearer tok",
+    )
     assert [_wire(r) for r in async_sent] == [_wire(r) for r in sync_sent]
 
     operation = _contract_operation(method, path)

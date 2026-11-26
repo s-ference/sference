@@ -55,9 +55,7 @@ POLICY_DOCS = [
     ),
 ]
 
-SYSTEM = (
-    "Extract metadata as one line: THEME: <short label> | ENTITIES: comma-separated nouns"
-)
+SYSTEM = "Extract metadata as one line: THEME: <short label> | ENTITIES: comma-separated nouns"
 
 
 def main() -> None:

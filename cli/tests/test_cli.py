@@ -13,7 +13,11 @@ from sference_sdk.models import StreamEventList
 
 import sference_cli.launch as launch_mod
 import sference_cli.main as cli_main
-from sference_cli.stream_cache import cache_key_from_file, get_cached_batch_id, set_cached_batch
+from sference_cli.stream_cache import (
+    cache_key_from_file,
+    get_cached_batch_id,
+    set_cached_batch,
+)
 
 
 runner = CliRunner()
@@ -47,13 +51,17 @@ def _serve(monkeypatch, handler) -> list[httpx.Request]:
 
     real = cli_main.SferenceClient
     monkeypatch.setattr(
-        cli_main, "SferenceClient", lambda **kw: real(transport=httpx.MockTransport(record), **kw)
+        cli_main,
+        "SferenceClient",
+        lambda **kw: real(transport=httpx.MockTransport(record), **kw),
     )
     return sent
 
 
 def _batch(batch_id: str, status: str) -> dict:
-    d = json.loads((FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(encoding="utf-8"))
+    d = json.loads(
+        (FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(encoding="utf-8")
+    )
     return {**d, "id": batch_id, "status": status}
 
 
@@ -69,8 +77,18 @@ def _batch_input(monkeypatch, tmp_path: Path) -> Path:
 
 
 _FAKE_ENTRIES = [
-    {"id": "zai-org/GLM-5.2", "display_name": "GLM 5.2", "modality": "text_generation", "context_tokens": 1048576},
-    {"id": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "display_name": "DeepSeek V4.1 Flash (1017)", "modality": "text_generation", "context_tokens": 1048576},
+    {
+        "id": "zai-org/GLM-5.2",
+        "display_name": "GLM 5.2",
+        "modality": "text_generation",
+        "context_tokens": 1048576,
+    },
+    {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "display_name": "DeepSeek V4.1 Flash (1017)",
+        "modality": "text_generation",
+        "context_tokens": 1048576,
+    },
 ]
 
 
@@ -79,7 +97,8 @@ def _mock_launch_net(monkeypatch, tmp_path: Path) -> dict:
     refresh, and the picker cache prime lands in a temp dir."""
     monkeypatch.setattr(cli_main, "_read_device_credentials", lambda: None)
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda base, key: list(_FAKE_ENTRIES)
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda base, key: list(_FAKE_ENTRIES),
     )
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
     calls: dict = {"primed": None}
@@ -113,18 +132,34 @@ class FakeClient:
         return self.create_response(model="m", input=[{"role": "user", "content": "x"}])
 
     def get_me(self):
-        return json.loads((FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8"))
+        return json.loads(
+            (FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8")
+        )
 
     def submit_batch(self, **kwargs):
-        return FakeResult(json.loads((FIXTURES / "V1BatchesCreateBatch" / "201.json").read_text(encoding="utf-8")))
+        return FakeResult(
+            json.loads(
+                (FIXTURES / "V1BatchesCreateBatch" / "201.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+        )
 
     def list_batches(self):
         return FakeResult(
-            json.loads((FIXTURES / "V1BatchesListBatches" / "200.json").read_text(encoding="utf-8"))
+            json.loads(
+                (FIXTURES / "V1BatchesListBatches" / "200.json").read_text(
+                    encoding="utf-8"
+                )
+            )
         )
 
     def get_batch(self, batch_id: str):
-        d = json.loads((FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["id"] = batch_id
         return FakeResult(d)
 
@@ -132,12 +167,20 @@ class FakeClient:
         return self.get_batch(batch_id)
 
     def get_results(self, batch_id: str):
-        d = json.loads((FIXTURES / "V1BatchesBatchIdResultsGetResults" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1BatchesBatchIdResultsGetResults" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["batch_id"] = batch_id
         return FakeResult(d)
 
     def cancel_batch(self, batch_id: str):
-        d = json.loads((FIXTURES / "V1BatchesBatchIdCancelCancelBatch" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1BatchesBatchIdCancelCancelBatch" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["id"] = batch_id
         return FakeResult(d)
 
@@ -146,49 +189,79 @@ class FakeClient:
 
     def create_stream(self, name: str, window: str = "24h"):
         return FakeResult(
-            json.loads((FIXTURES / "V1StreamsCreateStream" / "201.json").read_text(encoding="utf-8"))
+            json.loads(
+                (FIXTURES / "V1StreamsCreateStream" / "201.json").read_text(
+                    encoding="utf-8"
+                )
+            )
         )
 
     def list_streams(self):
         return FakeResult(
-            json.loads((FIXTURES / "V1StreamsListStreams" / "200.json").read_text(encoding="utf-8"))
+            json.loads(
+                (FIXTURES / "V1StreamsListStreams" / "200.json").read_text(
+                    encoding="utf-8"
+                )
+            )
         )
 
     def get_stream(self, stream_id: str):
-        d = json.loads((FIXTURES / "V1StreamsStreamIdGetStream" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1StreamsStreamIdGetStream" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["id"] = stream_id
         return FakeResult(d)
 
-    def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
+    def create_response(
+        self, *, model: str, input: list, metadata: dict | None = None, **kwargs
+    ):
         """Mock create_response (keyword-only, matches SDK signature)."""
         _ = kwargs
-        return FakeResult({
-            "id": "resp_019d58a7e8b472c8a8f10346c9b7f3c5",
-            "object": "response",
-            "created_at": 1712345678,
-            "model": model,
-            "status": "in_progress",
-            "metadata": metadata or {},
-            "input": input,
-            "output": [
-                {
-                    "type": "message",
-                    "id": "msg_0",
-                    "role": "assistant",
-                    "status": "completed",
-                    "content": [{"type": "output_text", "text": "Mock response", "annotations": []}],
-                }
-            ],
-            "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-        })
+        return FakeResult(
+            {
+                "id": "resp_019d58a7e8b472c8a8f10346c9b7f3c5",
+                "object": "response",
+                "created_at": 1712345678,
+                "model": model,
+                "status": "in_progress",
+                "metadata": metadata or {},
+                "input": input,
+                "output": [
+                    {
+                        "type": "message",
+                        "id": "msg_0",
+                        "role": "assistant",
+                        "status": "completed",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "Mock response",
+                                "annotations": [],
+                            }
+                        ],
+                    }
+                ],
+                "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+            }
+        )
 
     def archive_stream(self, stream_id: str):
-        d = json.loads((FIXTURES / "V1StreamsStreamIdPatchStream" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1StreamsStreamIdPatchStream" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["id"] = stream_id
         return FakeResult(d)
 
     def cancel_stream(self, stream_id: str):
-        d = json.loads((FIXTURES / "V1StreamsStreamIdPatchStream" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1StreamsStreamIdPatchStream" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["id"] = stream_id
         d["status"] = "cancelled"
         d["cancelled_at"] = "2026-04-04T10:18:00+00:00"
@@ -198,17 +271,25 @@ class FakeClient:
     def list_responses_events(self, *, stream_id: str | None = None, **kwargs):
         _ = stream_id
         _ = kwargs
-        raw = json.loads((FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8"))
+        raw = json.loads(
+            (FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         return StreamEventList.model_validate(raw)
 
     def list_models(self):
-        return json.loads((FIXTURES / "V1ModelsListModels" / "200.json").read_text(encoding="utf-8"))
+        return json.loads(
+            (FIXTURES / "V1ModelsListModels" / "200.json").read_text(encoding="utf-8")
+        )
 
     def create_decision(self, **kwargs):
         self.decision_kwargs = kwargs
         from sference_sdk.models import DecisionResponse
 
-        raw = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
+        raw = json.loads(
+            (FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8")
+        )
         return DecisionResponse.model_validate(raw)
 
     def create_embeddings(self, **kwargs):
@@ -234,7 +315,11 @@ class FakeTrackingClient(FakeClient):
 
 class FakeFailedStreamClient(FakeClient):
     def get_batch(self, batch_id: str):
-        d = json.loads((FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(encoding="utf-8"))
+        d = json.loads(
+            (FIXTURES / "V1BatchesBatchIdGetBatch" / "200.json").read_text(
+                encoding="utf-8"
+            )
+        )
         d["id"] = batch_id
         d["status"] = "failed"
         return FakeResult(d)
@@ -243,28 +328,44 @@ class FakeFailedStreamClient(FakeClient):
 @pytest.mark.parametrize("validate", [True, False])
 def test_auth_login_api_key_noninteractive(monkeypatch, tmp_path: Path, validate: bool):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
-    sent = _serve(monkeypatch, lambda _r: httpx.Response(200, json=FakeClient().get_me()))
+    sent = _serve(
+        monkeypatch, lambda _r: httpx.Response(200, json=FakeClient().get_me())
+    )
     result = runner.invoke(
         cli_main.app,
-        ["auth", "login", "--api-key", "sk_test_cli_key_abc", *([] if validate else ["--no-validate"])],
+        [
+            "auth",
+            "login",
+            "--api-key",
+            "sk_test_cli_key_abc",
+            *([] if validate else ["--no-validate"]),
+        ],
     )
     assert result.exit_code == 0, result.output
     assert "Credentials saved" in result.stdout
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
     assert data["token"] == "sk_test_cli_key_abc"
     if validate:
-        assert [r.headers["authorization"] for r in sent] == ["Bearer sk_test_cli_key_abc"]
+        assert [r.headers["authorization"] for r in sent] == [
+            "Bearer sk_test_cli_key_abc"
+        ]
         assert "Authenticated as admin (admin)." in result.stdout
     else:
         assert sent == []
 
 
 def _fake_device_start() -> dict:
-    return json.loads((FIXTURES / "V1OauthDeviceCodeDeviceCode" / "200.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (FIXTURES / "V1OauthDeviceCodeDeviceCode" / "200.json").read_text(
+            encoding="utf-8"
+        )
+    )
 
 
 def _fake_device_tokens() -> dict:
-    return json.loads((FIXTURES / "V1OauthTokenToken" / "200.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (FIXTURES / "V1OauthTokenToken" / "200.json").read_text(encoding="utf-8")
+    )
 
 
 def test_auth_login_device_flow_opens_browser(monkeypatch, tmp_path: Path):
@@ -276,11 +377,17 @@ def test_auth_login_device_flow_opens_browser(monkeypatch, tmp_path: Path):
         return True
 
     monkeypatch.setattr(cli_main.webbrowser, "open", fake_open)
-    monkeypatch.setattr(cli_main, "start_device_login", lambda *a, **k: _fake_device_start())
-    monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
+    monkeypatch.setattr(
+        cli_main, "start_device_login", lambda *a, **k: _fake_device_start()
+    )
+    monkeypatch.setattr(
+        cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens()
+    )
     result = runner.invoke(cli_main.app, ["auth", "login", "--no-validate"])
     assert result.exit_code == 0
-    assert opened == [f"https://app.sference.com/device?code={_fake_device_start()['user_code']}"]
+    assert opened == [
+        f"https://app.sference.com/device?code={_fake_device_start()['user_code']}"
+    ]
     data = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
     assert data["access_token"] == _fake_device_tokens()["access_token"]
     assert data["refresh_token"] == _fake_device_tokens()["refresh_token"]
@@ -291,9 +398,15 @@ def test_auth_login_device_flow_no_browser(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
     mock_open = MagicMock()
     monkeypatch.setattr(cli_main.webbrowser, "open", mock_open)
-    monkeypatch.setattr(cli_main, "start_device_login", lambda *a, **k: _fake_device_start())
-    monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
-    result = runner.invoke(cli_main.app, ["auth", "login", "--no-browser", "--no-validate"])
+    monkeypatch.setattr(
+        cli_main, "start_device_login", lambda *a, **k: _fake_device_start()
+    )
+    monkeypatch.setattr(
+        cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens()
+    )
+    result = runner.invoke(
+        cli_main.app, ["auth", "login", "--no-browser", "--no-validate"]
+    )
     assert result.exit_code == 0
     mock_open.assert_not_called()
     assert _fake_device_start()["user_code"] in result.stdout
@@ -320,7 +433,9 @@ def test_auth_login_device_flow_start_failure_exits_1(monkeypatch, tmp_path: Pat
 def test_read_token_legacy_api_key_shape(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
     monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
-    (tmp_path / "credentials.json").write_text(json.dumps({"token": "sk_legacy"}), encoding="utf-8")
+    (tmp_path / "credentials.json").write_text(
+        json.dumps({"token": "sk_legacy"}), encoding="utf-8"
+    )
     assert cli_main._read_token() == "sk_legacy"
 
 
@@ -379,7 +494,11 @@ def test_read_token_expired_device_credentials_refresh(monkeypatch, tmp_path: Pa
 def _write_device_creds(path: Path, **overrides) -> None:
     import time as _time
 
-    payload = {"access_token": "jwt_device", "refresh_token": "rt_device", "expires_at": _time.time() + 3600}
+    payload = {
+        "access_token": "jwt_device",
+        "refresh_token": "rt_device",
+        "expires_at": _time.time() + 3600,
+    }
     payload.update(overrides)
     path.write_text(json.dumps(payload), encoding="utf-8")
 
@@ -408,7 +527,9 @@ def test_api_key_env_var_still_used_without_a_device_login(monkeypatch, tmp_path
     assert cli_main._read_token() == "sk_from_the_environment"
 
 
-def test_api_key_env_var_is_the_fallback_when_the_grant_is_dead(monkeypatch, tmp_path: Path):
+def test_api_key_env_var_is_the_fallback_when_the_grant_is_dead(
+    monkeypatch, tmp_path: Path
+):
     """A revoked grant must not strand a caller who also has a usable key."""
     import time as _time
 
@@ -431,8 +552,12 @@ def test_login_validates_the_credential_it_just_minted(monkeypatch, tmp_path: Pa
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
     monkeypatch.setenv("SFERENCE_API_KEY", "sk_from_the_environment")
     monkeypatch.setattr(cli_main.webbrowser, "open", MagicMock())
-    monkeypatch.setattr(cli_main, "start_device_login", lambda *a, **k: _fake_device_start())
-    monkeypatch.setattr(cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens())
+    monkeypatch.setattr(
+        cli_main, "start_device_login", lambda *a, **k: _fake_device_start()
+    )
+    monkeypatch.setattr(
+        cli_main, "poll_for_tokens", lambda *a, **k: _fake_device_tokens()
+    )
 
     seen: dict = {}
 
@@ -448,7 +573,9 @@ def test_login_validates_the_credential_it_just_minted(monkeypatch, tmp_path: Pa
     assert seen["token"] == _fake_device_tokens()["access_token"]
 
 
-def test_stale_device_token_is_refreshed_and_the_call_retried(monkeypatch, tmp_path: Path):
+def test_stale_device_token_is_refreshed_and_the_call_retried(
+    monkeypatch, tmp_path: Path
+):
     """A grant rotated server-side leaves the cached token looking valid
     locally; the first 401 must refresh, persist the new pair and retry."""
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
@@ -458,7 +585,11 @@ def test_stale_device_token_is_refreshed_and_the_call_retried(monkeypatch, tmp_p
     monkeypatch.setattr(
         cli_main,
         "refresh_tokens",
-        lambda *_a: {"access_token": "jwt_fresh", "refresh_token": "rt_rotated", "expires_in": 86400},
+        lambda *_a: {
+            "access_token": "jwt_fresh",
+            "refresh_token": "rt_rotated",
+            "expires_in": 86400,
+        },
     )
 
     def api(request: httpx.Request) -> httpx.Response:
@@ -471,9 +602,15 @@ def test_stale_device_token_is_refreshed_and_the_call_retried(monkeypatch, tmp_p
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["username"] == "admin"
-    assert [r.headers["authorization"] for r in sent] == ["Bearer jwt_device", "Bearer jwt_fresh"]
+    assert [r.headers["authorization"] for r in sent] == [
+        "Bearer jwt_device",
+        "Bearer jwt_fresh",
+    ]
     saved = json.loads((tmp_path / "credentials.json").read_text(encoding="utf-8"))
-    assert (saved["access_token"], saved["refresh_token"]) == ("jwt_fresh", "rt_rotated")
+    assert (saved["access_token"], saved["refresh_token"]) == (
+        "jwt_fresh",
+        "rt_rotated",
+    )
 
 
 def test_read_token_refresh_invalid_grant_returns_none(monkeypatch, tmp_path: Path):
@@ -520,11 +657,26 @@ def test_models_list_default(monkeypatch):
     result = runner.invoke(cli_main.app, ["models", "list"])
     assert result.exit_code == 0
     lines = result.stdout.splitlines()
-    assert lines[0].split() == ["id", "name", "modality", "context", "vision", "thinking", "tools", "note"]
+    assert lines[0].split() == [
+        "id",
+        "name",
+        "modality",
+        "context",
+        "vision",
+        "thinking",
+        "tools",
+        "note",
+    ]
     # Full ids, never truncated: they are what users paste into --model.
-    pinned = next(line for line in lines if line.startswith("deepseek-ai/DeepSeek-V4.1-Flash-1017 "))
+    pinned = next(
+        line
+        for line in lines
+        if line.startswith("deepseek-ai/DeepSeek-V4.1-Flash-1017 ")
+    )
     assert "1M" in pinned
-    alias = next(line for line in lines if line.startswith("deepseek-ai/DeepSeek-V4.1-Flash "))
+    alias = next(
+        line for line in lines if line.startswith("deepseek-ai/DeepSeek-V4.1-Flash ")
+    )
     assert "alias of deepseek-ai/DeepSeek-V4.1-Flash-1017; retired 2026-10-17" in alias
 
 
@@ -533,7 +685,14 @@ def test_embeddings_create_json(monkeypatch):
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
     result = runner.invoke(
         cli_main.app,
-        ["embeddings", "create", "--model", "Ettin/Ettin-Encoder-7B", "--input", "hello"],
+        [
+            "embeddings",
+            "create",
+            "--model",
+            "Ettin/Ettin-Encoder-7B",
+            "--input",
+            "hello",
+        ],
     )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -543,7 +702,10 @@ def test_embeddings_create_json(monkeypatch):
 
 _DECISION_QUESTIONS = json.dumps(
     {
-        "route": {"type": "choice", "criteria": {"billing": "Payments", "support": "Other"}},
+        "route": {
+            "type": "choice",
+            "criteria": {"billing": "Payments", "support": "Other"},
+        },
         "urgency": {"type": "score", "criteria": ["Low", "High"]},
         "refund": {"type": "noul"},
     }
@@ -557,8 +719,14 @@ def test_decisions_create_prints_answers(monkeypatch):
     result = runner.invoke(
         cli_main.app,
         [
-            "decisions", "create", "--model", "Cloudflare/clef",
-            "--state", "charged twice", "--questions", _DECISION_QUESTIONS,
+            "decisions",
+            "create",
+            "--model",
+            "Cloudflare/clef",
+            "--state",
+            "charged twice",
+            "--questions",
+            _DECISION_QUESTIONS,
         ],
     )
     assert result.exit_code == 0, result.output
@@ -570,7 +738,9 @@ def test_decisions_create_prints_answers(monkeypatch):
     assert "input_tokens: 512" in result.stdout
 
 
-def test_decisions_create_reads_json_state_and_questions_from_files(monkeypatch, tmp_path):
+def test_decisions_create_reads_json_state_and_questions_from_files(
+    monkeypatch, tmp_path
+):
     _with_fake_credential(monkeypatch)
     fake = FakeClient()
     monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
@@ -579,8 +749,15 @@ def test_decisions_create_reads_json_state_and_questions_from_files(monkeypatch,
     result = runner.invoke(
         cli_main.app,
         [
-            "decisions", "create", "--model", "Cloudflare/clef", "--json",
-            "--state-json", "@-", "--questions", f"@{questions}",
+            "decisions",
+            "create",
+            "--model",
+            "Cloudflare/clef",
+            "--json",
+            "--state-json",
+            "@-",
+            "--questions",
+            f"@{questions}",
         ],
         input='{"ticket": "charged twice"}',
     )
@@ -593,16 +770,26 @@ def test_decisions_create_reads_json_state_and_questions_from_files(monkeypatch,
     "args, message",
     [
         (["--questions", "{}"], "exactly one of --state or --state-json"),
-        (["--state", "x", "--state-json", "1", "--questions", "{}"], "exactly one of --state or --state-json"),
+        (
+            ["--state", "x", "--state-json", "1", "--questions", "{}"],
+            "exactly one of --state or --state-json",
+        ),
         (["--state", "x", "--questions", "[1]"], "must be a JSON object"),
         (["--state", "x", "--questions", "{nope"], "not valid JSON"),
-        (["--state", "x", "--questions", '{"q": {"type": "rank"}}'], "Invalid --questions"),
+        (
+            ["--state", "x", "--questions", '{"q": {"type": "rank"}}'],
+            "Invalid --questions",
+        ),
     ],
 )
 def test_decisions_create_rejects_bad_input(monkeypatch, args, message):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: _RealDecisionClient())
-    result = runner.invoke(cli_main.app, ["decisions", "create", "--model", "Cloudflare/clef", *args])
+    monkeypatch.setattr(
+        cli_main, "SferenceClient", lambda *a, **k: _RealDecisionClient()
+    )
+    result = runner.invoke(
+        cli_main.app, ["decisions", "create", "--model", "Cloudflare/clef", *args]
+    )
     assert result.exit_code == 1
     assert message in result.output
 
@@ -640,7 +827,14 @@ def test_batch_list_plain_table_includes_tokens(monkeypatch):
 def test_batch_submit_rejects_unknown_window():
     result = runner.invoke(
         cli_main.app,
-        ["batch", "submit", "--input-file", "/tmp/does-not-need-to-exist-for-cli-parse.jsonl", "--window", "2h"],
+        [
+            "batch",
+            "submit",
+            "--input-file",
+            "/tmp/does-not-need-to-exist-for-cli-parse.jsonl",
+            "--window",
+            "2h",
+        ],
     )
     assert result.exit_code != 0
     out = f"{result.stdout}\n{result.stderr or ''}"
@@ -649,7 +843,16 @@ def test_batch_submit_rejects_unknown_window():
 
 def _batch_stream(input_file: Path, *extra: str):
     return runner.invoke(
-        cli_main.app, ["batch", "stream", "--input-file", str(input_file), "--poll-interval", "0", *extra]
+        cli_main.app,
+        [
+            "batch",
+            "stream",
+            "--input-file",
+            str(input_file),
+            "--poll-interval",
+            "0",
+            *extra,
+        ],
     )
 
 
@@ -661,7 +864,10 @@ def test_batch_stream_submits_and_outputs_jsonl(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0
     assert "status=completed" in result.stderr
     assert result.stdout == '{"batch_id": "batch_1"}\n'
-    assert get_cached_batch_id(cache_key_from_file(input_file), "https://api.sference.com") is None
+    assert (
+        get_cached_batch_id(cache_key_from_file(input_file), "https://api.sference.com")
+        is None
+    )
 
 
 def test_batch_stream_failed_batch_exits_1(monkeypatch, tmp_path: Path):
@@ -677,14 +883,18 @@ def test_batch_stream_reuses_a_finished_cached_batch(monkeypatch, tmp_path: Path
     fake = FakeTrackingClient()
     monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
     input_file = _batch_input(monkeypatch, tmp_path)
-    set_cached_batch(cache_key_from_file(input_file), "batch_1", "https://api.sference.com")
+    set_cached_batch(
+        cache_key_from_file(input_file), "batch_1", "https://api.sference.com"
+    )
     result = _batch_stream(input_file)
     assert result.exit_code == 0
     assert fake.submit_calls == 0
     assert "Resuming" not in result.stderr
 
 
-def test_batch_stream_resumes_a_running_cached_batch_until_it_finishes(monkeypatch, tmp_path: Path):
+def test_batch_stream_resumes_a_running_cached_batch_until_it_finishes(
+    monkeypatch, tmp_path: Path
+):
     """Ctrl-C then rerun: pick the batch back up and keep polling, don't resubmit."""
     _with_fake_credential(monkeypatch)
     statuses = iter(["running", "running", "completed"])
@@ -694,21 +904,30 @@ def test_batch_stream_resumes_a_running_cached_batch_until_it_finishes(monkeypat
             return httpx.Response(200, json=_batch("batch_old", next(statuses)))
         if request.url.path == "/v1/batches/batch_old/results.jsonl":
             return httpx.Response(200, content=b'{"custom_id": "r1"}\n')
-        return httpx.Response(500, json={"detail": f"unexpected {request.method} {request.url.path}"})
+        return httpx.Response(
+            500, json={"detail": f"unexpected {request.method} {request.url.path}"}
+        )
 
     sent = _serve(monkeypatch, api)
     input_file = _batch_input(monkeypatch, tmp_path)
-    set_cached_batch(cache_key_from_file(input_file), "batch_old", "https://api.sference.com")
+    set_cached_batch(
+        cache_key_from_file(input_file), "batch_old", "https://api.sference.com"
+    )
     result = _batch_stream(input_file)
 
     assert result.exit_code == 0, result.output
     assert "Resuming batch batch_old" in result.stderr
     assert [r.method for r in sent] == ["GET"] * 4
     assert result.stdout == '{"custom_id": "r1"}\n'
-    assert get_cached_batch_id(cache_key_from_file(input_file), "https://api.sference.com") is None
+    assert (
+        get_cached_batch_id(cache_key_from_file(input_file), "https://api.sference.com")
+        is None
+    )
 
 
-def test_batch_stream_resubmits_when_the_cached_batch_is_gone(monkeypatch, tmp_path: Path):
+def test_batch_stream_resubmits_when_the_cached_batch_is_gone(
+    monkeypatch, tmp_path: Path
+):
     _with_fake_credential(monkeypatch)
 
     def api(request: httpx.Request) -> httpx.Response:
@@ -718,15 +937,22 @@ def test_batch_stream_resubmits_when_the_cached_batch_is_gone(monkeypatch, tmp_p
             return httpx.Response(201, json=_batch("batch_new", "completed"))
         if request.url.path == "/v1/batches/batch_new/results.jsonl":
             return httpx.Response(200, content=b'{"custom_id": "r1"}\n')
-        return httpx.Response(500, json={"detail": f"unexpected {request.method} {request.url.path}"})
+        return httpx.Response(
+            500, json={"detail": f"unexpected {request.method} {request.url.path}"}
+        )
 
     sent = _serve(monkeypatch, api)
     input_file = _batch_input(monkeypatch, tmp_path)
-    set_cached_batch(cache_key_from_file(input_file), "batch_gone", "https://api.sference.com")
+    set_cached_batch(
+        cache_key_from_file(input_file), "batch_gone", "https://api.sference.com"
+    )
     result = _batch_stream(input_file)
 
     assert result.exit_code == 0, result.output
-    assert [(r.method, r.url.path) for r in sent][:2] == [("GET", "/v1/batches/batch_gone"), ("POST", "/v1/batches")]
+    assert [(r.method, r.url.path) for r in sent][:2] == [
+        ("GET", "/v1/batches/batch_gone"),
+        ("POST", "/v1/batches"),
+    ]
     assert result.stdout == '{"custom_id": "r1"}\n'
 
 
@@ -735,7 +961,9 @@ def test_batch_stream_no_cache_flag_resubmits(monkeypatch, tmp_path: Path):
     fake = FakeTrackingClient()
     monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: fake)
     input_file = _batch_input(monkeypatch, tmp_path)
-    set_cached_batch(cache_key_from_file(input_file), "batch_1", "https://api.sference.com")
+    set_cached_batch(
+        cache_key_from_file(input_file), "batch_1", "https://api.sference.com"
+    )
     result = _batch_stream(input_file, "--no-cache")
     assert result.exit_code == 0
     assert fake.submit_calls == 1
@@ -745,7 +973,8 @@ def test_batch_wait_gives_up_at_timeout(monkeypatch):
     _with_fake_credential(monkeypatch)
     _serve(monkeypatch, lambda _r: httpx.Response(200, json=_batch("b", "running")))
     result = runner.invoke(
-        cli_main.app, ["batch", "wait", "--batch-id", "b", "--timeout", "0", "--poll-interval", "0"]
+        cli_main.app,
+        ["batch", "wait", "--batch-id", "b", "--timeout", "0", "--poll-interval", "0"],
     )
     assert result.exit_code == 1
     assert "Timed out waiting for batch b" in result.stderr
@@ -755,7 +984,9 @@ def test_batch_wait_gives_up_at_timeout(monkeypatch):
 def test_batch_status_json(monkeypatch):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
-    result = runner.invoke(cli_main.app, ["batch", "status", "--batch-id", "batch_1", "--json"])
+    result = runner.invoke(
+        cli_main.app, ["batch", "status", "--batch-id", "batch_1", "--json"]
+    )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["status"] == "completed"
@@ -784,16 +1015,28 @@ def test_batch_submit_wait_and_results_json(monkeypatch, tmp_path: Path):
 
     submit = runner.invoke(
         cli_main.app,
-        ["batch", "submit", "--input-file", str(input_file), "--model", "Qwen/Qwen3.5-4B", "--json"],
+        [
+            "batch",
+            "submit",
+            "--input-file",
+            str(input_file),
+            "--model",
+            "Qwen/Qwen3.5-4B",
+            "--json",
+        ],
     )
     assert submit.exit_code == 0
     assert json.loads(submit.stdout)["id"] == "batch_1"
 
-    wait = runner.invoke(cli_main.app, ["batch", "wait", "--batch-id", "batch_1", "--json"])
+    wait = runner.invoke(
+        cli_main.app, ["batch", "wait", "--batch-id", "batch_1", "--json"]
+    )
     assert wait.exit_code == 0
     assert json.loads(wait.stdout)["status"] == "completed"
 
-    results = runner.invoke(cli_main.app, ["batch", "results", "--batch-id", "batch_1", "--json"])
+    results = runner.invoke(
+        cli_main.app, ["batch", "results", "--batch-id", "batch_1", "--json"]
+    )
     assert results.exit_code == 0
     assert json.loads(results.stdout)["output_url"] == "https://mock-s3.local/x"
 
@@ -801,7 +1044,9 @@ def test_batch_submit_wait_and_results_json(monkeypatch, tmp_path: Path):
 def test_batch_cancel_json(monkeypatch):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "SferenceClient", FakeClient)
-    result = runner.invoke(cli_main.app, ["batch", "cancel", "--batch-id", "batch_1", "--json"])
+    result = runner.invoke(
+        cli_main.app, ["batch", "cancel", "--batch-id", "batch_1", "--json"]
+    )
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["status"] == "cancelled"
@@ -857,7 +1102,9 @@ class FakeResponsesTailClient(FakeClient):
         self._tail_i += 1
         if self._tail_i == 1:
             return super().list_responses_events(stream_id=stream_id, **kwargs)
-        return StreamEventList.model_validate({"object": "list", "data": [], "has_more": False})
+        return StreamEventList.model_validate(
+            {"object": "list", "data": [], "has_more": False}
+        )
 
 
 def test_stream_create_list_status_archive(monkeypatch, tmp_path: Path):
@@ -876,14 +1123,26 @@ def test_stream_create_list_status_archive(monkeypatch, tmp_path: Path):
 
     r3 = runner.invoke(
         cli_main.app,
-        ["stream", "status", "--stream-id", "123e4567-e89b-12d3-a456-426614174000", "--json"],
+        [
+            "stream",
+            "status",
+            "--stream-id",
+            "123e4567-e89b-12d3-a456-426614174000",
+            "--json",
+        ],
     )
     assert r3.exit_code == 0
     assert json.loads(r3.stdout)["total_items"] == 1
 
     r4 = runner.invoke(
         cli_main.app,
-        ["stream", "cancel", "--stream-id", "123e4567-e89b-12d3-a456-426614174000", "--json"],
+        [
+            "stream",
+            "cancel",
+            "--stream-id",
+            "123e4567-e89b-12d3-a456-426614174000",
+            "--json",
+        ],
     )
     assert r4.exit_code == 0
     out = json.loads(r4.stdout)
@@ -892,7 +1151,13 @@ def test_stream_create_list_status_archive(monkeypatch, tmp_path: Path):
 
     r5 = runner.invoke(
         cli_main.app,
-        ["stream", "archive", "--stream-id", "123e4567-e89b-12d3-a456-426614174000", "--json"],
+        [
+            "stream",
+            "archive",
+            "--stream-id",
+            "123e4567-e89b-12d3-a456-426614174000",
+            "--json",
+        ],
     )
     assert r5.exit_code == 0
     assert json.loads(r5.stdout)["status"] == "archived"
@@ -924,7 +1189,11 @@ def test_stream_submit_jsonl(monkeypatch, tmp_path: Path):
     assert json.loads(r.stdout)["total_items"] == 1
 
 
-_BASE_BODY = {"model": "m", "input": [{"role": "user", "content": "hello"}], "include_reasoning": True}
+_BASE_BODY = {
+    "model": "m",
+    "input": [{"role": "user", "content": "hello"}],
+    "include_reasoning": True,
+}
 
 
 @pytest.mark.parametrize(
@@ -933,17 +1202,32 @@ _BASE_BODY = {"model": "m", "input": [{"role": "user", "content": "hello"}], "in
         # Blocking by default, and the client outwaits the server's sync deadline.
         ([], _BASE_BODY, 1860.0),
         (["--background"], {**_BASE_BODY, "background": True}, 30.0),
-        (["--no-include-reasoning"], {**_BASE_BODY, "include_reasoning": False}, 1860.0),
+        (
+            ["--no-include-reasoning"],
+            {**_BASE_BODY, "include_reasoning": False},
+            1860.0,
+        ),
         (["--enable-thinking"], {**_BASE_BODY, "enable_thinking": True}, 1860.0),
         (["--disable-thinking"], {**_BASE_BODY, "enable_thinking": False}, 1860.0),
         (["--timeout", "120"], _BASE_BODY, 120.0),
     ],
 )
-def test_responses_create_sends_the_flags(monkeypatch, flags: list[str], body: dict, read_timeout: float):
+def test_responses_create_sends_the_flags(
+    monkeypatch, flags: list[str], body: dict, read_timeout: float
+):
     _with_fake_credential(monkeypatch)
-    reply = {"id": "resp_1", "object": "response", "created_at": 1, "model": "m", "status": "completed"}
+    reply = {
+        "id": "resp_1",
+        "object": "response",
+        "created_at": 1,
+        "model": "m",
+        "status": "completed",
+    }
     sent = _serve(monkeypatch, lambda _r: httpx.Response(200, json=reply))
-    r = runner.invoke(cli_main.app, ["responses", "create", "--model", "m", "--content", "hello", *flags])
+    r = runner.invoke(
+        cli_main.app,
+        ["responses", "create", "--model", "m", "--content", "hello", *flags],
+    )
     assert r.exit_code == 0, r.output
     assert json.loads(r.stdout)["id"] == "resp_1"
     assert json.loads(sent[0].content) == body
@@ -952,11 +1236,22 @@ def test_responses_create_sends_the_flags(monkeypatch, flags: list[str], body: d
 
 def test_decisions_create_outwaits_the_servers_decision_deadline(monkeypatch):
     _with_fake_credential(monkeypatch)
-    reply = json.loads((FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8"))
+    reply = json.loads(
+        (FIXTURES / "createDecision" / "200.json").read_text(encoding="utf-8")
+    )
     sent = _serve(monkeypatch, lambda _r: httpx.Response(200, json=reply))
     r = runner.invoke(
         cli_main.app,
-        ["decisions", "create", "--model", "m", "--state", "x", "--questions", '{"ok": {"type": "noul"}}'],
+        [
+            "decisions",
+            "create",
+            "--model",
+            "m",
+            "--state",
+            "x",
+            "--questions",
+            '{"ok": {"type": "noul"}}',
+        ],
     )
     assert r.exit_code == 0, r.output
     assert sent[0].extensions["timeout"]["read"] == 45.0
@@ -964,6 +1259,7 @@ def test_decisions_create_outwaits_the_servers_decision_deadline(monkeypatch):
 
 def test_responses_result_returns_json(monkeypatch):
     _with_fake_credential(monkeypatch)
+
     class CompletedClient(FakeClient):
         def get_response(self, response_id: str):
             r = super().get_response(response_id)
@@ -973,7 +1269,10 @@ def test_responses_result_returns_json(monkeypatch):
             return FakeResult(d)
 
     monkeypatch.setattr(cli_main, "SferenceClient", CompletedClient)
-    r = runner.invoke(cli_main.app, ["responses", "result", "--id", "resp_any", "--poll-interval", "0.01"])
+    r = runner.invoke(
+        cli_main.app,
+        ["responses", "result", "--id", "resp_any", "--poll-interval", "0.01"],
+    )
     assert r.exit_code == 0
     payload = json.loads(r.stdout)
     assert payload["object"] == "response"
@@ -1040,10 +1339,14 @@ def test_responses_tail_resumes_from_checkpoint_then_follows_cursor(
             self._n += 1
             if self._n == 1:
                 raw = json.loads(
-                    (FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8")
+                    (
+                        FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json"
+                    ).read_text(encoding="utf-8")
                 )
                 return StreamEventList.model_validate(raw)
-            return StreamEventList.model_validate({"object": "list", "data": [], "has_more": False})
+            return StreamEventList.model_validate(
+                {"object": "list", "data": [], "has_more": False}
+            )
 
     tracker = Track()
     monkeypatch.setattr(cli_main, "SferenceClient", lambda *a, **k: tracker)
@@ -1059,13 +1362,26 @@ def test_responses_tail_resumes_from_checkpoint_then_follows_cursor(
     monkeypatch.setattr(cli_main.time, "sleep", fake_sleep)
     result = runner.invoke(
         cli_main.app,
-        ["responses", "tail", "--poll-interval", "0.001", "--consumer", "tail-cursor", *flags],
+        [
+            "responses",
+            "tail",
+            "--poll-interval",
+            "0.001",
+            "--consumer",
+            "tail-cursor",
+            *flags,
+        ],
     )
     assert result.exit_code == 130
     assert "019d58a7" in result.stdout
     last = "019d58a7-2ece-7742-bc3e-69ba44168279"
     assert tracker.starting_after_calls[:2] == [first_cursor, last]
-    assert load_checkpoint("https://api.sference.com", "__responses_events__", "tail-cursor") == last
+    assert (
+        load_checkpoint(
+            "https://api.sference.com", "__responses_events__", "tail-cursor"
+        )
+        == last
+    )
 
 
 @pytest.mark.parametrize(
@@ -1076,7 +1392,9 @@ def test_responses_tail_resumes_from_checkpoint_then_follows_cursor(
         ("504: {'detail': 'timed out'}", "resubmit with --background"),
     ],
 )
-def test_api_error_prints_message_and_exits_1(monkeypatch, error: str, hint: str | None):
+def test_api_error_prints_message_and_exits_1(
+    monkeypatch, error: str, hint: str | None
+):
     _with_fake_credential(monkeypatch)
 
     class FailingClient(FakeClient):
@@ -1084,7 +1402,9 @@ def test_api_error_prints_message_and_exits_1(monkeypatch, error: str, hint: str
             raise ApiError(error)
 
     monkeypatch.setattr(cli_main, "SferenceClient", FailingClient)
-    result = runner.invoke(cli_main.app, ["responses", "create", "--model", "m", "--content", "hi"])
+    result = runner.invoke(
+        cli_main.app, ["responses", "create", "--model", "m", "--content", "hi"]
+    )
 
     assert result.exit_code == 1
     assert error in result.stderr
@@ -1100,9 +1420,13 @@ def test_launch_visible_in_root_help() -> None:
 def test_launch_uses_sference_model_env(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     _mock_launch_net(monkeypatch, tmp_path)
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
     monkeypatch.setenv("SFERENCE_MODEL", "deepseek-ai/DeepSeek-V4-Flash-0731")
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
+    result = runner.invoke(
+        cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"]
+    )
     assert result.exit_code == 0
     assert "ANTHROPIC_MODEL=deepseek-ai/DeepSeek-V4-Flash-0731" in result.stdout
 
@@ -1110,18 +1434,34 @@ def test_launch_uses_sference_model_env(monkeypatch, tmp_path: Path):
 def test_claude_dry_run_prints_env(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     _mock_launch_net(monkeypatch, tmp_path)
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
     result = runner.invoke(
         cli_main.app,
-        ["launch", "claude", "--no-anthropic", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4-Flash", "--enable-tool-search"],
+        [
+            "launch",
+            "claude",
+            "--no-anthropic",
+            "--dry-run",
+            "--model",
+            "deepseek-ai/DeepSeek-V4-Flash",
+            "--enable-tool-search",
+        ],
     )
     assert result.exit_code == 0
     assert "ANTHROPIC_BASE_URL=https://api.sference.com" in result.stdout
     assert "ANTHROPIC_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
     assert "ANTHROPIC_DEFAULT_OPUS_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
-    assert "ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
-    assert "ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
-    assert "ANTHROPIC_DEFAULT_FABLE_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert (
+        "ANTHROPIC_DEFAULT_SONNET_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    )
+    assert (
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    )
+    assert (
+        "ANTHROPIC_DEFAULT_FABLE_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    )
     assert "CLAUDE_CODE_SUBAGENT_MODEL=deepseek-ai/DeepSeek-V4-Flash" in result.stdout
     assert "ANTHROPIC_AUTH_TOKEN=<redacted>" in result.stdout
     assert "ENABLE_TOOL_SEARCH=true" in result.stdout
@@ -1135,7 +1475,9 @@ def test_claude_dry_run_prints_env(monkeypatch, tmp_path: Path):
 def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     _mock_launch_net(monkeypatch, tmp_path)
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
     captured: dict = {}
 
     def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
@@ -1145,7 +1487,9 @@ def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
         raise SystemExit(0)
 
     monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--resume", "abc"])
+    result = runner.invoke(
+        cli_main.app, ["launch", "claude", "--no-anthropic", "--resume", "abc"]
+    )
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/claude"
     assert captured["args"][0] == "/usr/local/bin/claude"
@@ -1154,26 +1498,51 @@ def test_claude_forwards_extra_args(monkeypatch, tmp_path: Path):
     assert launch_settings["env"]["ANTHROPIC_BASE_URL"] == "https://api.sference.com"
     # The token must NOT be in argv (ps-visible); env carries it.
     assert "ANTHROPIC_AUTH_TOKEN" not in launch_settings["env"]
-    assert launch_settings["env"]["ANTHROPIC_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert (
+        launch_settings["env"]["ANTHROPIC_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
     assert launch_settings["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert captured["args"][3:] == ["--resume", "abc"]
     assert captured["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk_fake_for_tests"
     assert captured["env"]["ANTHROPIC_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert (
+        captured["env"]["ANTHROPIC_DEFAULT_OPUS_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
+    assert (
+        captured["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
+    assert (
+        captured["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
+    assert (
+        captured["env"]["ANTHROPIC_DEFAULT_FABLE_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
+    assert (
+        captured["env"]["CLAUDE_CODE_SUBAGENT_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
+    assert (
+        captured["env"]["ANTHROPIC_SMALL_FAST_MODEL"]
+        == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    )
     assert captured["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
-    assert captured["env"]["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] == "1"
+    assert (
+        captured["env"]["CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT"] == "1"
+    )
 
 
 def test_claude_missing_binary_exits(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     _mock_launch_net(monkeypatch, tmp_path)
     monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: None)
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"])
+    result = runner.invoke(
+        cli_main.app, ["launch", "claude", "--no-anthropic", "--dry-run"]
+    )
     assert result.exit_code == 1
     out = (result.stdout or "") + (result.stderr or "")
     assert "not found on PATH" in out
@@ -1195,10 +1564,20 @@ _FAKE_PI_MODEL_ENTRIES = [
         "modality": "text_generation",
         "context_tokens": 200000,
         "capabilities": {
-            "thinking": {"supported": True, "types": {"enabled": {"supported": True}, "adaptive": {"supported": False}}},
+            "thinking": {
+                "supported": True,
+                "types": {
+                    "enabled": {"supported": True},
+                    "adaptive": {"supported": False},
+                },
+            },
             "image_input": {"supported": False},
         },
-        "pricing": {"input_per_million_usd": 0.6, "output_per_million_usd": 2.2, "cached_input_per_million_usd": 0.1},
+        "pricing": {
+            "input_per_million_usd": 0.6,
+            "output_per_million_usd": 2.2,
+            "cached_input_per_million_usd": 0.1,
+        },
     },
     {
         "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -1206,10 +1585,20 @@ _FAKE_PI_MODEL_ENTRIES = [
         "modality": "text_generation",
         "context_tokens": 131072,
         "capabilities": {
-            "thinking": {"supported": True, "types": {"enabled": {"supported": True}, "adaptive": {"supported": False}}},
+            "thinking": {
+                "supported": True,
+                "types": {
+                    "enabled": {"supported": True},
+                    "adaptive": {"supported": False},
+                },
+            },
             "image_input": {"supported": False},
         },
-        "pricing": {"input_per_million_usd": 0.3, "output_per_million_usd": 1.5, "cached_input_per_million_usd": 0.07},
+        "pricing": {
+            "input_per_million_usd": 0.3,
+            "output_per_million_usd": 1.5,
+            "cached_input_per_million_usd": 0.07,
+        },
     },
     {
         # Synthetic: the live catalog has no non-thinking vision model to borrow.
@@ -1218,24 +1607,45 @@ _FAKE_PI_MODEL_ENTRIES = [
         "modality": "text_generation",
         "context_tokens": 256000,
         "capabilities": {
-            "thinking": {"supported": False, "types": {"enabled": {"supported": False}, "adaptive": {"supported": False}}},
+            "thinking": {
+                "supported": False,
+                "types": {
+                    "enabled": {"supported": False},
+                    "adaptive": {"supported": False},
+                },
+            },
             "image_input": {"supported": True},
         },
-        "pricing": {"input_per_million_usd": 1.0, "output_per_million_usd": 4.0, "cached_input_per_million_usd": 0.2},
+        "pricing": {
+            "input_per_million_usd": 1.0,
+            "output_per_million_usd": 4.0,
+            "cached_input_per_million_usd": 0.2,
+        },
     },
 ]
 
 
 def test_pi_dry_run_prints_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
-    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json")
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+        "sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_PI_MODEL_ENTRIES,
     )
     result = runner.invoke(
         cli_main.app,
-        ["launch", "pi", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"],
+        [
+            "launch",
+            "pi",
+            "--dry-run",
+            "--model",
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        ],
     )
     assert result.exit_code == 0
     assert "Wrote provider 'sference' to" in result.stdout
@@ -1243,19 +1653,27 @@ def test_pi_dry_run_prints_config(monkeypatch, tmp_path: Path):
     assert "api: openai-responses (/v1/responses)" in result.stdout
     assert "model: deepseek-ai/DeepSeek-V4.1-Flash-1017" in result.stdout
     assert "models registered: 3" in result.stdout
-    assert "model scope: sference/** (other providers hidden by default)" in result.stdout
+    assert (
+        "model scope: sference/** (other providers hidden by default)" in result.stdout
+    )
     assert "apiKey: <redacted>" in result.stdout
-    assert "command: /usr/local/bin/pi --provider sference --model deepseek-ai/DeepSeek-V4.1-Flash-1017" in result.stdout
+    assert (
+        "command: /usr/local/bin/pi --provider sference --model deepseek-ai/DeepSeek-V4.1-Flash-1017"
+        in result.stdout
+    )
     assert "--models sference/**" in result.stdout
 
 
 def test_pi_writes_all_models(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi"
+    )
     models_json = tmp_path / "models.json"
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_PI_MODEL_ENTRIES,
     )
     runner.invoke(cli_main.app, ["launch", "pi", "--dry-run"])
     assert models_json.exists()
@@ -1312,15 +1730,20 @@ def test_pi_drops_model_no_longer_in_catalog(monkeypatch, tmp_path: Path):
     command again after a model is dropped would resurrect it every time.
     """
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi"
+    )
     models_json = tmp_path / "models.json"
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
 
     # The chosen model (GLM-5.2) is in the catalog initially and registered.
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_PI_MODEL_ENTRIES,
     )
-    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run", "--model", "zai-org/GLM-5.2"])
+    runner.invoke(
+        cli_main.app, ["launch", "pi", "--dry-run", "--model", "zai-org/GLM-5.2"]
+    )
     data = json.loads(models_json.read_text())
     ids = {m["id"] for m in data["providers"]["sference"]["models"]}
     assert "zai-org/GLM-5.2" in ids
@@ -1330,7 +1753,9 @@ def test_pi_drops_model_no_longer_in_catalog(monkeypatch, tmp_path: Path):
         "sference_cli.launch.fetch_sference_model_entries",
         lambda *a: [e for e in _FAKE_PI_MODEL_ENTRIES if e["id"] != "zai-org/GLM-5.2"],
     )
-    runner.invoke(cli_main.app, ["launch", "pi", "--dry-run", "--model", "zai-org/GLM-5.2"])
+    runner.invoke(
+        cli_main.app, ["launch", "pi", "--dry-run", "--model", "zai-org/GLM-5.2"]
+    )
     data = json.loads(models_json.read_text())
     ids = [m["id"] for m in data["providers"]["sference"]["models"]]
     assert "zai-org/GLM-5.2" not in ids
@@ -1340,7 +1765,9 @@ def test_pi_drops_model_no_longer_in_catalog(monkeypatch, tmp_path: Path):
 
 def test_pi_falls_back_when_fetch_fails(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi"
+    )
     models_json = tmp_path / "models.json"
     monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: models_json)
 
@@ -1356,15 +1783,23 @@ def test_pi_falls_back_when_fetch_fails(monkeypatch, tmp_path: Path):
     models = data["providers"]["sference"]["models"]
     # only the chosen (default) model is registered, as a bare {id, name}
     assert [m["id"] for m in models] == [launch_mod.DEFAULT_MODEL]
-    assert models[0] == {"id": launch_mod.DEFAULT_MODEL, "name": launch_mod.DEFAULT_MODEL}
+    assert models[0] == {
+        "id": launch_mod.DEFAULT_MODEL,
+        "name": launch_mod.DEFAULT_MODEL,
+    }
 
 
 def test_pi_forwards_extra_args(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi")
-    monkeypatch.setattr("sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json")
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_PI_MODEL_ENTRIES
+        "sference_cli.launch.find_pi_executable", lambda: "/usr/local/bin/pi"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch._pi_models_json_path", lambda: tmp_path / "models.json"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_PI_MODEL_ENTRIES,
     )
     captured: dict = {}
 
@@ -1407,7 +1842,9 @@ def test_pi_requires_credential(monkeypatch, tmp_path: Path):
     assert "No API credential" in out
 
 
-def _opencode_entry(model_id: str, *, thinking: bool = True, alias_of: str | None = None) -> dict:
+def _opencode_entry(
+    model_id: str, *, thinking: bool = True, alias_of: str | None = None
+) -> dict:
     """A ``GET /v1/models`` item as the API serves it (the fields the launcher reads)."""
     return {
         "id": model_id,
@@ -1429,9 +1866,17 @@ _FAKE_OPENCODE_MODELS = {e["id"] for e in _FAKE_OPENCODE_ENTRIES}
 
 def test_opencode_dry_run_prints_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json")
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_OPENCODE_ENTRIES,
+    )
     result = runner.invoke(
         cli_main.app,
         ["launch", "opencode", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4-Flash"],
@@ -1441,15 +1886,26 @@ def test_opencode_dry_run_prints_config(monkeypatch, tmp_path: Path):
     assert "baseURL: https://api.sference.com/v1" in result.stdout
     assert "model: deepseek-ai/DeepSeek-V4-Flash" in result.stdout
     assert "apiKey: {env:SFERENCE_API_KEY}" in result.stdout
-    assert "command: /usr/local/bin/opencode --model sference/deepseek-ai/DeepSeek-V4-Flash" in result.stdout
+    assert (
+        "command: /usr/local/bin/opencode --model sference/deepseek-ai/DeepSeek-V4-Flash"
+        in result.stdout
+    )
 
 
 def test_opencode_writes_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
     config_path = tmp_path / "opencode.json"
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: config_path
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_OPENCODE_ENTRIES,
+    )
     runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     assert config_path.exists()
     data = json.loads(config_path.read_text())
@@ -1459,7 +1915,9 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
     assert provider["options"]["baseURL"] == "https://api.sference.com/v1"
     assert provider["options"]["apiKey"] == "{env:SFERENCE_API_KEY}"
     assert data["model"] == f"sference/{launch_mod.DEFAULT_MODEL}"
-    assert provider["models"][launch_mod.DEFAULT_MODEL]["name"] == launch_mod.DEFAULT_MODEL
+    assert (
+        provider["models"][launch_mod.DEFAULT_MODEL]["name"] == launch_mod.DEFAULT_MODEL
+    )
     # all fetched models appear in the picker
     for m in _FAKE_OPENCODE_MODELS:
         assert m in provider["models"]
@@ -1467,10 +1925,18 @@ def test_opencode_writes_config(monkeypatch, tmp_path: Path):
 
 def test_opencode_writes_thinking_variants(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
     config_path = tmp_path / "opencode.json"
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: config_path
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_OPENCODE_ENTRIES,
+    )
     runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     data = json.loads(config_path.read_text())
     models = data["provider"]["sference"]["models"]
@@ -1481,7 +1947,12 @@ def test_opencode_writes_thinking_variants(monkeypatch, tmp_path: Path):
         for level, variant in models[model_id]["variants"].items():
             assert variant == {"reasoningEffort": level}
     # DeepSeek can turn thinking off, so it offers every level including none.
-    assert set(models["deepseek-ai/DeepSeek-V4.1-Flash-1017"]["variants"]) == {"none", "medium", "high", "xhigh"}
+    assert set(models["deepseek-ai/DeepSeek-V4.1-Flash-1017"]["variants"]) == {
+        "none",
+        "medium",
+        "high",
+        "xhigh",
+    }
     # GLM-5.2 is served by GLM-5.3 weights, which cannot turn thinking off: the API
     # 400s reasoning_effort=none, so no none variant.
     assert set(models["zai-org/GLM-5.2"]["variants"]) == {"medium", "high", "xhigh"}
@@ -1493,9 +1964,14 @@ def test_opencode_variants_without_model_list_omit_none(monkeypatch, tmp_path: P
     """Fetch failed (offline): the launcher cannot tell whether a model can turn
     thinking off, so it offers the levels every thinking model accepts, never none."""
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
     config_path = tmp_path / "opencode.json"
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: config_path
+    )
 
     def offline(*_a):
         raise OSError("offline")
@@ -1512,7 +1988,10 @@ def test_opencode_variants_without_model_list_omit_none(monkeypatch, tmp_path: P
 
 def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
     config_path = tmp_path / "opencode.json"
     # Pre-existing user config: another provider + a default model + keybinds.
     config_path.write_text(
@@ -1525,9 +2004,23 @@ def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
-    result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run", "--model", "deepseek-ai/DeepSeek-V4-Flash-0731"])
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: config_path
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_OPENCODE_ENTRIES,
+    )
+    result = runner.invoke(
+        cli_main.app,
+        [
+            "launch",
+            "opencode",
+            "--dry-run",
+            "--model",
+            "deepseek-ai/DeepSeek-V4-Flash-0731",
+        ],
+    )
     assert result.exit_code == 0
     data = json.loads(config_path.read_text())
     # User config preserved...
@@ -1538,17 +2031,25 @@ def test_opencode_merges_existing_config(monkeypatch, tmp_path: Path):
     # ...and sference merged in with all fetched models.
     sference = data["provider"]["sference"]
     assert sference["options"]["baseURL"] == "https://api.sference.com/v1"
-    assert sference["models"]["deepseek-ai/DeepSeek-V4-Flash-0731"]["name"] == "deepseek-ai/DeepSeek-V4-Flash-0731"
+    assert (
+        sference["models"]["deepseek-ai/DeepSeek-V4-Flash-0731"]["name"]
+        == "deepseek-ai/DeepSeek-V4-Flash-0731"
+    )
     for m in _FAKE_OPENCODE_MODELS:
         assert m in sference["models"]
 
 
 def test_opencode_refuses_unparseable_existing_config(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
     config_path = tmp_path / "opencode.json"
     config_path.write_text("{not valid json", encoding="utf-8")
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: config_path)
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: config_path
+    )
     result = runner.invoke(cli_main.app, ["launch", "opencode", "--dry-run"])
     assert result.exit_code == 1
     out = (result.stdout or "") + (result.stderr or "")
@@ -1559,8 +2060,13 @@ def test_opencode_refuses_unparseable_existing_config(monkeypatch, tmp_path: Pat
 
 def test_opencode_forwards_extra_args(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_opencode_executable", lambda: "/usr/local/bin/opencode")
-    monkeypatch.setattr("sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_opencode_executable",
+        lambda: "/usr/local/bin/opencode",
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch._opencode_config_path", lambda: tmp_path / "opencode.json"
+    )
     captured: dict = {}
 
     def fake_execvpe(path: str, args: list[str], env: dict[str, str]) -> None:
@@ -1570,8 +2076,13 @@ def test_opencode_forwards_extra_args(monkeypatch, tmp_path: Path):
         raise SystemExit(0)
 
     monkeypatch.setattr("sference_cli.launch.os.execvpe", fake_execvpe)
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: _FAKE_OPENCODE_ENTRIES)
-    result = runner.invoke(cli_main.app, ["launch", "opencode", "--", "/path/to/project"])
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: _FAKE_OPENCODE_ENTRIES,
+    )
+    result = runner.invoke(
+        cli_main.app, ["launch", "opencode", "--", "/path/to/project"]
+    )
     assert result.exit_code == 0
     assert captured["path"] == "/usr/local/bin/opencode"
     assert captured["args"] == [
@@ -1620,13 +2131,19 @@ def _capture_codex_exec(monkeypatch) -> dict:
 def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
+    )
     entries = [{**_opencode_entry(launch_mod.DEFAULT_MODEL), "context_tokens": 202752}]
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: entries
+    )
     # No readable bundled catalog: the provider overrides alone (catalog tests below).
     monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: None)
     captured = _capture_codex_exec(monkeypatch)
-    result = runner.invoke(cli_main.app, ["launch", "codex", "--", "exec", "fix the bug"])
+    result = runner.invoke(
+        cli_main.app, ["launch", "codex", "--", "exec", "fix the bug"]
+    )
     assert result.exit_code == 0, result.output
     args = captured["args"]
     assert args[0] == "/usr/local/bin/codex"
@@ -1649,14 +2166,19 @@ def test_codex_configures_provider_via_overrides(monkeypatch, tmp_path: Path):
 
 def test_codex_offline_omits_context_window(monkeypatch):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
+    monkeypatch.setattr(
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
+    )
 
     def offline(*_a):
         raise OSError("offline")
 
     monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", offline)
     captured = _capture_codex_exec(monkeypatch)
-    result = runner.invoke(cli_main.app, ["launch", "codex", "--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"])
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "codex", "--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"],
+    )
     assert result.exit_code == 0, result.output
     assert "model_context_window" not in _codex_overrides(captured["args"])
     assert captured["args"][-2:] == ["--model", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
@@ -1664,8 +2186,12 @@ def test_codex_offline_omits_context_window(monkeypatch):
 
 def test_codex_dry_run_redacts_key(monkeypatch):
     _with_fake_credential(monkeypatch)
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: [])
+    monkeypatch.setattr(
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: []
+    )
     result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
     assert result.exit_code == 0
     assert "base_url: https://api.sference.com/v1" in result.stdout
@@ -1676,17 +2202,26 @@ def test_codex_dry_run_redacts_key(monkeypatch):
 @pytest.mark.parametrize(
     ("config", "warned"),
     [
-        ('model = "gpt-6-sol"\n[agents]\ndefault_subagent_model = "gpt-6-luna"\n', True),
+        (
+            'model = "gpt-6-sol"\n[agents]\ndefault_subagent_model = "gpt-6-luna"\n',
+            True,
+        ),
         ('agents.default_subagent_model = "gpt-6-luna"\n', True),
         ('model = "gpt-6-sol"\n[agents]\nmax_depth = 2\n', False),
     ],
 )
-def test_codex_warns_on_pinned_subagent_model(monkeypatch, tmp_path: Path, config: str, warned: bool):
+def test_codex_warns_on_pinned_subagent_model(
+    monkeypatch, tmp_path: Path, config: str, warned: bool
+):
     _with_fake_credential(monkeypatch)
     (tmp_path / "config.toml").write_text(config, encoding="utf-8")
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: [])
+    monkeypatch.setattr(
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: []
+    )
     result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
     assert result.exit_code == 0
     assert ("default_subagent_model" in result.output) is warned
@@ -1717,18 +2252,31 @@ _CODEX_PLAIN_ENTRY = {
 
 
 def test_codex_catalog_template_skips_gpt_only_entries():
-    assert launch_mod.codex_catalog_template([_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY]) is _CODEX_PLAIN_ENTRY
+    assert (
+        launch_mod.codex_catalog_template([_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY])
+        is _CODEX_PLAIN_ENTRY
+    )
     assert launch_mod.codex_catalog_template([_CODEX_LITE_ENTRY]) is None
 
 
 def test_codex_model_catalog_lists_sference_models():
     entries = [
-        {**_opencode_entry("zai-org/GLM-5.3"), "display_name": "GLM-5.3", "context_tokens": 202752},
-        {**_opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017"), "capabilities": {"image_input": {"supported": True}}},
+        {
+            **_opencode_entry("zai-org/GLM-5.3"),
+            "display_name": "GLM-5.3",
+            "context_tokens": 202752,
+        },
+        {
+            **_opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017"),
+            "capabilities": {"image_input": {"supported": True}},
+        },
     ]
     catalog = launch_mod.build_codex_model_catalog(_CODEX_PLAIN_ENTRY, entries)
     glm, kimi = catalog["models"]
-    assert [glm["slug"], kimi["slug"]] == ["zai-org/GLM-5.3", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+    assert [glm["slug"], kimi["slug"]] == [
+        "zai-org/GLM-5.3",
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    ]
     assert glm["display_name"] == "GLM-5.3"
     assert (glm["context_window"], glm["max_context_window"]) == (202752, 202752)
     # No context_tokens: the template's window is kept.
@@ -1751,44 +2299,70 @@ def test_codex_model_catalog_lists_sference_models():
 def test_codex_writes_catalog_and_passes_it(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
-    entries = [_opencode_entry("zai-org/GLM-5.2"), _opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017")]
-    monkeypatch.setattr("sference_cli.launch.fetch_sference_model_entries", lambda *a: entries)
     monkeypatch.setattr(
-        "sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY]
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
+    )
+    entries = [
+        _opencode_entry("zai-org/GLM-5.2"),
+        _opencode_entry("deepseek-ai/DeepSeek-V4.1-Flash-1017"),
+    ]
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries", lambda *a: entries
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.bundled_codex_catalog",
+        lambda *a: [_CODEX_LITE_ENTRY, _CODEX_PLAIN_ENTRY],
     )
     captured = _capture_codex_exec(monkeypatch)
     result = runner.invoke(cli_main.app, ["launch", "codex"])
     assert result.exit_code == 0, result.output
     path = tmp_path / ".sference" / "codex" / "models.json"
-    assert _codex_overrides(captured["args"])["model_catalog_json"] == json.dumps(str(path))
+    assert _codex_overrides(captured["args"])["model_catalog_json"] == json.dumps(
+        str(path)
+    )
     written = json.loads(path.read_text(encoding="utf-8"))
-    assert [m["slug"] for m in written["models"]] == ["zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+    assert [m["slug"] for m in written["models"]] == [
+        "zai-org/GLM-5.2",
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    ]
     assert not (tmp_path / ".codex").exists()
 
 
 def test_codex_dry_run_does_not_write_catalog(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: [_opencode_entry("zai-org/GLM-5.2")]
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
     )
-    monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_PLAIN_ENTRY])
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: [_opencode_entry("zai-org/GLM-5.2")],
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_PLAIN_ENTRY]
+    )
     result = runner.invoke(cli_main.app, ["launch", "codex", "--dry-run"])
     assert result.exit_code == 0, result.output
-    assert "model_catalog_json:" in result.output and "(1 Sference models)" in result.output
+    assert (
+        "model_catalog_json:" in result.output
+        and "(1 Sference models)" in result.output
+    )
     assert not (tmp_path / ".sference" / "codex").exists()
 
 
 def test_codex_warns_without_bundled_catalog(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr("sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex")
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda *a: [_opencode_entry("zai-org/GLM-5.2")]
+        "sference_cli.launch.find_codex_executable", lambda: "/usr/local/bin/codex"
     )
-    monkeypatch.setattr("sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_LITE_ENTRY])
+    monkeypatch.setattr(
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda *a: [_opencode_entry("zai-org/GLM-5.2")],
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.bundled_codex_catalog", lambda *a: [_CODEX_LITE_ENTRY]
+    )
     captured = _capture_codex_exec(monkeypatch)
     result = runner.invoke(cli_main.app, ["launch", "codex"])
     assert result.exit_code == 0, result.output
@@ -1915,7 +2489,9 @@ def test_api_key_401_is_not_retried(monkeypatch, tmp_path: Path):
     assert len(calls) == 1
 
 
-def test_stale_token_401_is_retried_with_the_refreshed_credential(monkeypatch, tmp_path: Path):
+def test_stale_token_401_is_retried_with_the_refreshed_credential(
+    monkeypatch, tmp_path: Path
+):
     """The whole point: a command that 401s on a stale device token refreshes
     and succeeds, instead of dying and telling the user to log in again."""
     monkeypatch.setattr(cli_main, "CREDENTIALS_PATH", tmp_path / "credentials.json")
@@ -2009,19 +2585,28 @@ def test_call_api_401_hint_suppressed_for_dead_grant(monkeypatch, capsys):
 def test_claude_primes_picker_cache(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     calls = _mock_launch_net(monkeypatch, tmp_path)
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     monkeypatch.setattr(
-        "sference_cli.launch.os.execvpe", lambda *_a: (_ for _ in ()).throw(SystemExit(0))
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.os.execvpe",
+        lambda *_a: (_ for _ in ()).throw(SystemExit(0)),
     )
     result = runner.invoke(cli_main.app, ["launch", "claude"])
     assert result.exit_code == 0
     entries, base_url = calls["primed"]
     assert base_url == "https://api.sference.com"
-    assert [e["id"] for e in entries] == ["zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+    assert [e["id"] for e in entries] == [
+        "zai-org/GLM-5.2",
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    ]
     # The cache actually landed under the temp CLAUDE_CONFIG_DIR.
     cache = json.loads((tmp_path / "cache" / "gateway-models.json").read_text())
     assert cache["baseUrl"] == "https://api.sference.com"
-    assert [m["id"] for m in cache["models"]] == ["zai-org/GLM-5.2", "deepseek-ai/DeepSeek-V4.1-Flash-1017"]
+    assert [m["id"] for m in cache["models"]] == [
+        "zai-org/GLM-5.2",
+        "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    ]
     assert cache["models"][0]["display_name"] == "GLM 5.2 via Sference"
     assert "1048k context" in cache["models"][0]["description"]
 
@@ -2029,9 +2614,12 @@ def test_claude_primes_picker_cache(monkeypatch, tmp_path: Path):
 def test_claude_models_option_overrides_picker(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     calls = _mock_launch_net(monkeypatch, tmp_path)
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     monkeypatch.setattr(
-        "sference_cli.launch.os.execvpe", lambda *_a: (_ for _ in ()).throw(SystemExit(0))
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.os.execvpe",
+        lambda *_a: (_ for _ in ()).throw(SystemExit(0)),
     )
     result = runner.invoke(cli_main.app, ["launch", "claude", "--models", "a/b, c/d"])
     assert result.exit_code == 0
@@ -2043,16 +2631,20 @@ def test_claude_prime_failure_is_warn_only(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     monkeypatch.setattr(cli_main, "_read_device_credentials", lambda: None)
     monkeypatch.setattr(
-        "sference_cli.launch.fetch_sference_model_entries", lambda base, key: list(_FAKE_ENTRIES)
+        "sference_cli.launch.fetch_sference_model_entries",
+        lambda base, key: list(_FAKE_ENTRIES),
     )
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path))
     monkeypatch.setattr(
         "sference_cli.launch.prime_picker_cache",
         lambda *_a: (_ for _ in ()).throw(OSError("disk full")),
     )
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
     monkeypatch.setattr(
-        "sference_cli.launch.os.execvpe", lambda *_a: (_ for _ in ()).throw(SystemExit(0))
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
+    monkeypatch.setattr(
+        "sference_cli.launch.os.execvpe",
+        lambda *_a: (_ for _ in ()).throw(SystemExit(0)),
     )
     result = runner.invoke(cli_main.app, ["launch", "claude"])
     assert result.exit_code == 0
@@ -2062,8 +2654,13 @@ def test_claude_prime_failure_is_warn_only(monkeypatch, tmp_path: Path):
 def test_claude_deprecated_flags_are_noops(monkeypatch, tmp_path: Path):
     _with_fake_credential(monkeypatch)
     _mock_launch_net(monkeypatch, tmp_path)
-    monkeypatch.setattr("sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude")
-    result = runner.invoke(cli_main.app, ["launch", "claude", "--no-anthropic", "--proxy-port", "9999", "--dry-run"])
+    monkeypatch.setattr(
+        "sference_cli.launch.find_claude_executable", lambda: "/usr/local/bin/claude"
+    )
+    result = runner.invoke(
+        cli_main.app,
+        ["launch", "claude", "--no-anthropic", "--proxy-port", "9999", "--dry-run"],
+    )
     assert result.exit_code == 0
     err = result.stderr or ""
     assert "--no-anthropic is deprecated" in err
@@ -2103,7 +2700,9 @@ def test_fetch_sference_model_entries_strips_v1_suffix(monkeypatch):
             return False
 
         def read(self):
-            return json.dumps({"data": [{"id": "m", "modality": "text_generation"}]}).encode()
+            return json.dumps(
+                {"data": [{"id": "m", "modality": "text_generation"}]}
+            ).encode()
 
     def fake_urlopen(req, timeout=0):
         seen["url"] = req.full_url
@@ -2122,9 +2721,15 @@ def _capture_create_response(monkeypatch) -> list[dict]:
     calls: list[dict] = []
 
     class CapturingClient(FakeClient):
-        def create_response(self, *, model: str, input: list, metadata: dict | None = None, **kwargs):
-            calls.append({"model": model, "input": input, "metadata": metadata, **kwargs})
-            return super().create_response(model=model, input=input, metadata=metadata, **kwargs)
+        def create_response(
+            self, *, model: str, input: list, metadata: dict | None = None, **kwargs
+        ):
+            calls.append(
+                {"model": model, "input": input, "metadata": metadata, **kwargs}
+            )
+            return super().create_response(
+                model=model, input=input, metadata=metadata, **kwargs
+            )
 
     monkeypatch.setattr(cli_main, "SferenceClient", CapturingClient)
     return calls
@@ -2158,7 +2763,10 @@ def test_stream_submit_queues_background_responses(monkeypatch, tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    r = runner.invoke(cli_main.app, ["stream", "submit", "--stream-id", _STREAM_ID, "--input-file", str(p)])
+    r = runner.invoke(
+        cli_main.app,
+        ["stream", "submit", "--stream-id", _STREAM_ID, "--input-file", str(p)],
+    )
     assert r.exit_code == 0, r.output
     assert len(calls) == 3
     for call in calls:
@@ -2180,7 +2788,10 @@ def test_stream_submit_rejects_bad_line_before_submitting(monkeypatch, tmp_path:
     calls = _capture_create_response(monkeypatch)
     p = tmp_path / "items.jsonl"
     p.write_text('{"content": "ok"}\n{"input": "x", "tools": []}\n', encoding="utf-8")
-    r = runner.invoke(cli_main.app, ["stream", "submit", "--stream-id", _STREAM_ID, "--input-file", str(p)])
+    r = runner.invoke(
+        cli_main.app,
+        ["stream", "submit", "--stream-id", _STREAM_ID, "--input-file", str(p)],
+    )
     assert r.exit_code == 1
     assert "Line 2: unsupported field(s) tools" in r.output
     assert calls == []
@@ -2243,13 +2854,27 @@ def test_fetch_model_entries_skips_retired_and_non_text(monkeypatch):
     payload = {
         "data": [
             {"id": "live", "modality": "text_generation"},
-            {"id": "retired-alias", "modality": "text_generation", "alias_of": "live", "retires_on": "2000-01-01"},
-            {"id": "future-retire", "modality": "text_generation", "retires_on": "2999-01-01"},
+            {
+                "id": "retired-alias",
+                "modality": "text_generation",
+                "alias_of": "live",
+                "retires_on": "2000-01-01",
+            },
+            {
+                "id": "future-retire",
+                "modality": "text_generation",
+                "retires_on": "2999-01-01",
+            },
             {"id": "clef", "modality": "decisions"},
         ]
     }
     monkeypatch.setattr(
-        discovery.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(json.dumps(payload).encode())
+        discovery.urllib.request,
+        "urlopen",
+        lambda *a, **k: io.BytesIO(json.dumps(payload).encode()),
     )
-    ids = [e["id"] for e in discovery.fetch_sference_model_entries("https://api.example", "k")]
+    ids = [
+        e["id"]
+        for e in discovery.fetch_sference_model_entries("https://api.example", "k")
+    ]
     assert ids == ["live", "future-retire"]

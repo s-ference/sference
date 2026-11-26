@@ -30,8 +30,12 @@ class InferenceRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    custom_id: str | None = Field(default=None, description="User-provided identifier for correlation.")
-    body: dict[str, Any] = Field(description="OpenAI-style request body. Must include `model`.")
+    custom_id: str | None = Field(
+        default=None, description="User-provided identifier for correlation."
+    )
+    body: dict[str, Any] = Field(
+        description="OpenAI-style request body. Must include `model`."
+    )
 
     @classmethod
     def chat(
@@ -181,7 +185,9 @@ class StreamList(ApiModel):
 
 
 # Response (OpenAI-compatible) models
-ResponseStatus = Literal["in_progress", "completed", "failed", "cancelled", "incomplete"]
+ResponseStatus = Literal[
+    "in_progress", "completed", "failed", "cancelled", "incomplete"
+]
 # Accepted request tiers; the response echoes the tier actually served.
 ServiceTier = Literal["auto", "default", "flex", "priority", "scale"]
 
@@ -256,8 +262,12 @@ class ResponseUsage(ApiModel):
     input_tokens: int
     output_tokens: int
     total_tokens: int
-    input_tokens_details: ResponseInputTokensDetails = Field(default_factory=ResponseInputTokensDetails)
-    output_tokens_details: ResponseOutputTokensDetails = Field(default_factory=ResponseOutputTokensDetails)
+    input_tokens_details: ResponseInputTokensDetails = Field(
+        default_factory=ResponseInputTokensDetails
+    )
+    output_tokens_details: ResponseOutputTokensDetails = Field(
+        default_factory=ResponseOutputTokensDetails
+    )
 
 
 class ResponseError(ApiModel):
@@ -399,7 +409,9 @@ class NoulQuestion(BaseModel):
     criteria: dict[Literal["true", "false"], Any] | None = None
 
 
-DecisionQuestion = Annotated[ChoiceQuestion | ScoreQuestion | NoulQuestion, Field(discriminator="type")]
+DecisionQuestion = Annotated[
+    ChoiceQuestion | ScoreQuestion | NoulQuestion, Field(discriminator="type")
+]
 
 
 class DecisionImage(BaseModel):
@@ -440,7 +452,9 @@ class NoulAnswer(ApiModel):
     noul: float
 
 
-DecisionAnswer = Annotated[ChoiceAnswer | ScoreAnswer | NoulAnswer, Field(discriminator="type")]
+DecisionAnswer = Annotated[
+    ChoiceAnswer | ScoreAnswer | NoulAnswer, Field(discriminator="type")
+]
 
 
 class DecisionUsage(ApiModel):

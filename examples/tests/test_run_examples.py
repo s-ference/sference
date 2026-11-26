@@ -123,18 +123,25 @@ def _count_pattern(text: str, pattern: str, *, flags: int = 0) -> int:
     return len(re.findall(pattern, text, flags=flags))
 
 
-def _assert_row_count(case: ExampleScriptCase, stdout: str, output_json: Path | None) -> None:
+def _assert_row_count(
+    case: ExampleScriptCase, stdout: str, output_json: Path | None
+) -> None:
     if case.expected_rows is None:
         if case.rel_path.startswith("langchain/"):
             produced = re.search(r"LangChain produced (\d+) chunks", stdout)
             assert produced is not None, stdout
             expected = int(produced.group(1))
-            assert _count_pattern(stdout, r"^\s+\[\d+\]", flags=re.MULTILINE) == expected
+            assert (
+                _count_pattern(stdout, r"^\s+\[\d+\]", flags=re.MULTILINE) == expected
+            )
         elif case.rel_path.startswith("llamaindex/"):
             produced = re.search(r"LlamaIndex produced (\d+) nodes", stdout)
             assert produced is not None, stdout
             expected = int(produced.group(1))
-            assert _count_pattern(stdout, r"^\s+\S+-node-\d+:", flags=re.MULTILINE) == expected
+            assert (
+                _count_pattern(stdout, r"^\s+\S+-node-\d+:", flags=re.MULTILINE)
+                == expected
+            )
         return
 
     if case.row_id_pattern:
@@ -157,7 +164,9 @@ def _prepare_env(case: ExampleScriptCase, tmp_path: Path) -> dict[str, str]:
 
 
 @pytest.mark.parametrize("case", EXAMPLE_CASES, ids=[c.rel_path for c in EXAMPLE_CASES])
-def test_example_script(case: ExampleScriptCase, mock_sference_server, tmp_path: Path) -> None:
+def test_example_script(
+    case: ExampleScriptCase, mock_sference_server, tmp_path: Path
+) -> None:
     if reason := _skip_local_only(case):
         pytest.skip(reason)
 

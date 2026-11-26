@@ -92,7 +92,9 @@ def main(out: Path = SUGGESTIONS_PATH) -> None:
     if os.getenv("ARGILLA_API_URL") and os.getenv("ARGILLA_API_KEY"):
         push_to_argilla(suggestions)
     else:
-        print("Set ARGILLA_API_URL and ARGILLA_API_KEY to push suggestions to a live dataset.")
+        print(
+            "Set ARGILLA_API_URL and ARGILLA_API_KEY to push suggestions to a live dataset."
+        )
 
 
 def push_to_argilla(suggestions: list[dict[str, Any]]) -> None:
@@ -101,7 +103,9 @@ def push_to_argilla(suggestions: list[dict[str, Any]]) -> None:
     dataset_name = os.environ.get("ARGILLA_DATASET", "sference-support-suggestions")
     workspace = os.environ.get("ARGILLA_WORKSPACE", "admin")
 
-    client_rg = rg.Argilla(api_url=os.environ["ARGILLA_API_URL"], api_key=os.environ["ARGILLA_API_KEY"])
+    client_rg = rg.Argilla(
+        api_url=os.environ["ARGILLA_API_URL"], api_key=os.environ["ARGILLA_API_KEY"]
+    )
     try:
         dataset = client_rg.datasets(name=dataset_name, workspace=workspace)
     except Exception:
@@ -110,12 +114,17 @@ def push_to_argilla(suggestions: list[dict[str, Any]]) -> None:
             fields=[rg.TextField(name="message"), rg.TextField(name="draft_reply")],
             questions=[rg.TextQuestion(name="approved_reply", title="Approved reply")],
         )
-        dataset = client_rg.datasets.create(name=dataset_name, settings=settings, workspace=workspace)
+        dataset = client_rg.datasets.create(
+            name=dataset_name, settings=settings, workspace=workspace
+        )
 
     records = [
         rg.Record(
             id=item["id"],
-            fields={"message": item["fields"]["message"], "draft_reply": item["suggestion"]},
+            fields={
+                "message": item["fields"]["message"],
+                "draft_reply": item["suggestion"],
+            },
             suggestions=[
                 rg.Suggestion(
                     question_name="approved_reply",
@@ -131,8 +140,15 @@ def push_to_argilla(suggestions: list[dict[str, Any]]) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Draft Argilla suggestions with a sference batch.")
-    parser.add_argument("--out", type=Path, default=SUGGESTIONS_PATH, help="Where to write the suggestions JSON.")
+    parser = argparse.ArgumentParser(
+        description="Draft Argilla suggestions with a sference batch."
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=SUGGESTIONS_PATH,
+        help="Where to write the suggestions JSON.",
+    )
     args = parser.parse_args()
     print(f"Model: {model_id()}  window: {COMPLETION_WINDOW}")
     main(args.out)

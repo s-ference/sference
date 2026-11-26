@@ -183,7 +183,9 @@ def analyze_dataset_with_batch_responses() -> list[dict[str, Any]]:
     prompts = build_analysis_prompts(df)
     print(f"Dataset shape: {df.shape}; {len(prompts)} LLM jobs to enqueue.\n")
 
-    print(f"Stage 1 — create background responses (completion_window={COMPLETION_WINDOW!r})...")
+    print(
+        f"Stage 1 — create background responses (completion_window={COMPLETION_WINDOW!r})..."
+    )
     # .map() fans out one task per prompt and returns futures (not values yet).
     response_id_futures = create_response_request.map(prompts)
     print(f"Enqueued {len(prompts)} background response(s).\n")

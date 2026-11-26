@@ -22,23 +22,34 @@ FAKE_JWT = "header.payload.signature"
 DEFAULT_MODEL = launch_mod.DEFAULT_MODEL
 # The contract's create-API-key reply; tests/test_contract.py validates it.
 PROVISIONED = json.loads(
-    (Path(__file__).resolve().parent / "fixtures" / "ControlV1AuthApiKeysCreateApiKey" / "201.json").read_text(
-        encoding="utf-8"
-    )
+    (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "ControlV1AuthApiKeysCreateApiKey"
+        / "201.json"
+    ).read_text(encoding="utf-8")
 )
 
 FAKE_CATALOG = [
-    {"id": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "display_name": "DeepSeek V4.1 Flash (1017)", "modality": "text_generation"},
+    {
+        "id": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        "display_name": "DeepSeek V4.1 Flash (1017)",
+        "modality": "text_generation",
+    },
     {"id": "zai-org/GLM-5.3", "display_name": "GLM 5.3", "modality": "text_generation"},
 ]
 
 
-def make_cursor_home(tmp_path: Path, *, reactive: dict | None, rows: dict[str, str] | None = None) -> Path:
+def make_cursor_home(
+    tmp_path: Path, *, reactive: dict | None, rows: dict[str, str] | None = None
+) -> Path:
     """Create a fake Cursor globalStorage with a state.vscdb; return its dir."""
     config_dir = tmp_path / "Cursor" / "User" / "globalStorage"
     config_dir.mkdir(parents=True)
     conn = sqlite3.connect(str(config_dir / "state.vscdb"))
-    conn.execute("CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)")
+    conn.execute(
+        "CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)"
+    )
     if reactive is not None:
         conn.execute(
             "INSERT INTO ItemTable (key, value) VALUES (?, ?)",
@@ -101,12 +112,20 @@ def cursor_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         rows=signed_in_rows(),
     )
     monkeypatch.setattr(cc, "default_config_dir", lambda: config_dir)
-    monkeypatch.setattr(launch_mod.cursor_config, "default_config_dir", lambda: config_dir)
+    monkeypatch.setattr(
+        launch_mod.cursor_config, "default_config_dir", lambda: config_dir
+    )
     monkeypatch.setattr(cc, "_keychain_item_present", lambda: False)
     monkeypatch.setattr(cc, "_keychain_delete", lambda: False)
     # Cursor is not running (no code.lock) and the backup lives in tmp HOME.
-    monkeypatch.setattr(cc, "backup_path", lambda: tmp_path / ".sference" / "cursor" / "backup.json")
-    monkeypatch.setattr(launch_mod.cursor_config, "backup_path", lambda: tmp_path / ".sference" / "cursor" / "backup.json")
+    monkeypatch.setattr(
+        cc, "backup_path", lambda: tmp_path / ".sference" / "cursor" / "backup.json"
+    )
+    monkeypatch.setattr(
+        launch_mod.cursor_config,
+        "backup_path",
+        lambda: tmp_path / ".sference" / "cursor" / "backup.json",
+    )
     # Network: live catalog fetch and control-plane calls are fakes.
     monkeypatch.setattr(
         launch_mod, "fetch_sference_model_entries", lambda base, key: list(FAKE_CATALOG)
@@ -149,11 +168,16 @@ def test_on_writes_config_and_backup(cursor_home: Path, argv: list[str]):
     assert read_db(cursor_home)[cc.OPENAI_KEY_ROW] == FAKE_KEY
     backup = cc.read_backup()
     assert backup is not None
-    assert backup["reactive"]["openAIBaseUrl"] == {"present": True, "value": "https://api.openai.com/v1"}
+    assert backup["reactive"]["openAIBaseUrl"] == {
+        "present": True,
+        "value": "https://api.openai.com/v1",
+    }
     assert backup["reactive"]["useOpenAIKey"] == {"present": True, "value": False}
     assert backup["reactive"]["aiSettings"]["modelOverrideDisabled"] == ["gpt-5.2"]
     assert backup["openai_key_row"]["existed"] is False
-    assert backup["openai_key_row"]["written_fingerprint"] == cc.key_fingerprint(FAKE_KEY)
+    assert backup["openai_key_row"]["written_fingerprint"] == cc.key_fingerprint(
+        FAKE_KEY
+    )
     assert backup["provisioned_key"] is None
 
 
@@ -163,11 +187,23 @@ def test_on_idempotent_second_run(cursor_home: Path):
     second = invoke(["launch", "cursor"])
     assert second.exit_code == 0, second.output
     reactive = reactive_of(cursor_home)
-    assert reactive["aiSettings"]["userAddedModels"].count("deepseek-ai/DeepSeek-V4.1-Flash-1017") == 1
-    assert reactive["aiSettings"]["modelOverrideEnabled"].count("deepseek-ai/DeepSeek-V4.1-Flash-1017") == 1
+    assert (
+        reactive["aiSettings"]["userAddedModels"].count(
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+        )
+        == 1
+    )
+    assert (
+        reactive["aiSettings"]["modelOverrideEnabled"].count(
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+        )
+        == 1
+    )
 
 
-def test_on_refuses_when_cursor_running(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_refuses_when_cursor_running(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(cc, "cursor_running_pid", lambda _dir: os.getpid())
     result = invoke(["launch", "cursor"])
     assert result.exit_code == 1
@@ -177,7 +213,9 @@ def test_on_refuses_when_cursor_running(cursor_home: Path, monkeypatch: pytest.M
     assert cc.read_backup() is None
 
 
-def test_on_force_writes_when_running(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_force_writes_when_running(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(cc, "cursor_running_pid", lambda _dir: os.getpid())
     result = invoke(["launch", "cursor", "--force"])
     assert result.exit_code == 0, result.output
@@ -188,7 +226,10 @@ def test_on_force_writes_when_running(cursor_home: Path, monkeypatch: pytest.Mon
 def test_on_refuses_free_plan(cursor_home: Path):
     rows = read_db(cursor_home)
     conn = cc.connect(cursor_home)
-    conn.execute("INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.MEMBERSHIP_ROW, "free"))
+    conn.execute(
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.MEMBERSHIP_ROW, "free"),
+    )
     conn.commit()
     conn.close()
     result = invoke(["launch", "cursor"])
@@ -210,7 +251,8 @@ def test_on_refuses_signed_out(cursor_home: Path):
 def test_on_refuses_foreign_plaintext_key(cursor_home: Path):
     conn = cc.connect(cursor_home)
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.OPENAI_KEY_ROW, "sk-openai-personal")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.OPENAI_KEY_ROW, "sk-openai-personal"),
     )
     conn.commit()
     conn.close()
@@ -225,10 +267,12 @@ def test_on_refuses_foreign_plaintext_key(cursor_home: Path):
 def test_on_replace_existing_key_overwrites(cursor_home: Path):
     conn = cc.connect(cursor_home)
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.OPENAI_KEY_ROW, "sk-openai-personal")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.OPENAI_KEY_ROW, "sk-openai-personal"),
     )
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.SECRET_KEY_ROW, "v10-encrypted")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.SECRET_KEY_ROW, "v10-encrypted"),
     )
     conn.commit()
     conn.close()
@@ -245,7 +289,8 @@ def test_on_replace_existing_key_overwrites(cursor_home: Path):
 def test_on_refuses_secret_row_without_flag(cursor_home: Path):
     conn = cc.connect(cursor_home)
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.SECRET_KEY_ROW, "v10-encrypted")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.SECRET_KEY_ROW, "v10-encrypted"),
     )
     conn.commit()
     conn.close()
@@ -254,14 +299,18 @@ def test_on_refuses_secret_row_without_flag(cursor_home: Path):
     assert "encrypted settings store" in (result.stderr or result.output)
 
 
-def test_on_refuses_keychain_item_without_flag(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_refuses_keychain_item_without_flag(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(cc, "_keychain_item_present", lambda: True)
     result = invoke(["launch", "cursor"])
     assert result.exit_code == 1
     assert "macOS Keychain" in (result.stderr or result.output)
 
 
-def test_on_deletes_keychain_item_with_flag(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_deletes_keychain_item_with_flag(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(cc, "_keychain_item_present", lambda: True)
     monkeypatch.setattr(cc, "_keychain_delete", lambda: True)
     result = invoke(["launch", "cursor", "--replace-existing-key"])
@@ -269,7 +318,9 @@ def test_on_deletes_keychain_item_with_flag(cursor_home: Path, monkeypatch: pyte
     assert cc.read_backup()["keychain_item_deleted"] is True
 
 
-def test_on_aborts_when_keychain_delete_fails(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_aborts_when_keychain_delete_fails(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(cc, "_keychain_item_present", lambda: True)
     monkeypatch.setattr(cc, "_keychain_delete", lambda: False)
     result = invoke(["launch", "cursor", "--replace-existing-key"])
@@ -306,7 +357,9 @@ def test_on_sference_only_requires_catalog(cursor_home: Path):
     assert "cached model catalog" in (result.stderr or result.output)
 
 
-def test_on_models_flag_skips_catalog_fetch(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_models_flag_skips_catalog_fetch(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(
         launch_mod,
         "fetch_sference_model_entries",
@@ -319,9 +372,13 @@ def test_on_models_flag_skips_catalog_fetch(cursor_home: Path, monkeypatch: pyte
     assert ai["modelConfig"]["composer"]["modelName"] == "a/A"
 
 
-def test_on_catalog_fetch_failure_falls_back_to_default_model(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_catalog_fetch_failure_falls_back_to_default_model(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setattr(
-        launch_mod, "fetch_sference_model_entries", lambda *a: (_ for _ in ()).throw(OSError("down"))
+        launch_mod,
+        "fetch_sference_model_entries",
+        lambda *a: (_ for _ in ()).throw(OSError("down")),
     )
     result = invoke(["launch", "cursor"])
     assert result.exit_code == 0, result.output
@@ -340,7 +397,9 @@ def test_dry_run_writes_nothing(cursor_home: Path):
 
 def test_on_missing_cursor_install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(cc, "default_config_dir", lambda: tmp_path / "nope")
-    monkeypatch.setattr(launch_mod.cursor_config, "default_config_dir", lambda: tmp_path / "nope")
+    monkeypatch.setattr(
+        launch_mod.cursor_config, "default_config_dir", lambda: tmp_path / "nope"
+    )
     monkeypatch.setenv("SFERENCE_API_KEY", FAKE_KEY)
     result = invoke(["launch", "cursor"])
     assert result.exit_code == 1
@@ -350,13 +409,17 @@ def test_on_missing_cursor_install(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 # ------------------------------------------------------------------ key source
 
 
-def test_on_provisions_key_for_device_login(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_provisions_key_for_device_login(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
     monkeypatch.setattr(cli_main, "_read_token", lambda: FAKE_JWT)
     calls: list[dict] = []
 
     def fake_control(base, method, path, token, payload=None):
-        calls.append({"method": method, "path": path, "token": token, "payload": payload})
+        calls.append(
+            {"method": method, "path": path, "token": token, "payload": payload}
+        )
         return 201, {**PROVISIONED, "name": payload["name"]}
 
     monkeypatch.setattr(launch_mod, "control_request", fake_control)
@@ -367,7 +430,10 @@ def test_on_provisions_key_for_device_login(cursor_home: Path, monkeypatch: pyte
             "method": "POST",
             "path": "/control/v1/auth/api-keys",
             "token": FAKE_JWT,
-            "payload": {"name": calls[0]["payload"]["name"], "tag": launch_mod.CURSOR_API_KEY_TAG},
+            "payload": {
+                "name": calls[0]["payload"]["name"],
+                "tag": launch_mod.CURSOR_API_KEY_TAG,
+            },
         }
     ]
     assert calls[0]["payload"]["name"].startswith("sference-cli cursor (")
@@ -380,7 +446,9 @@ def test_on_provisions_key_for_device_login(cursor_home: Path, monkeypatch: pyte
 def test_on_provision_failure_exits(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
     monkeypatch.setattr(cli_main, "_read_token", lambda: FAKE_JWT)
-    monkeypatch.setattr(launch_mod, "control_request", lambda *a, **k: (403, {"detail": "nope"}))
+    monkeypatch.setattr(
+        launch_mod, "control_request", lambda *a, **k: (403, {"detail": "nope"})
+    )
     result = invoke(["launch", "cursor"])
     assert result.exit_code == 1
     assert "could not create an API key" in (result.stderr or result.output)
@@ -403,14 +471,17 @@ def test_on_explicit_api_key_not_ignored_when_already_on(cursor_home: Path):
     conn = cc.connect(cursor_home)
     conn.execute("DELETE FROM ItemTable WHERE key = ?", (cc.OPENAI_KEY_ROW,))
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.SECRET_KEY_ROW, "v10-migrated")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.SECRET_KEY_ROW, "v10-migrated"),
     )
     conn.commit()
     conn.close()
     refused = invoke(["launch", "cursor", "--api-key", "sk_new_explicit"])
     assert refused.exit_code == 1
     assert "--replace-existing-key" in (refused.stderr or refused.output)
-    replaced = invoke(["launch", "cursor", "--api-key", "sk_new_explicit", "--replace-existing-key"])
+    replaced = invoke(
+        ["launch", "cursor", "--api-key", "sk_new_explicit", "--replace-existing-key"]
+    )
     assert replaced.exit_code == 0, replaced.output
     assert read_db(cursor_home)[cc.OPENAI_KEY_ROW] == "sk_new_explicit"
 
@@ -433,7 +504,8 @@ def test_off_keeps_user_replaced_key(cursor_home: Path):
     assert invoke(["launch", "cursor"]).exit_code == 0
     conn = cc.connect(cursor_home)
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.OPENAI_KEY_ROW, "sk-user-new-choice")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.OPENAI_KEY_ROW, "sk-user-new-choice"),
     )
     conn.commit()
     conn.close()
@@ -449,7 +521,9 @@ def test_off_without_backup_errors(cursor_home: Path):
     assert "never turned on" in (result.stderr or result.output)
 
 
-def test_off_revoke_key_deletes_server_key(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_off_revoke_key_deletes_server_key(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.delenv("SFERENCE_API_KEY", raising=False)
     monkeypatch.setattr(cli_main, "_read_token", lambda: FAKE_JWT)
     calls: list[dict] = []
@@ -464,19 +538,30 @@ def test_off_revoke_key_deletes_server_key(cursor_home: Path, monkeypatch: pytes
     assert invoke(["launch", "cursor"]).exit_code == 0
     result = invoke(["launch", "cursor", "off", "--revoke-key"])
     assert result.exit_code == 0, result.output
-    assert {"method": "DELETE", "path": f"/control/v1/auth/api-keys/{PROVISIONED['id']}"} in calls
+    assert {
+        "method": "DELETE",
+        "path": f"/control/v1/auth/api-keys/{PROVISIONED['id']}",
+    } in calls
     assert "Revoked API key" in result.output
 
 
-def test_off_revoke_key_with_api_key_credential_notes_manual(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_off_revoke_key_with_api_key_credential_notes_manual(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     # Provisioned key in the backup, but the current credential is an sk_ key,
     # which cannot call the JWT-only revoke endpoint.
     assert invoke(["launch", "cursor"]).exit_code == 0
     backup = cc.read_backup()
-    backup["provisioned_key"] = {"id": "11111111-1111-1111-1111-111111111111", "tag": "t", "name": "k"}
+    backup["provisioned_key"] = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "tag": "t",
+        "name": "k",
+    }
     cc.write_backup(backup)
     monkeypatch.setattr(
-        launch_mod, "control_request", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no HTTP expected"))
+        launch_mod,
+        "control_request",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no HTTP expected")),
     )
     result = invoke(["launch", "cursor", "off", "--revoke-key"])
     assert result.exit_code == 0, result.output
@@ -513,7 +598,9 @@ def test_status_reports_routing_off(cursor_home: Path):
     assert "https://api.openai.com/v1" in result.output
 
 
-def test_on_rerun_after_cursor_migrated_the_key(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_on_rerun_after_cursor_migrated_the_key(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     """Cursor migrates our plaintext row into its secret store on first start.
     A second `launch cursor` must not refuse over 'its own' stored key, must not
     provision a second key, and must keep the ORIGINAL backup for off."""
@@ -536,7 +623,8 @@ def test_on_rerun_after_cursor_migrated_the_key(cursor_home: Path, monkeypatch: 
     conn = cc.connect(cursor_home)
     conn.execute("DELETE FROM ItemTable WHERE key = ?", (cc.OPENAI_KEY_ROW,))
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.SECRET_KEY_ROW, "v10-migrated")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.SECRET_KEY_ROW, "v10-migrated"),
     )
     conn.commit()
     conn.close()
@@ -561,7 +649,8 @@ def test_off_after_rerun_restores_the_original_state(cursor_home: Path):
     conn = cc.connect(cursor_home)
     conn.execute("DELETE FROM ItemTable WHERE key = ?", (cc.OPENAI_KEY_ROW,))
     conn.execute(
-        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)", (cc.SECRET_KEY_ROW, "v10-migrated")
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (cc.SECRET_KEY_ROW, "v10-migrated"),
     )
     conn.commit()
     conn.close()
@@ -572,7 +661,9 @@ def test_off_after_rerun_restores_the_original_state(cursor_home: Path):
     assert cc.OPENAI_KEY_ROW not in after
 
 
-def test_status_reports_on_when_key_lives_in_keychain(cursor_home: Path, monkeypatch: pytest.MonkeyPatch):
+def test_status_reports_on_when_key_lives_in_keychain(
+    cursor_home: Path, monkeypatch: pytest.MonkeyPatch
+):
     assert invoke(["launch", "cursor"]).exit_code == 0
     # Cursor migrated the row into the macOS Keychain (no row, no secret:// row).
     conn = cc.connect(cursor_home)
