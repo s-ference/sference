@@ -2,9 +2,12 @@
 # Usage: powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/s-ference/sference/main/install.ps1 | iex"
 #
 # Optional environment:
-#   $env:SFERENCE_CLI_VERSION = "0.0.7"   pin PyPI version (default: latest)
+#   $env:SFERENCE_CLI_VERSION = "0.5.1"   pin PyPI version (default: latest)
 #   $env:SFERENCE_NO_UV_BOOTSTRAP = "1"    fail instead of installing uv when missing
 
+# Script block scope: `irm | iex` runs in the caller's session, so keep the
+# Stop preference and helper functions from outliving the install.
+& {
 $ErrorActionPreference = "Stop"
 
 $Package = "sference-cli"
@@ -80,7 +83,7 @@ function Install-WithPip {
             continue
         }
         try {
-            & $candidate -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" 2>$null
+            & $candidate -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
             if ($LASTEXITCODE -eq 0) {
                 $python = $candidate
                 break
@@ -161,10 +164,11 @@ if (Get-Command uv -ErrorAction SilentlyContinue) {
     Install-WithUv
 } elseif (-not (Install-WithPipx)) {
     if (-not (Install-WithPip)) {
-        throw "Could not install $Package. Install uv (https://docs.astral.sh/uv/) or Python 3.10+, then retry."
+        throw "Could not install $Package. Install uv (https://docs.astral.sh/uv/) or Python 3.11+, then retry."
     }
 }
 
 Write-Host ""
 Verify-Install
 Print-GetStarted
+}

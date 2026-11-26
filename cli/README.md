@@ -7,14 +7,13 @@ Command-line interface for the sference API (`sference`): batches, streams, resp
 ## Installation
 
 ```bash
-# One-line install (macOS / Linux)
-eval "$(curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh)"
+uv tool install sference-cli
 ```
 
-Or install from PyPI:
+Without a Python toolchain (macOS / Linux; see the [root README](../README.md#install) for Windows):
 
 ```bash
-uv tool install sference-cli
+curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
 ```
 
 Fallback:

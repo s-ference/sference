@@ -1,16 +1,23 @@
 #!/bin/sh
 # sference CLI installer (macOS / Linux)
 #
-# Recommended (updates PATH in the current Terminal window):
-#   eval "$(curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh)"
-#
-# Legacy (installs for new shells only; same window needs eval or a new tab):
+# Install:
 #   curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh
 #
+# Also put the CLI on PATH in the current shell:
+#   eval "$(curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/install.sh | sh)"
+#
 # Optional environment:
-#   SFERENCE_CLI_VERSION=0.0.7   pin PyPI version (default: latest)
+#   SFERENCE_CLI_VERSION=0.5.1   pin PyPI version (default: latest)
 #   SFERENCE_NO_UV_BOOTSTRAP=1   fail instead of installing uv when missing
+
+# Subshell so the older `eval "$(curl …/install.sh)"` form can't leak set -eu,
+# exit, or these helpers into the caller's interactive shell.
+(
+# The caller's stdout carries only the PATH export (fd 3); all output goes to stderr.
+exec 3>&1 1>&2
 set -eu
+CALLER_PATH="${PATH}"
 
 PACKAGE="sference-cli"
 BINARY="sference"
@@ -168,15 +175,15 @@ install_with_pipx() {
 
 # pipx has no --refresh equivalent; pip uses --no-cache-dir below.
 
-python310_or_newer() {
+python311_or_newer() {
 	PY="$1"
-	"$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null
+	"$PY" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null
 }
 
 install_with_pip() {
 	PY=""
-	for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
-		if command -v "$candidate" >/dev/null 2>&1 && python310_or_newer "$candidate"; then
+	for candidate in python3.13 python3.12 python3.11 python3 python; do
+		if command -v "$candidate" >/dev/null 2>&1 && python311_or_newer "$candidate"; then
 			PY="$candidate"
 			break
 		fi
@@ -208,9 +215,17 @@ resolve_binary_path() {
 	return 1
 }
 
-# stdout only — picked up by: eval "$(curl -fsSL .../install.sh)"
+# The caller's shell can't see our PATH change: hand it the export when stdout
+# is captured (eval "$(… | sh)"), otherwise tell the user how to pick it up.
 emit_path_export() {
-	printf 'export PATH="%s:$PATH"\n' "$DEFAULT_BIN_DIR"
+	case ":${CALLER_PATH}:" in
+	*":${DEFAULT_BIN_DIR}:"*) return 0 ;;
+	esac
+	if [ -t 3 ]; then
+		warn "To use ${BINARY} in this terminal, run: export PATH=\"${DEFAULT_BIN_DIR}:\$PATH\" (new terminals already have it)"
+	else
+		printf 'export PATH="%s:$PATH"\n' "$DEFAULT_BIN_DIR" >&3
+	fi
 }
 
 verify_install() {
@@ -244,7 +259,7 @@ print_get_started() {
 finish_success() {
 	verify_install
 	print_get_started
-	# Must be last: eval "$(curl ...)" runs this export in the caller's shell.
+	# Last, so the eval form only picks up the export after a successful install.
 	emit_path_export
 }
 
@@ -293,7 +308,8 @@ main() {
 		return 0
 	fi
 
-	error "Could not install ${PACKAGE}. Install uv (https://docs.astral.sh/uv/) or Python 3.10+, then retry."
+	error "Could not install ${PACKAGE}. Install uv (https://docs.astral.sh/uv/) or Python 3.11+, then retry."
 }
 
 main
+)
