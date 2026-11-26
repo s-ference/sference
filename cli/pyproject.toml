@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "typer>=0.24.1",
-    "sference-sdk>=0.3.2",
+    "sference-sdk>=0.4.0",
 ]
 
 [project.urls]
