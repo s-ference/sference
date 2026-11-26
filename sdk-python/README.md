@@ -1,6 +1,6 @@
 # sference Python SDK
 
-Installable package: `sference-sdk` (import: `sference_sdk`). Used by the `sference` CLI and your own automation.
+Installable package: `sference-sdk` (import: `sference_sdk`), Python 3.11+. Used by the `sference` CLI and your own automation.
 
 ## Install
 
@@ -54,7 +54,7 @@ batch = client.submit_batch(
     model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
     window="24h",
 )
-done = client.wait_for_completion(batch.id, poll_interval=2.0, timeout=3600.0)
+done = client.wait_for_completion(batch.id)  # polls until terminal; pass timeout= to bound it
 results = client.get_results(done.id)
 by_id = results.index_by_custom_id()
 print(by_id["row-a"].completion_text)
@@ -101,6 +101,60 @@ row = client.get_response(created.id)
 ```
 
 For a stream, add `stream_id` inside `metadata` next to `completion_window`.
+
+`create_response` also takes `tools`, `tool_choice`, `reasoning`, `include`, `text`, `prompt_cache_key` and `max_queue_wait_s`. Two options matter for cost and reliability:
+
+- `service_tier="flex"` gives discounted tokens in exchange for lower scheduling priority (pair it with `background=True`); `"priority"` is scheduled ahead of default traffic and billed at a premium. `response.service_tier` is the tier actually served.
+- `idempotency_key="..."` lets you retry a create after a network error without running the request twice.
+
+### Streaming output (SSE)
+
+For interactive use, `stream_response` takes the same options as `create_response` and yields events while the model generates. This is HTTP streaming of one response, unrelated to sference streams (`create_stream`), which group many responses. The events follow the OpenAI Responses streaming format:
+
+```python
+for event in client.stream_response(
+    model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    input="Write a haiku about queues.",
+):
+    if event.type == "response.output_text.delta":
+        print(event.delta, end="", flush=True)
+    elif event.type in ("response.completed", "response.incomplete", "response.failed"):
+        final = event.response  # full Response with output and usage
+```
+
+Reasoning arrives as `response.reasoning_summary_text.delta` events. If the server fails mid-stream, iteration raises `ApiError`. Stopping iteration early disconnects, which cancels the generation. `AsyncSferenceClient.stream_response` works the same way with `async for`.
+
+### Models, usage and billing
+
+```python
+models = client.list_models()                  # typed catalog: modality, pricing, capabilities, retires_on
+live = [m.id for m in models.data if not m.retires_on]
+
+client.get_billing_balance().credit_balance_micros          # micro-USD
+client.get_usage_summary(days=7).summary.total_cost_micros
+client.get_usage_by_key(month="2026-11").items              # spend per API key
+page = client.list_billing_transactions(limit=50)           # next page: starting_after=page.next_starting_after
+```
+
+Batches, streams and completion events also report cost in micro-USD (`total_cost_micros`, `cost_micros`).
+
+### Errors
+
+Every non-2xx response raises `sference_sdk.ApiError` with `status_code`, `type`, `code`, `message` and the raw `body`:
+
+```python
+from sference_sdk import ApiError
+
+try:
+    client.create_response(model="deepseek-ai/DeepSeek-V4.1-Flash-1017", input="hi")
+except ApiError as err:
+    if err.status_code == 429:
+        ...  # back off and retry
+```
+
+### Timeouts
+
+Most calls time out after 30 seconds. Calls that the server keeps open while it works get longer waits that sit just above the server's own limits, so you get the server's error (a 408 or 504, or a failed stream event) instead of a client-side timeout. A blocking `create_response` waits up to 31 minutes, `stream_response` up to 6 minutes between events, and `create_decision` 45 seconds. Passing `timeout=` to the client sets one timeout for every call instead.
 
 ### Decisions (realtime classification)
 

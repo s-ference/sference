@@ -1,6 +1,8 @@
 import json
 import warnings
 from pathlib import Path
+from collections.abc import Callable
+from typing import Any
 
 import httpx
 import pytest
@@ -22,24 +24,24 @@ def test_sdk_version_matches_metadata() -> None:
 def test_parse_openai_jsonl_format(tmp_path: Path) -> None:
     p = tmp_path / "openai.jsonl"
     p.write_text(
-        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.5-4B","messages":[{"role":"user","content":"hi"}]}}\n',
+        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","messages":[{"role":"user","content":"hi"}]}}\n',
         encoding="utf-8",
     )
     with pytest.warns(UserWarning, match="model argument is ignored"):
-        parsed = SferenceClient._parse_jsonl(p, model="ignored")
+        parsed = SferenceClient.parse_inference_requests_jsonl(p, model="ignored")
     assert len(parsed) == 1
-    assert parsed[0]["custom_id"] == "request-1"
+    assert parsed[0].custom_id == "request-1"
 
 
 def test_parse_openai_jsonl_no_model_no_warning(tmp_path: Path) -> None:
     p = tmp_path / "openai.jsonl"
     p.write_text(
-        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"Qwen/Qwen3.5-4B","messages":[{"role":"user","content":"hi"}]}}\n',
+        '{"custom_id":"request-1","method":"POST","url":"/v1/chat/completions","body":{"model":"deepseek-ai/DeepSeek-V4.1-Flash-1017","messages":[{"role":"user","content":"hi"}]}}\n',
         encoding="utf-8",
     )
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        parsed = SferenceClient._parse_jsonl(p, model=None)
+        parsed = SferenceClient.parse_inference_requests_jsonl(p, model=None)
     assert len(w) == 0
     assert len(parsed) == 1
 
@@ -49,7 +51,7 @@ def test_parse_openai_jsonl_model_warns_once_per_file(tmp_path: Path) -> None:
     p = tmp_path / "openai.jsonl"
     p.write_text(line * 3, encoding="utf-8")
     with pytest.warns(UserWarning, match="model argument is ignored") as record:
-        parsed = SferenceClient._parse_jsonl(p, model="extra")
+        parsed = SferenceClient.parse_inference_requests_jsonl(p, model="extra")
     assert len(record) == 1
     assert len(parsed) == 3
 
@@ -57,56 +59,17 @@ def test_parse_openai_jsonl_model_warns_once_per_file(tmp_path: Path) -> None:
 def test_parse_content_only_jsonl_format(tmp_path: Path) -> None:
     p = tmp_path / "content.jsonl"
     p.write_text('{"content":"What is the capital of France?"}\n', encoding="utf-8")
-    parsed = SferenceClient._parse_jsonl(p, model="Qwen/Qwen3.5-4B")
+    parsed = SferenceClient.parse_inference_requests_jsonl(p, model="deepseek-ai/DeepSeek-V4.1-Flash-1017")
     assert len(parsed) == 1
-    assert parsed[0]["body"]["model"] == "Qwen/Qwen3.5-4B"
-    assert parsed[0]["body"]["messages"][0]["content"] == "What is the capital of France?"
+    assert parsed[0].body["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    assert parsed[0].body["messages"][0]["content"] == "What is the capital of France?"
 
 
 def test_parse_content_only_requires_model(tmp_path: Path) -> None:
     p = tmp_path / "content.jsonl"
     p.write_text('{"content":"x"}\n', encoding="utf-8")
     with pytest.raises(ValueError, match="model is required"):
-        SferenceClient._parse_jsonl(p, model=None)
-
-
-def test_client_timeout_defaults_to_30s_and_can_be_overridden() -> None:
-    with SferenceClient(api_key="tok") as default_client:
-        assert default_client._client.timeout.read == 30.0
-
-    with SferenceClient(api_key="tok", timeout=600.0) as long_client:
-        assert long_client._client.timeout.read == 600.0
-
-
-def test_get_me_via_httpx_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/auth/me":
-            assert request.headers.get("authorization") == "Bearer mock-admin-token"
-            payload = json.loads((FIXTURES / "V1AuthMeMe" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="mock-admin-token") as client:
-        me = client.get_me()
-        assert me["username"] == "admin"
-
-
-def test_list_batches_via_httpx_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/batches":
-            assert request.headers.get("authorization") == "Bearer tok"
-            payload = json.loads((FIXTURES / "V1BatchesListBatches" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(
-                status_code=200,
-                json=payload,
-            )
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        out = client.list_batches()
-        assert len(out.items) == 1
-        assert out.items[0].id == "batch_abc"
-        assert out.items[0].request_count == 2
+        SferenceClient.parse_inference_requests_jsonl(p, model=None)
 
 
 def test_submit_batch_raises_api_error_on_http_failure() -> None:
@@ -123,7 +86,7 @@ def test_submit_batch_raises_api_error_on_http_failure() -> None:
                         "custom_id": "request-1",
                         "method": "POST",
                         "url": "/v1/chat/completions",
-                        "body": {"model": "Qwen/Qwen3.5-4B", "messages": [{"role": "user", "content": "hi"}]},
+                        "body": {"model": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "messages": [{"role": "user", "content": "hi"}]},
                     }
                 ]
             )
@@ -161,24 +124,6 @@ def test_submit_batch_sends_selected_window() -> None:
         assert batch.window == "24h"
 
 
-def test_cancel_batch_via_httpx_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" and request.url.path == "/v1/batches/batch_abc/cancel":
-            assert request.headers.get("authorization") == "Bearer tok"
-            payload = json.loads(
-                (FIXTURES / "V1BatchesBatchIdCancelCancelBatch" / "200.json").read_text(encoding="utf-8")
-            )
-            return httpx.Response(
-                status_code=200,
-                json=payload,
-            )
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        out = client.cancel_batch("batch_abc")
-        assert out.status == "cancelled"
-
-
 def test_download_results_jsonl_via_httpx_mock_transport(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/batches/batch_abc/results.jsonl":
@@ -192,49 +137,6 @@ def test_download_results_jsonl_via_httpx_mock_transport(tmp_path: Path) -> None
     assert out_path.read_text(encoding="utf-8").splitlines() == ['{"x": 1}', '{"x": 2}']
 
 
-def test_create_and_list_streams_via_httpx_mock_transport() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" and request.url.path == "/v1/streams":
-            payload = json.loads((FIXTURES / "V1StreamsCreateStream" / "201.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=201, json=payload)
-        if request.method == "GET" and request.url.path == "/v1/streams":
-            payload = json.loads((FIXTURES / "V1StreamsListStreams" / "200.json").read_text(encoding="utf-8"))
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        st = client.create_stream("x", window="24h")
-        assert st.name == "daily-extraction"
-        lst = client.list_streams()
-        assert len(lst.items) == 1
-
-
-def test_list_responses_events_passes_query_params() -> None:
-    captured: dict[str, str] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/v1/responses/events":
-            captured.update(dict(request.url.params))
-            payload = json.loads(
-                (FIXTURES / "V1ResponsesEventsListResponseEvents" / "200.json").read_text(encoding="utf-8")
-            )
-            return httpx.Response(status_code=200, json=payload)
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        page = client.list_responses_events(
-            stream_id="123e4567-e89b-12d3-a456-426614174000",
-            limit=10,
-            starting_after="019d58a7-2ece-7742-bc3e-69ba44168279",
-            wait_ms=1000,
-        )
-    assert captured.get("limit") == "10"
-    assert captured.get("stream_id") == "123e4567-e89b-12d3-a456-426614174000"
-    assert captured.get("starting_after") == "019d58a7-2ece-7742-bc3e-69ba44168279"
-    assert captured.get("wait_ms") == "1000"
-    assert page.data[0].completion_id == "019d58a7-2ece-7742-bc3e-69ba44168279"
-
-
 def test_get_response_parses_reasoning_output_item() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "GET" and request.url.path == "/v1/responses/resp_1":
@@ -244,7 +146,7 @@ def test_get_response_parses_reasoning_output_item() -> None:
                     "id": "resp_1",
                     "object": "response",
                     "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                     "status": "completed",
                     "output": [
                         {
@@ -277,6 +179,42 @@ def test_get_response_parses_reasoning_output_item() -> None:
         assert resp.output[1].content[0].text == "The answer is 42."
 
 
+_TOOLS = [{"type": "function", "name": "lookup", "parameters": {"type": "object"}}]
+
+
+@pytest.mark.parametrize(
+    ("options", "body", "idempotency_key"),
+    [
+        # A bare string is forwarded as-is; the server expands it to a user message.
+        ({"input": "grade this"}, {"input": "grade this"}, None),
+        # Falsy settings are sent, not dropped as if unset.
+        ({"include_reasoning": False, "enable_thinking": True}, {"include_reasoning": False, "enable_thinking": True}, None),
+        (
+            {"tools": _TOOLS, "tool_choice": "auto", "reasoning": {"effort": "low"}, "service_tier": "flex",
+             "max_queue_wait_s": 60, "idempotency_key": "key-1"},
+            {"tools": _TOOLS, "tool_choice": "auto", "reasoning": {"effort": "low"}, "service_tier": "flex",
+             "max_queue_wait_s": 60},
+            "key-1",
+        ),
+    ],
+)
+def test_create_response_sends_only_the_options_given(
+    options: dict[str, Any], body: dict[str, Any], idempotency_key: str | None
+) -> None:
+    sent: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent["json"] = json.loads(request.content)
+        sent["idempotency_key"] = request.headers.get("idempotency-key")
+        return httpx.Response(201, json={"id": "r", "created_at": 1, "model": "m", "status": "in_progress"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        client.create_response(**{"model": "m", "input": "hi", **options})
+
+    assert sent["json"] == {"model": "m", "input": "hi", **body}
+    assert sent["idempotency_key"] == idempotency_key
+
+
 def test_wait_for_response_treats_incomplete_as_terminal() -> None:
     """max_output_tokens truncation surfaces as status="incomplete"; the poll loop
     must parse it and stop instead of polling until timeout."""
@@ -291,7 +229,7 @@ def test_wait_for_response_treats_incomplete_as_terminal() -> None:
                     "id": "resp_trunc",
                     "object": "response",
                     "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
+                    "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                     "status": "incomplete",
                     "incomplete_details": {"reason": "max_output_tokens"},
                     "output": [
@@ -313,146 +251,6 @@ def test_wait_for_response_treats_incomplete_as_terminal() -> None:
         assert resp.status == "incomplete"
         assert resp.incomplete_details is not None
         assert resp.incomplete_details.reason == "max_output_tokens"
-
-
-def test_get_response_parses_reasoning_summary_parts() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/responses/resp_qwen":
-            return httpx.Response(
-                status_code=200,
-                json={
-                    "id": "resp_qwen",
-                    "object": "response",
-                    "created_at": 1712345678,
-                    "model": "Qwen/Qwen3.6-35B-A3B",
-                    "status": "completed",
-                    "output": [
-                        {
-                            "type": "reasoning",
-                            "id": "rs_reasoning_0",
-                            "summary": [{"type": "summary_text", "text": "chain"}],
-                        },
-                        {
-                            "type": "message",
-                            "id": "msg_0",
-                            "role": "assistant",
-                            "status": "completed",
-                            "content": [{"type": "output_text", "text": "ok", "annotations": []}],
-                        },
-                    ],
-                },
-            )
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        resp = client.get_response("resp_qwen")
-        assert resp.output is not None
-        assert reasoning_summary_plaintext(resp.output[0]) == "chain"
-
-
-def test_create_response_sends_include_reasoning_and_parses_reasoning() -> None:
-    captured_json: dict[str, Any] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal captured_json
-        if request.method == "POST" and request.url.path == "/v1/responses":
-            captured_json = json.loads(request.content.decode("utf-8"))
-            return httpx.Response(
-                status_code=201,
-                json={
-                    "id": "resp_2",
-                    "object": "response",
-                    "created_at": 1712345678,
-                    "model": captured_json.get("model", "m"),
-                    "status": "completed",
-                    "output": [
-                        {
-                            "type": "reasoning",
-                            "id": "rs_reasoning_0",
-                            "summary": [{"type": "summary_text", "text": "r"}],
-                        },
-                        {
-                            "type": "message",
-                            "id": "msg_0",
-                            "role": "assistant",
-                            "status": "completed",
-                            "content": [{"type": "output_text", "text": "t", "annotations": []}],
-                        },
-                    ],
-                    "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
-                },
-            )
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        resp = client.create_response(
-            model="m",
-            input=[{"role": "user", "content": "hi"}],
-            include_reasoning=False,
-        )
-
-    assert captured_json.get("include_reasoning") is False
-    assert resp.output is not None
-    assert resp.output[0].type == "reasoning"
-
-
-def test_create_response_sends_enable_thinking_when_set() -> None:
-    captured_json: dict[str, Any] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal captured_json
-        if request.method == "POST" and request.url.path == "/v1/responses":
-            captured_json = json.loads(request.content.decode("utf-8"))
-            return httpx.Response(
-                status_code=201,
-                json={
-                    "id": "resp_et",
-                    "object": "response",
-                    "created_at": 1712345678,
-                    "model": "q",
-                    "status": "in_progress",
-                    "output": None,
-                    "error": None,
-                    "usage": None,
-                },
-            )
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        client.create_response(
-            model="q",
-            input=[{"role": "user", "content": "hi"}],
-            enable_thinking=True,
-        )
-
-    assert captured_json.get("enable_thinking") is True
-
-
-def test_create_response_sends_string_input_verbatim() -> None:
-    """A bare string input is forwarded as-is; the server expands it to a user message."""
-    captured_json: dict[str, Any] = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal captured_json
-        if request.method == "POST" and request.url.path == "/v1/responses":
-            captured_json = json.loads(request.content.decode("utf-8"))
-            return httpx.Response(
-                status_code=201,
-                json={
-                    "id": "resp_str",
-                    "object": "response",
-                    "created_at": 1712345678,
-                    "model": "m",
-                    "status": "in_progress",
-                    "output": None,
-                },
-            )
-        return httpx.Response(status_code=404, json={"detail": "not found"})
-
-    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        client.create_response(model="m", input="grade this answer")
-
-    assert captured_json["input"] == "grade this answer"
 
 
 def test_create_embeddings_single_string_input() -> None:
@@ -677,11 +475,11 @@ def test_inference_request_chat_builds_messages_body() -> None:
         custom_id="row-1",
         user_content="hello",
         system_content="be brief",
-        model="Qwen/Qwen3.6-35B-A3B",
+        model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
         temperature=0,
     )
     assert req.custom_id == "row-1"
-    assert req.body["model"] == "Qwen/Qwen3.6-35B-A3B"
+    assert req.body["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
     assert req.body["temperature"] == 0
     assert req.body["messages"] == [
         {"role": "system", "content": "be brief"},
@@ -748,7 +546,6 @@ def test_get_results_indexed_via_mock_transport() -> None:
     assert by_id["r1"].completion_text == "ok"
 
 
-
 def test_set_api_key_swaps_the_credential_without_rebuilding() -> None:
     """A key rotated mid-session applies to subsequent requests on the same
     client, so callers keep their connection pool."""
@@ -764,3 +561,145 @@ def test_set_api_key_swaps_the_credential_without_rebuilding() -> None:
         client.get_me()
 
     assert seen == ["Bearer old", "Bearer new"]
+
+
+def test_api_error_exposes_openai_error_fields() -> None:
+    body = {"error": {"message": "Insufficient credits", "type": "billing_error", "param": None, "code": "insufficient_credits"}}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(402, json=body)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        with pytest.raises(ApiError) as excinfo:
+            client.create_response(model="m", input="hi")
+
+    err = excinfo.value
+    assert (err.status_code, err.type, err.code, err.message) == (402, "billing_error", "insufficient_credits", "Insufficient credits")
+    assert err.body == body
+    assert str(err).startswith("402: ")
+
+
+def _frame(*events: dict[str, Any]) -> bytes:
+    """Frame events the way the API does: ``event:`` + ``data:``, with keep-alive pings."""
+    frames = [": ping\n\n"]
+    frames += [f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events]
+    # The final frame drops its blank line to prove the decoder flushes at EOF.
+    return "".join(frames).removesuffix("\n\n").encode()
+
+
+_SHELL = {"id": "resp_1", "object": "response", "created_at": 1, "model": "m", "status": "in_progress", "output": []}
+_STREAM_EVENTS = [
+    {"type": "response.created", "sequence_number": 0, "response": _SHELL},
+    {
+        "type": "response.output_item.added",
+        "sequence_number": 1,
+        "output_index": 0,
+        "item": {"type": "message", "id": "msg_1", "role": "assistant", "status": "in_progress", "content": []},
+    },
+    {"type": "response.output_text.delta", "sequence_number": 2, "item_id": "msg_1", "output_index": 0, "content_index": 0, "delta": "Hel"},
+    {"type": "response.output_text.delta", "sequence_number": 3, "item_id": "msg_1", "output_index": 0, "content_index": 0, "delta": "lo"},
+    {
+        "type": "response.completed",
+        "sequence_number": 4,
+        "response": {
+            **_SHELL,
+            "status": "completed",
+            "output": [{"type": "message", "id": "msg_1", "content": [{"type": "output_text", "text": "Hello"}]}],
+            "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+        },
+    },
+]
+
+
+def test_stream_response_yields_typed_events_until_completed() -> None:
+    sent: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent["json"] = json.loads(request.content)
+        sent["extra"] = request.headers.get("x-extra")
+        return httpx.Response(200, content=_frame(*_STREAM_EVENTS), headers={"content-type": "text/event-stream"})
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+        with client.extra_headers({"x-extra": "1"}):
+            stream = client.stream_response(model="m", input="hi")
+        events = list(stream)
+
+    assert sent["json"] == {"model": "m", "input": "hi", "stream": True}
+    # Headers are bound when the call is made, not when iteration starts.
+    assert sent["extra"] == "1"
+    assert [e.sequence_number for e in events] == [0, 1, 2, 3, 4]
+    assert "".join(e.delta or "" for e in events) == "Hello"
+    final = events[-1].response
+    assert final is not None and final.status == "completed" and final.usage is not None
+
+
+def test_stream_response_raises_mid_stream_error_frame() -> None:
+    # After HTTP 200 a failure can only arrive as an SSE ``error`` frame.
+    body = _frame({"type": "response.created", "response": {"id": "r", "created_at": 1, "model": "m", "status": "in_progress"}},
+               {"type": "error", "code": "server_error", "message": "boom", "param": None})
+    with SferenceClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200, content=body)), api_key="tok") as client:
+        events = client.stream_response(model="m", input="hi")
+        assert next(events).type == "response.created"
+        with pytest.raises(ApiError) as excinfo:
+            next(events)
+
+    assert excinfo.value.code == "server_error"
+    assert excinfo.value.message == "boom"
+
+
+def test_stream_response_raises_refusal_before_stream() -> None:
+    refusal = httpx.Response(402, json={"error": {"type": "billing", "code": "insufficient_balance", "message": "top up"}})
+    with SferenceClient(transport=httpx.MockTransport(lambda _r: refusal), api_key="tok") as client:
+        with pytest.raises(ApiError) as excinfo:
+            list(client.stream_response(model="m", input="hi"))
+
+    assert excinfo.value.status_code == 402
+    assert excinfo.value.code == "insufficient_balance"
+
+
+async def test_stream_response_async_yields_events_until_completed() -> None:
+    from sference_sdk import AsyncSferenceClient
+
+    transport = httpx.MockTransport(lambda _r: httpx.Response(200, content=_frame(*_STREAM_EVENTS)))
+    async with AsyncSferenceClient(transport=transport, api_key="tok") as client:
+        events = [e async for e in client.stream_response(model="m", input="hi")]
+
+    assert "".join(e.delta or "" for e in events) == "Hello"
+    assert events[-1].type == "response.completed"
+
+
+_RESPONSE_JSON = {"id": "r", "created_at": 1, "model": "m", "status": "completed"}
+
+
+@pytest.mark.parametrize(
+    ("client_timeout", "call", "read_timeout"),
+    [
+        # Blocking creates wait silently for the whole generation; the server allows up to 1800 s.
+        (None, lambda c: c.create_response(model="m", input="hi"), 1860.0),
+        (None, lambda c: c.create_response(model="m", input="hi", background=True), 30.0),
+        (None, lambda c: list(c.stream_response(model="m", input="hi")), 360.0),
+        (None, lambda c: c.create_decision(model="m", state="s", questions={"q": {"type": "noul"}}), 45.0),
+        (None, lambda c: c.get_response("r"), 30.0),
+        # An explicit client timeout applies to every call, long ones included.
+        (5.0, lambda c: c.create_response(model="m", input="hi"), 5.0),
+        (5.0, lambda c: list(c.stream_response(model="m", input="hi")), 5.0),
+    ],
+)
+def test_read_timeout_covers_the_servers_silent_wait(
+    client_timeout: float | None, call: Callable[[SferenceClient], object], read_timeout: float
+) -> None:
+    seen: dict[str, float] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.extensions["timeout"])
+        if request.url.path == "/v1/decisions":
+            return httpx.Response(200, json={"model": "m", "answers": {}, "usage": {"input_tokens": 1}})
+        if json.loads(request.content or b"{}").get("stream"):
+            return httpx.Response(200, content=_frame({"type": "response.completed", "response": _RESPONSE_JSON}))
+        return httpx.Response(200, json=_RESPONSE_JSON)
+
+    with SferenceClient(transport=httpx.MockTransport(handler), api_key="tok", timeout=client_timeout) as client:
+        call(client)
+
+    assert seen["read"] == read_timeout
+    assert seen["connect"] == (client_timeout or 30.0)

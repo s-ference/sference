@@ -1,55 +1,68 @@
 from __future__ import annotations
 
-import contextvars
-import json
-import os
 import time
-import warnings
-from contextlib import contextmanager
 from collections.abc import Iterator, Mapping, Sequence
+from itertools import chain
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Self, TypeVar
 
 import httpx
+from pydantic import BaseModel
 
+from ._base import (
+    BLOCKING_RESPONSE_READ_TIMEOUT,
+    DECISION_READ_TIMEOUT,
+    DEFAULT_TIMEOUT,
+    EVENTS_CHECKPOINT_KEY,
+    STREAM_READ_TIMEOUT,
+    TERMINAL_BATCH_STATUSES,
+    TERMINAL_RESPONSE_STATUSES,
+    ApiError,
+    BaseClient,
+    SSEDecoder,
+    parse_stream_event,
+    raise_for_status,
+)
 from .checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 from .models import (
-    COMPLETION_WINDOWS,
     Batch,
-    BatchCreatePayload,
     BatchList,
     BatchResultRow,
     BatchResults,
-    CreateDecisionPayload,
-    CreateEmbeddingPayload,
-    DecisionQuestion,
+    BillingBalanceResponse,
+    BillingSummaryResponse,
     DecisionImage,
+    DecisionQuestion,
     DecisionResponse,
-    EmbeddingInput,
     EmbeddingEncodingFormat,
+    EmbeddingInput,
     EmbeddingResponse,
     InferenceRequest,
+    LedgerListResponse,
+    ModelList,
     Response,
     ResponseList,
+    ResponseStreamEvent,
+    ServiceTier,
     Stream,
-    StreamInferenceCompletionEvent,
     StreamEventList,
+    StreamInferenceCompletionEvent,
     StreamList,
     StreamWindow,
+    UsageByKeyResponse,
+    UsageDailyResponse,
+    UsageSummaryResponse,
+    User,
 )
 
+__all__ = ["ApiError", "SferenceClient"]
 
-class ApiError(Exception):
-    pass
-
-
-_request_extra_headers: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
-    "sference_request_extra_headers",
-    default=None,
-)
+_M = TypeVar("_M", bound=BaseModel)
 
 
-class SferenceClient:
+class SferenceClient(BaseClient):
+    """Sync HTTP client for the sference API (``httpx.Client``)."""
+
     def __init__(
         self,
         base_url: str | None = None,
@@ -57,117 +70,102 @@ class SferenceClient:
         transport: httpx.BaseTransport | None = None,
         timeout: float | None = None,
     ) -> None:
-        self.base_url = base_url or os.getenv("SFERENCE_BASE_URL", "https://api.sference.com")
-        self._token = api_key or os.getenv("SFERENCE_API_KEY")
+        super().__init__(base_url, api_key, timeout)
         self._client = httpx.Client(
             base_url=self.base_url,
-            timeout=30.0 if timeout is None else timeout,
+            timeout=DEFAULT_TIMEOUT if timeout is None else timeout,
             transport=transport,
         )
-
-    def set_api_key(self, api_key: str | None) -> None:
-        """Swap the credential used for subsequent requests.
-
-        For callers whose key changes while a client is alive — a rotated key in
-        a long-running integration, for instance — so they need not rebuild the
-        client and its connection pool.
-        """
-        self._token = api_key
 
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "SferenceClient":
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *_: Any) -> None:
+    def __exit__(self, *_: object) -> None:
         self.close()
 
-    @contextmanager
-    def extra_headers(self, headers: Mapping[str, str]) -> Iterator[None]:
-        """Attach headers to every HTTP call in this block (e.g. one batch workflow).
-
-        Prefer OpenTelemetry: if the host app has an active span, ``inject()`` adds
-        W3C trace context automatically per request.
-        """
-        merged = {**(_request_extra_headers.get() or {}), **dict(headers)}
-        token = _request_extra_headers.set(merged)
-        try:
-            yield
-        finally:
-            _request_extra_headers.reset(token)
-
-    def _headers(self, extra: Mapping[str, str] | None = None) -> dict[str, str]:
-        headers = {"content-type": "application/json"}
-        if self._token:
-            headers["authorization"] = f"Bearer {self._token}"
-        try:
-            from opentelemetry.propagate import inject
-
-            carrier: dict[str, str] = {}
-            inject(carrier)
-            headers.update(carrier)
-        except Exception:
-            pass
-        scoped = _request_extra_headers.get()
-        if scoped:
-            headers.update(scoped)
-        if extra:
-            headers.update(extra)
-        return headers
-
-    def _request(
+    def _send(
         self,
         method: str,
         path: str,
-        json_body: dict[str, Any] | None = None,
+        json_body: Any = None,
         *,
         params: Mapping[str, Any] | None = None,
         extra_headers: Mapping[str, str] | None = None,
-    ) -> Any:
-        response = self._client.request(
-            method,
-            path,
-            headers=self._headers(extra_headers),
-            json=json_body,
-            params=params,
-        )
-        if response.status_code >= 400:
-            try:
-                payload = response.json()
-            except Exception:
-                payload = {"detail": response.text}
-            raise ApiError(f"{response.status_code}: {payload}")
-        return response.json()
-
-    def _request_response(
-        self,
-        method: str,
-        path: str,
-        json_body: dict[str, Any] | None = None,
-        *,
-        extra_headers: Mapping[str, str] | None = None,
+        timeout: Any = httpx.USE_CLIENT_DEFAULT,
     ) -> httpx.Response:
         response = self._client.request(
-            method, path, headers=self._headers(extra_headers), json=json_body
+            method, path, headers=self._headers(extra_headers), json=json_body, params=params, timeout=timeout
         )
-        if response.status_code >= 400:
-            try:
-                payload = response.json()
-            except Exception:
-                payload = {"detail": response.text}
-            raise ApiError(f"{response.status_code}: {payload}")
+        raise_for_status(response)
         return response
 
-    def get_me(self) -> dict[str, Any]:
-        return self._request("GET", "/v1/auth/me")
+    def _call(
+        self,
+        model: type[_M],
+        method: str,
+        path: str,
+        json_body: Any = None,
+        *,
+        params: Mapping[str, Any] | None = None,
+        extra_headers: Mapping[str, str] | None = None,
+        timeout: Any = httpx.USE_CLIENT_DEFAULT,
+    ) -> _M:
+        response = self._send(method, path, json_body, params=params, extra_headers=extra_headers, timeout=timeout)
+        return model.model_validate(response.json())
 
-    def list_models(self) -> dict[str, Any]:
-        """OpenAI-compatible model list (GET /v1/models)."""
-        response = self._request("GET", "/v1/models")
-        if not isinstance(response, dict):
-            raise ApiError("GET /v1/models returned unexpected payload")
-        return response
+    # Account ----------------------------------------------------------------
+
+    def health(self) -> dict[str, str]:
+        """Liveness check (GET /v1/health); needs no credential."""
+        return self._send("GET", "/v1/health").json()
+
+    def get_me(self) -> User:
+        """Owner of the current credential (GET /v1/auth/me)."""
+        return self._call(User, "GET", "/v1/auth/me")
+
+    def list_models(self) -> ModelList:
+        """Live model catalog (GET /v1/models)."""
+        return self._call(ModelList, "GET", "/v1/models")
+
+    def get_billing_balance(self) -> BillingBalanceResponse:
+        """Credit balance in micro-USD (GET /v1/billing/balance)."""
+        return self._call(BillingBalanceResponse, "GET", "/v1/billing/balance")
+
+    def get_billing_summary(self, *, days: int | None = None) -> BillingSummaryResponse:
+        """Spend over the last ``days`` (1-365, server default 30) (GET /v1/billing/summary)."""
+        return self._call(BillingSummaryResponse, "GET", "/v1/billing/summary", params=self._params(days=days))
+
+    def list_billing_transactions(
+        self, *, limit: int | None = None, starting_after: str | None = None
+    ) -> LedgerListResponse:
+        """Ledger entries, newest first (GET /v1/billing/transactions).
+
+        Page with ``starting_after=page.next_starting_after``.
+        """
+        params = self._params(limit=limit, starting_after=starting_after)
+        return self._call(LedgerListResponse, "GET", "/v1/billing/transactions", params=params)
+
+    def get_usage_summary(self, *, days: int | None = None, user_id: str | None = None) -> UsageSummaryResponse:
+        """Token and cost totals (GET /v1/usage/summary); ``user_id`` is for team admins."""
+        params = self._params(days=days, user_id=user_id)
+        return self._call(UsageSummaryResponse, "GET", "/v1/usage/summary", params=params)
+
+    def get_usage_daily(self, *, days: int | None = None, user_id: str | None = None) -> UsageDailyResponse:
+        """Per-day, per-model usage (GET /v1/usage/daily)."""
+        params = self._params(days=days, user_id=user_id)
+        return self._call(UsageDailyResponse, "GET", "/v1/usage/daily", params=params)
+
+    def get_usage_by_key(
+        self, *, days: int | None = None, month: str | None = None, tag: str | None = None
+    ) -> UsageByKeyResponse:
+        """Usage per API key (GET /v1/usage/by-key); ``month`` (YYYY-MM) overrides ``days``."""
+        params = self._params(days=days, month=month, tag=tag)
+        return self._call(UsageByKeyResponse, "GET", "/v1/usage/by-key", params=params)
+
+    # Embeddings and decisions --------------------------------------------------
 
     def create_embeddings(
         self,
@@ -179,15 +177,10 @@ class SferenceClient:
         user: str | None = None,
     ) -> EmbeddingResponse:
         """Create embeddings (POST /v1/embeddings)."""
-        payload = CreateEmbeddingPayload(
-            model=model,
-            input=input,
-            encoding_format=encoding_format,
-            dimensions=dimensions,
-            user=user,
+        payload = self._embedding_payload(
+            model=model, input=input, encoding_format=encoding_format, dimensions=dimensions, user=user
         )
-        response = self._request("POST", "/v1/embeddings", payload.model_dump(exclude_none=True))
-        return EmbeddingResponse.model_validate(response)
+        return self._call(EmbeddingResponse, "POST", "/v1/embeddings", payload)
 
     def create_decision(
         self,
@@ -204,193 +197,246 @@ class SferenceClient:
         ``images`` accepts up to four PNG/JPEG/WebP data URLs or objects with
         ``content_type`` and ``base64``. Limits: 4 MiB/16 MP each, 8 MiB total.
         """
-        payload = CreateDecisionPayload.model_validate(
-            {"model": model, "state": state, "questions": dict(questions), "images": list(images) if images is not None else []}
+        payload = self._decision_payload(model=model, state=state, questions=questions, images=images)
+        return self._call(
+            DecisionResponse, "POST", "/v1/decisions", payload, timeout=self._quiet_timeout(DECISION_READ_TIMEOUT)
         )
-        response = self._request("POST", "/v1/decisions", payload.model_dump(mode="json", exclude={"images"} if images is None else set()))
-        return DecisionResponse.model_validate(response)
+
+    # Batches ------------------------------------------------------------------
 
     def submit_batch(
         self,
         *,
         input_file: str | None = None,
-        requests: list[dict[str, Any]] | None = None,
+        requests: Sequence[InferenceRequest | Mapping[str, Any]] | None = None,
         model: str | None = None,
         window: str = "24h",
     ) -> Batch:
-        if window not in COMPLETION_WINDOWS:
-            allowed = ", ".join(f'"{w}"' for w in COMPLETION_WINDOWS)
-            raise ValueError(f"window must be one of {allowed}.")
-        resolved: list[InferenceRequest] | list[dict[str, Any]] = requests or []
-        if input_file:
-            resolved = self.parse_inference_requests_jsonl(Path(input_file), model=model)
-        if not resolved:
-            raise ValueError("At least one request is required (use input_file or non-empty requests)")
-        if isinstance(resolved, list) and resolved and isinstance(resolved[0], dict):
-            # Back-compat: accept OpenAI batch-style envelopes in `requests=[...]`.
-            reqs: list[InferenceRequest] = []
-            for r in resolved:
-                if not isinstance(r, dict):
-                    raise TypeError("requests must be a list of dicts or InferenceRequest objects")
-                body = r.get("body")
-                if isinstance(body, dict) and {"method", "url", "body"}.issubset(r.keys()):
-                    reqs.append(InferenceRequest(custom_id=r.get("custom_id"), body=body))
-                else:
-                    reqs.append(InferenceRequest.model_validate(r))
-            resolved = reqs
-        payload = BatchCreatePayload(window=window, requests=resolved)  # type: ignore[arg-type]
-        response = self._request("POST", "/v1/batches", payload.model_dump())
-        return Batch.model_validate(response)
+        """Submit a batch from a JSONL file or a list of requests (POST /v1/batches)."""
+        payload = self._batch_payload(input_file=input_file, requests=requests, model=model, window=window)
+        return self._call(Batch, "POST", "/v1/batches", payload)
 
     def get_batch(self, batch_id: str) -> Batch:
-        response = self._request("GET", f"/v1/batches/{batch_id}")
-        return Batch.model_validate(response)
+        return self._call(Batch, "GET", f"/v1/batches/{batch_id}")
 
     def list_batches(self) -> BatchList:
-        response = self._request("GET", "/v1/batches")
-        return BatchList.model_validate(response)
+        return self._call(BatchList, "GET", "/v1/batches")
 
     def get_results(self, batch_id: str) -> BatchResults:
-        response = self._request("GET", f"/v1/batches/{batch_id}/results")
-        return BatchResults.model_validate(response)
+        return self._call(BatchResults, "GET", f"/v1/batches/{batch_id}/results")
 
     def get_results_indexed(self, batch_id: str) -> dict[str, BatchResultRow]:
         """Fetch batch results keyed by ``custom_id``."""
         return self.get_results(batch_id).index_by_custom_id()
 
     def cancel_batch(self, batch_id: str) -> Batch:
-        response = self._request("POST", f"/v1/batches/{batch_id}/cancel")
-        return Batch.model_validate(response)
+        return self._call(Batch, "POST", f"/v1/batches/{batch_id}/cancel")
 
     def download_results_jsonl(self, batch_id: str, out: str | Path | BinaryIO) -> None:
-        resp = self._request_response("GET", f"/v1/batches/{batch_id}/results.jsonl")
+        content = self._send("GET", f"/v1/batches/{batch_id}/results.jsonl").content
         if isinstance(out, (str, Path)):
-            Path(out).write_bytes(resp.content)
-            return
-        out.write(resp.content)
+            Path(out).write_bytes(content)
+        else:
+            out.write(content)
 
-    def wait_for_completion(self, batch_id: str, poll_interval: float = 1.0, timeout: float = 30.0) -> Batch:
-        deadline = time.time() + timeout
+    def wait_for_completion(
+        self, batch_id: str, poll_interval: float = 5.0, timeout: float | None = None
+    ) -> Batch:
+        """Poll until the batch is terminal; ``timeout=None`` waits as long as it takes."""
+        deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             batch = self.get_batch(batch_id)
-            if batch.status in ("completed", "failed", "cancelled"):
+            if batch.status in TERMINAL_BATCH_STATUSES:
                 return batch
-            if time.time() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for batch {batch_id}")
             time.sleep(poll_interval)
 
+    # Streams ------------------------------------------------------------------
+
     def create_stream(self, name: str, window: StreamWindow = "24h") -> Stream:
-        response = self._request("POST", "/v1/streams", {"name": name, "window": window})
-        return Stream.model_validate(response)
+        return self._call(Stream, "POST", "/v1/streams", {"name": name, "window": window})
 
     def list_streams(self) -> StreamList:
-        response = self._request("GET", "/v1/streams")
-        return StreamList.model_validate(response)
+        return self._call(StreamList, "GET", "/v1/streams")
 
     def get_stream(self, stream_id: str) -> Stream:
-        response = self._request("GET", f"/v1/streams/{stream_id}")
-        return Stream.model_validate(response)
+        return self._call(Stream, "GET", f"/v1/streams/{stream_id}")
 
-    # Note: POST /v1/streams/{id}/items has been removed. Use create_response() with metadata.stream_id instead.
+    def archive_stream(self, stream_id: str) -> Stream:
+        return self._call(Stream, "PATCH", f"/v1/streams/{stream_id}", {"status": "archived"})
+
+    def cancel_stream(self, stream_id: str) -> Stream:
+        return self._call(Stream, "PATCH", f"/v1/streams/{stream_id}", {"status": "cancelled"})
+
+    # Responses ----------------------------------------------------------------
 
     def create_response(
         self,
         *,
         model: str,
-        input: str | list[dict[str, str]],  # bare string, or [{"role": "user", "content": "..."}]
+        input: str | Sequence[Mapping[str, Any]],
         instructions: str | None = None,
         max_output_tokens: int | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
         include_reasoning: bool | None = None,
         enable_thinking: bool | None = None,
+        reasoning: Mapping[str, Any] | None = None,
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        tool_choice: str | Mapping[str, Any] | None = None,
+        include: Sequence[str] | None = None,
+        text: Mapping[str, Any] | None = None,
+        service_tier: ServiceTier | None = None,
+        prompt_cache_key: str | None = None,
+        max_queue_wait_s: int | None = None,
         background: bool = False,
-        metadata: dict[str, Any] | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> Response:
-        """Create a standalone response or stream-associated response.
+        """Create a response (POST /v1/responses).
 
-        For stream-associated, include stream_id in metadata:
-            metadata={"stream_id": "uuid", "completion_window": "24h"}
+        ``input`` is a string or a list of OpenAI Responses input items. Pass
+        ``background=True`` and poll with ``wait_for_response`` for long jobs.
+        Attach to a stream with ``metadata={"stream_id": ..., "completion_window": "24h"}``.
+        ``service_tier="flex"`` trades latency for price; ``"priority"`` costs more
+        and is scheduled first. ``idempotency_key`` makes retries safe.
+        Use ``stream_response`` to receive output as it is generated.
         """
-        from sference_sdk.models import Response
+        payload, headers = self._response_request(
+            model=model,
+            input=input,
+            instructions=instructions,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            include_reasoning=include_reasoning,
+            enable_thinking=enable_thinking,
+            reasoning=reasoning,
+            tools=tools,
+            tool_choice=tool_choice,
+            include=include,
+            text=text,
+            service_tier=service_tier,
+            prompt_cache_key=prompt_cache_key,
+            max_queue_wait_s=max_queue_wait_s,
+            background=background,
+            metadata=metadata,
+            idempotency_key=idempotency_key,
+        )
+        return self._call(
+            Response,
+            "POST",
+            "/v1/responses",
+            payload,
+            extra_headers=headers,
+            # Background creates return at once; blocking ones wait for the whole generation.
+            timeout=httpx.USE_CLIENT_DEFAULT if background else self._quiet_timeout(BLOCKING_RESPONSE_READ_TIMEOUT),
+        )
 
-        payload: dict[str, Any] = {
-            "model": model,
-            "input": input,
-        }
-        if instructions is not None:
-            payload["instructions"] = instructions
-        if max_output_tokens is not None:
-            payload["max_output_tokens"] = max_output_tokens
-        if temperature is not None:
-            payload["temperature"] = temperature
-        if top_p is not None:
-            payload["top_p"] = top_p
-        if include_reasoning is not None:
-            payload["include_reasoning"] = include_reasoning
-        if enable_thinking is not None:
-            payload["enable_thinking"] = enable_thinking
-        if background:
-            payload["background"] = True
-        if metadata is not None:
-            payload["metadata"] = metadata
-
-        response = self._request("POST", "/v1/responses", payload)
-        return Response.model_validate(response)
-
-    def wait_for_response(
+    def stream_response(
         self,
-        response_id: str,
-        poll_interval: float = 2.0,
-        timeout: float = 3600.0,
-    ) -> Response:
-        """Poll GET /v1/responses/{id} until status is terminal (async create + wait)."""
-        deadline = time.time() + timeout
+        *,
+        model: str,
+        input: str | Sequence[Mapping[str, Any]],
+        instructions: str | None = None,
+        max_output_tokens: int | None = None,
+        temperature: float | None = None,
+        top_p: float | None = None,
+        include_reasoning: bool | None = None,
+        enable_thinking: bool | None = None,
+        reasoning: Mapping[str, Any] | None = None,
+        tools: Sequence[Mapping[str, Any]] | None = None,
+        tool_choice: str | Mapping[str, Any] | None = None,
+        include: Sequence[str] | None = None,
+        text: Mapping[str, Any] | None = None,
+        service_tier: ServiceTier | None = None,
+        prompt_cache_key: str | None = None,
+        max_queue_wait_s: int | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> Iterator[ResponseStreamEvent]:
+        """Create a response and yield its server-sent events (POST /v1/responses, ``stream=true``).
+
+        Text arrives as ``response.output_text.delta`` events; the last event is
+        ``response.completed``, ``response.incomplete`` or ``response.failed`` and
+        carries the full ``Response``. A mid-stream server error raises ``ApiError``.
+        Closing the iterator early disconnects, which cancels the generation.
+        """
+        payload, headers = self._response_request(
+            model=model,
+            input=input,
+            instructions=instructions,
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            include_reasoning=include_reasoning,
+            enable_thinking=enable_thinking,
+            reasoning=reasoning,
+            tools=tools,
+            tool_choice=tool_choice,
+            include=include,
+            text=text,
+            service_tier=service_tier,
+            prompt_cache_key=prompt_cache_key,
+            max_queue_wait_s=max_queue_wait_s,
+            background=False,
+            metadata=metadata,
+            idempotency_key=idempotency_key,
+        )
+        payload["stream"] = True
+        # Build the request now, not on first iteration, so ``extra_headers()`` applies
+        # where the call is made and bad input fails before any network I/O.
+        request = self._client.build_request(
+            "POST",
+            "/v1/responses",
+            headers=self._headers(headers),
+            json=payload,
+            timeout=self._quiet_timeout(STREAM_READ_TIMEOUT),
+        )
+        return self._iter_stream(request)
+
+    def _iter_stream(self, request: httpx.Request) -> Iterator[ResponseStreamEvent]:
+        response = self._client.send(request, stream=True)
+        try:
+            if response.is_error:
+                response.read()
+                raise_for_status(response)
+            decoder = SSEDecoder()
+            # The trailing "" flushes a final event the server didn't end with a blank line.
+            for line in chain(response.iter_lines(), [""]):
+                data = decoder.feed(line)
+                if data is None:
+                    continue
+                event = parse_stream_event(data)
+                if event is None:
+                    return
+                yield event
+        finally:
+            response.close()
+
+    def wait_for_response(self, response_id: str, poll_interval: float = 2.0, timeout: float | None = 3600.0) -> Response:
+        """Poll GET /v1/responses/{id} until terminal; ``timeout=None`` waits indefinitely."""
+        deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             item = self.get_response(response_id)
-            if item.status in ("completed", "failed", "cancelled", "incomplete"):
+            if item.status in TERMINAL_RESPONSE_STATUSES:
                 return item
-            if time.time() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for response {response_id}")
             time.sleep(poll_interval)
 
     def get_response(self, response_id: str) -> Response:
-        """Get a response by ID."""
-        from sference_sdk.models import Response
-
-        response = self._request("GET", f"/v1/responses/{response_id}")
-        return Response.model_validate(response)
+        return self._call(Response, "GET", f"/v1/responses/{response_id}")
 
     def cancel_response(self, response_id: str) -> Response:
         """Cancel a pending or running response."""
-        from sference_sdk.models import Response
+        return self._call(Response, "DELETE", f"/v1/responses/{response_id}")
 
-        response = self._request("DELETE", f"/v1/responses/{response_id}")
-        return Response.model_validate(response)
-
-    def list_responses(
-        self,
-        *,
-        limit: int = 100,
-        stream_id: str | None = None,
-    ) -> ResponseList:
-        """List responses. Optionally filter by stream_id."""
-        from sference_sdk.models import ResponseList
-
-        params: dict[str, Any] = {"limit": limit}
-        if stream_id is not None:
-            params["stream_id"] = stream_id
-
-        response = self._request("GET", "/v1/responses", params=params)
-        return ResponseList.model_validate(response)
-
-    def archive_stream(self, stream_id: str) -> Stream:
-        response = self._request("PATCH", f"/v1/streams/{stream_id}", {"status": "archived"})
-        return Stream.model_validate(response)
-
-    def cancel_stream(self, stream_id: str) -> Stream:
-        response = self._request("PATCH", f"/v1/streams/{stream_id}", {"status": "cancelled"})
-        return Stream.model_validate(response)
+    def list_responses(self, *, limit: int = 100, stream_id: str | None = None) -> ResponseList:
+        """List responses, optionally only those in one stream."""
+        params = self._params(limit=limit, stream_id=stream_id)
+        return self._call(ResponseList, "GET", "/v1/responses", params=params)
 
     def list_responses_events(
         self,
@@ -402,26 +448,14 @@ class SferenceClient:
         wait_ms: int = 0,
     ) -> StreamEventList:
         """GET /v1/responses/events — completion events (omit stream_id for non-stream feed)."""
-        params: dict[str, Any] = {"limit": limit, "wait_ms": wait_ms}
-        if stream_id is not None:
-            params["stream_id"] = stream_id
-        if starting_after is not None:
-            params["starting_after"] = starting_after
-        if ending_before is not None:
-            params["ending_before"] = ending_before
-        response = self._client.request(
-            "GET",
-            "/v1/responses/events",
-            headers=self._headers(),
-            params=params,
+        params = self._params(
+            limit=limit,
+            wait_ms=wait_ms,
+            stream_id=stream_id,
+            starting_after=starting_after,
+            ending_before=ending_before,
         )
-        if response.status_code >= 400:
-            try:
-                payload = response.json()
-            except Exception:
-                payload = {"detail": response.text}
-            raise ApiError(f"{response.status_code}: {payload}")
-        return StreamEventList.model_validate(response.json())
+        return self._call(StreamEventList, "GET", "/v1/responses/events", params=params)
 
     def iter_responses_events(
         self,
@@ -432,7 +466,8 @@ class SferenceClient:
         checkpoint: bool = True,
         from_latest: bool = False,
     ) -> Iterator[StreamInferenceCompletionEvent]:
-        ck_stream = stream_id if stream_id is not None else "__responses_events__"
+        """Yield completion events oldest first, resuming from a saved checkpoint."""
+        ck_stream = stream_id if stream_id is not None else EVENTS_CHECKPOINT_KEY
         if from_latest:
             clear_checkpoint(self.base_url, ck_stream, consumer_name)
         cur: str | None = starting_after
@@ -440,7 +475,8 @@ class SferenceClient:
             cur = load_checkpoint(self.base_url, ck_stream, consumer_name)
 
         if cur is None:
-            page = self.list_responses_events(stream_id=stream_id, limit=100, wait_ms=0)
+            # No cursor yet: the API returns newest first, so replay one page in order.
+            page = self.list_responses_events(stream_id=stream_id, limit=100)
             for ev in reversed(page.data):
                 yield ev
                 if checkpoint:
@@ -448,7 +484,7 @@ class SferenceClient:
             return
 
         while True:
-            page = self.list_responses_events(stream_id=stream_id, limit=100, starting_after=cur, wait_ms=0)
+            page = self.list_responses_events(stream_id=stream_id, limit=100, starting_after=cur)
             if not page.data:
                 return
             for ev in page.data:
@@ -458,58 +494,3 @@ class SferenceClient:
                 cur = ev.completion_id
             if not page.has_more:
                 return
-
-    @staticmethod
-    def parse_inference_requests_jsonl(path: Path, model: str | None = None) -> list[InferenceRequest]:
-        parsed: list[InferenceRequest] = []
-        warn_model_ignored = False
-        with path.open("r", encoding="utf-8") as f:
-            for idx, line in enumerate(f, start=1):
-                line = line.strip()
-                if not line:
-                    continue
-                obj = json.loads(line)
-                # OpenAI batch-style envelope: {"custom_id", "method", "url", "body"}
-                if isinstance(obj, dict) and {"method", "url", "body"}.issubset(obj.keys()):
-                    if model:
-                        warn_model_ignored = True
-                    body = obj.get("body")
-                    if not isinstance(body, dict) or not body.get("model"):
-                        raise ValueError(f"Invalid JSONL line {idx}: body.model is required")
-                    parsed.append(
-                        InferenceRequest(
-                            custom_id=obj.get("custom_id"),
-                            body=body,
-                        )
-                    )
-                    continue
-                # Content-only format: {"content": "..."}
-                if isinstance(obj, dict) and "content" in obj:
-                    if not model:
-                        raise ValueError("model is required for content-only JSONL format")
-                    parsed.append(
-                        InferenceRequest(
-                            custom_id=obj.get("custom_id") or f"request-{idx}",
-                            body={
-                                "model": model,
-                                "messages": [{"role": "user", "content": obj["content"]}],
-                            },
-                        )
-                    )
-                    continue
-                raise ValueError(f"Unsupported JSONL line format at line {idx}")
-        if warn_model_ignored:
-            warnings.warn(
-                "model argument is ignored for OpenAI-compatible JSONL lines",
-                stacklevel=2,
-            )
-        return parsed
-
-    @staticmethod
-    def _parse_jsonl(path: Path, model: str | None = None) -> list[dict[str, Any]]:
-        """Backwards-compatible JSONL parser (returns plain dicts).
-
-        Prefer `parse_inference_requests_jsonl`, which returns `InferenceRequest` objects.
-        """
-
-        return [r.model_dump() for r in SferenceClient.parse_inference_requests_jsonl(path, model=model)]

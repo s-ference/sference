@@ -2,25 +2,33 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 import sference_cli.device_auth as da
 
 
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def _fixture(operation: str, status: int = 200) -> dict:
+    return json.loads((FIXTURES / operation / f"{status}.json").read_text(encoding="utf-8"))
+
+
 def _tokens() -> dict:
-    return {
-        "access_token": "jwt_x",
-        "token_type": "bearer",
-        "expires_in": 86400,
-        "refresh_token": "rt_x",
-    }
+    return _fixture("V1OauthTokenToken")
+
+
+_PENDING = (400, _fixture("V1OauthTokenToken", 400))
 
 
 def test_poll_succeeds_after_pending(monkeypatch):
     calls: list[dict] = []
     responses = iter(
         [
-            (400, {"error": "authorization_pending", "error_description": "not yet"}),
+            _PENDING,
             (200, _tokens()),
         ]
     )
@@ -34,7 +42,7 @@ def test_poll_succeeds_after_pending(monkeypatch):
         expires_in=600,
         sleep=sleeps.append,
     )
-    assert out["access_token"] == "jwt_x"
+    assert out["access_token"] == _tokens()["access_token"]
     assert sleeps == [5]
     assert calls[0]["grant_type"] == da.GRANT_TYPE_DEVICE_CODE
     assert calls[0]["device_code"] == "dc"
@@ -44,7 +52,7 @@ def test_poll_slow_down_extends_interval(monkeypatch):
     responses = iter(
         [
             (400, {"error": "slow_down", "error_description": "too fast"}),
-            (400, {"error": "authorization_pending", "error_description": "not yet"}),
+            _PENDING,
             (200, _tokens()),
         ]
     )
@@ -84,7 +92,7 @@ def test_poll_pending_past_deadline_raises_expired(monkeypatch):
     monkeypatch.setattr(
         da,
         "post_json",
-        lambda url, payload, **k: (400, {"error": "authorization_pending", "error_description": "not yet"}),
+        lambda url, payload, **k: _PENDING,
     )
     clock = iter([0.0, 1000.0])  # first poll at t=0, deadline check at t=1000 (> expires_in)
     with pytest.raises(da.DeviceAuthError) as excinfo:
@@ -104,7 +112,7 @@ def test_refresh_success(monkeypatch):
     seen: list[dict] = []
     monkeypatch.setattr(da, "post_json", lambda url, payload, **k: (seen.append(payload) or (200, _tokens())))
     out = da.refresh_tokens("https://api.sference.com", da.CLIENT_ID_SFERENCE_CLI, "rt_old")
-    assert out["refresh_token"] == "rt_x"
+    assert out["refresh_token"] == _tokens()["refresh_token"]
     assert seen[0]["grant_type"] == da.GRANT_TYPE_REFRESH_TOKEN
     assert seen[0]["refresh_token"] == "rt_old"
 
@@ -122,17 +130,11 @@ def test_refresh_invalid_grant_raises(monkeypatch):
 
 
 def test_start_device_login_success(monkeypatch):
-    body = {
-        "device_code": "dc",
-        "user_code": "ABCD-EFGH",
-        "verification_uri": "https://app.sference.com/device",
-        "expires_in": 600,
-        "interval": 5,
-    }
+    body = _fixture("V1OauthDeviceCodeDeviceCode")
     seen: list[dict] = []
     monkeypatch.setattr(da, "post_json", lambda url, payload, **k: (seen.append(payload) or (200, body)))
     out = da.start_device_login("https://api.sference.com", da.CLIENT_ID_SFERENCE_CLI, "my-laptop")
-    assert out["user_code"] == "ABCD-EFGH"
+    assert out == body
     assert seen[0]["client_id"] == da.CLIENT_ID_SFERENCE_CLI
     assert seen[0]["device_label"] == "my-laptop"
 

@@ -141,7 +141,7 @@ done = client.wait_for_completion(batch.id, poll_interval=5.0, timeout=86_400.0)
 client.download_results_jsonl(done.id, out="./out.jsonl")   # arg is `out`
 ```
 
-`wait_for_completion` defaults to **`timeout=30.0`s** — always pass an explicit `timeout` for real batches.
+`wait_for_completion` waits until the batch is terminal by default (`timeout=None`); pass `timeout=` to bound it.
 
 **Row bodies:** each `requests[].body` may use chat completions (`messages`) or Responses API shape (`input`, `max_output_tokens`, …). The API normalizes Responses fields to chat format at create, validates, then enqueues — invalid rows return **400** with `requests[i]` and `custom_id` (no late worker failures). Do not set `background: true` on batch row bodies.
 
@@ -178,12 +178,14 @@ asyncio.run(main())
 | Task | Methods |
 |------|---------|
 | Responses (default) | `create_response` (set `background=True`), `wait_for_response`, `get_response`, `cancel_response`, `list_responses` |
+| Streaming output (interactive only) | `stream_response` yields SSE events: text in `response.output_text.delta` (`event.delta`); the last event (`response.completed` / `incomplete` / `failed`) carries the full `event.response`. Not related to `create_stream` |
 | Completion events | `list_responses_events` (`stream_id`, `starting_after`, `wait_ms` long-poll); `iter_responses_events` (`stream_id`, `checkpoint`, `from_latest`) |
 | Streams | `create_stream(name, window=)`, `get_stream`, `list_streams`, `cancel_stream`, `archive_stream` |
 | Decisions (realtime classification) | `create_decision(model=, state=, questions=)`; questions are `ChoiceQuestion` / `ScoreQuestion` / `NoulQuestion` or dicts with `type` |
 | Batches | `submit_batch`, `wait_for_completion`, `get_results`, `download_results_jsonl`, `get_batch`, `list_batches`, `cancel_batch` |
+| Catalog and account | `list_models`, `get_me`, `get_billing_balance`, `get_billing_summary`, `list_billing_transactions`, `get_usage_summary`, `get_usage_daily`, `get_usage_by_key` |
 
-`create_response` / `submit_batch` / `create_stream` / `*_events` take **keyword arguments**. Response status: `in_progress → completed | failed | cancelled`. Batch status: `pending → running → completed | failed | cancelled`.
+`create_response` / `submit_batch` / `create_stream` / `*_events` take **keyword arguments**. `create_response` also takes `tools`, `tool_choice`, `reasoning`, `text`, `service_tier` (`"flex"` is cheaper and slower, `"priority"` is faster and costs more) and `idempotency_key` (makes retries safe). Errors raise `ApiError` with `status_code`, `type`, `code` and `message`. Response status: `in_progress → completed | failed | cancelled`. Batch status: `pending → running → completed | failed | cancelled`.
 
 ## Common mistakes
 
@@ -192,7 +194,6 @@ asyncio.run(main())
 | Defaulting to synchronous create | Prefer `create_response(background=True)` then `wait_for_response` |
 | Submitting stream responses before the stream exists | `create_stream(...)` first, then pass `metadata={"stream_id": ...}` |
 | `download_results_jsonl(..., path=...)` | Argument is **`out`** |
-| `wait_for_completion(batch.id)` with default timeout | Default is 30s — pass an explicit `timeout` |
 | Inventing window values (`"2h"`, `"30m"`) | The async window is `"24h"` only (responses, streams, batches) |
 | Content-only JSONL without a model | Pass `model=` to `submit_batch` |
 | Responses-shaped batch row without `messages` | Use `input` in `body` (normalized at create) or chat `messages` — not `background: true` |

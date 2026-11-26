@@ -20,6 +20,12 @@ REACTIVE = cc.REACTIVE_KEY
 FAKE_KEY = "sk_test_sference_key"
 FAKE_JWT = "header.payload.signature"
 DEFAULT_MODEL = launch_mod.DEFAULT_MODEL
+# The contract's create-API-key reply; tests/test_contract.py validates it.
+PROVISIONED = json.loads(
+    (Path(__file__).resolve().parent / "fixtures" / "ControlV1AuthApiKeysCreateApiKey" / "201.json").read_text(
+        encoding="utf-8"
+    )
+)
 
 FAKE_CATALOG = [
     {"id": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "display_name": "DeepSeek V4.1 Flash (1017)", "modality": "text_generation"},
@@ -117,8 +123,10 @@ def invoke(args: list[str]):
 # --------------------------------------------------------------------------- on
 
 
-def test_on_writes_config_and_backup(cursor_home: Path):
-    result = invoke(["launch", "cursor"])
+# Bare `launch cursor` and `launch cursor on` are the same command.
+@pytest.mark.parametrize("argv", [["launch", "cursor"], ["launch", "cursor", "on"]])
+def test_on_writes_config_and_backup(cursor_home: Path, argv: list[str]):
+    result = invoke(argv)
     assert result.exit_code == 0, result.output
     reactive = reactive_of(cursor_home)
     assert reactive["openAIBaseUrl"] == "https://api.sference.com/v1"
@@ -349,13 +357,7 @@ def test_on_provisions_key_for_device_login(cursor_home: Path, monkeypatch: pyte
 
     def fake_control(base, method, path, token, payload=None):
         calls.append({"method": method, "path": path, "token": token, "payload": payload})
-        return 201, {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "name": payload["name"],
-            "plaintext": "sk_provisioned",
-            "prefix": "sk_prov",
-            "created_at": "2026-10-20T00:00:00Z",
-        }
+        return 201, {**PROVISIONED, "name": payload["name"]}
 
     monkeypatch.setattr(launch_mod, "control_request", fake_control)
     result = invoke(["launch", "cursor"])
@@ -369,9 +371,9 @@ def test_on_provisions_key_for_device_login(cursor_home: Path, monkeypatch: pyte
         }
     ]
     assert calls[0]["payload"]["name"].startswith("sference-cli cursor (")
-    assert read_db(cursor_home)[cc.OPENAI_KEY_ROW] == "sk_provisioned"
+    assert read_db(cursor_home)[cc.OPENAI_KEY_ROW] == PROVISIONED["plaintext"]
     backup = cc.read_backup()
-    assert backup["provisioned_key"]["id"] == "11111111-1111-1111-1111-111111111111"
+    assert backup["provisioned_key"]["id"] == PROVISIONED["id"]
     assert backup["provisioned_key"]["tag"] == launch_mod.CURSOR_API_KEY_TAG
 
 
@@ -455,20 +457,14 @@ def test_off_revoke_key_deletes_server_key(cursor_home: Path, monkeypatch: pytes
     def fake_control(base, method, path, token, payload=None):
         calls.append({"method": method, "path": path})
         if method == "POST":
-            return 201, {
-                "id": "11111111-1111-1111-1111-111111111111",
-                "name": payload["name"],
-                "plaintext": "sk_provisioned",
-                "prefix": "sk_prov",
-                "created_at": "2026-10-20T00:00:00Z",
-            }
+            return 201, {**PROVISIONED, "name": payload["name"]}
         return 204, {}
 
     monkeypatch.setattr(launch_mod, "control_request", fake_control)
     assert invoke(["launch", "cursor"]).exit_code == 0
     result = invoke(["launch", "cursor", "off", "--revoke-key"])
     assert result.exit_code == 0, result.output
-    assert {"method": "DELETE", "path": "/control/v1/auth/api-keys/11111111-1111-1111-1111-111111111111"} in calls
+    assert {"method": "DELETE", "path": f"/control/v1/auth/api-keys/{PROVISIONED['id']}"} in calls
     assert "Revoked API key" in result.output
 
 
@@ -528,13 +524,7 @@ def test_on_rerun_after_cursor_migrated_the_key(cursor_home: Path, monkeypatch: 
     def fake_control(base, method, path, token, payload=None):
         if method == "POST":
             created.append(payload)
-            return 201, {
-                "id": "11111111-1111-1111-1111-111111111111",
-                "name": payload["name"],
-                "plaintext": "sk_provisioned",
-                "prefix": "sk_prov",
-                "created_at": "2026-10-20T00:00:00Z",
-            }
+            return 201, {**PROVISIONED, "name": payload["name"]}
         raise AssertionError("unexpected HTTP")
 
     monkeypatch.setattr(launch_mod, "control_request", fake_control)
@@ -561,7 +551,7 @@ def test_on_rerun_after_cursor_migrated_the_key(cursor_home: Path, monkeypatch: 
     backup = cc.read_backup()
     assert backup["reactive"] == original_backup["reactive"]
     assert backup["openai_key_row"] == original_backup["openai_key_row"]
-    assert backup["provisioned_key"]["id"] == "11111111-1111-1111-1111-111111111111"
+    assert backup["provisioned_key"]["id"] == PROVISIONED["id"]
 
 
 def test_off_after_rerun_restores_the_original_state(cursor_home: Path):
