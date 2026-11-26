@@ -24,7 +24,6 @@ import sys
 import pandas as pd
 import ray
 from ray.data import from_pandas
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 
@@ -104,7 +103,9 @@ def main() -> None:
         enriched.append(
             {
                 **row,
-                "sentiment": (result_row.completion_text if result_row else "").strip().lower(),
+                "sentiment": (result_row.completion_text if result_row else "")
+                .strip()
+                .lower(),
                 "inference_status": result_row.status if result_row else None,
             }
         )

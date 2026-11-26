@@ -1,0 +1,2 @@
+# Bulk reformat when adopting ruff format; skip it in git blame.
+25f34ab98f1219eb168cc6381d8d824069c60297

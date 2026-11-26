@@ -96,7 +96,12 @@ class AsyncSferenceClient(BaseClient):
         timeout: Any = httpx.USE_CLIENT_DEFAULT,
     ) -> httpx.Response:
         response = await self._client.request(
-            method, path, headers=self._headers(extra_headers), json=json_body, params=params, timeout=timeout
+            method,
+            path,
+            headers=self._headers(extra_headers),
+            json=json_body,
+            params=params,
+            timeout=timeout,
         )
         raise_for_status(response)
         return response
@@ -112,7 +117,14 @@ class AsyncSferenceClient(BaseClient):
         extra_headers: Mapping[str, str] | None = None,
         timeout: Any = httpx.USE_CLIENT_DEFAULT,
     ) -> _M:
-        response = await self._send(method, path, json_body, params=params, extra_headers=extra_headers, timeout=timeout)
+        response = await self._send(
+            method,
+            path,
+            json_body,
+            params=params,
+            extra_headers=extra_headers,
+            timeout=timeout,
+        )
         return model.model_validate(response.json())
 
     # Account ----------------------------------------------------------------
@@ -133,9 +145,16 @@ class AsyncSferenceClient(BaseClient):
         """Credit balance in micro-USD (GET /v1/billing/balance)."""
         return await self._call(BillingBalanceResponse, "GET", "/v1/billing/balance")
 
-    async def get_billing_summary(self, *, days: int | None = None) -> BillingSummaryResponse:
+    async def get_billing_summary(
+        self, *, days: int | None = None
+    ) -> BillingSummaryResponse:
         """Spend over the last ``days`` (1-365, server default 30) (GET /v1/billing/summary)."""
-        return await self._call(BillingSummaryResponse, "GET", "/v1/billing/summary", params=self._params(days=days))
+        return await self._call(
+            BillingSummaryResponse,
+            "GET",
+            "/v1/billing/summary",
+            params=self._params(days=days),
+        )
 
     async def list_billing_transactions(
         self, *, limit: int | None = None, starting_after: str | None = None
@@ -145,24 +164,40 @@ class AsyncSferenceClient(BaseClient):
         Page with ``starting_after=page.next_starting_after``.
         """
         params = self._params(limit=limit, starting_after=starting_after)
-        return await self._call(LedgerListResponse, "GET", "/v1/billing/transactions", params=params)
+        return await self._call(
+            LedgerListResponse, "GET", "/v1/billing/transactions", params=params
+        )
 
-    async def get_usage_summary(self, *, days: int | None = None, user_id: str | None = None) -> UsageSummaryResponse:
+    async def get_usage_summary(
+        self, *, days: int | None = None, user_id: str | None = None
+    ) -> UsageSummaryResponse:
         """Token and cost totals (GET /v1/usage/summary); ``user_id`` is for team admins."""
         params = self._params(days=days, user_id=user_id)
-        return await self._call(UsageSummaryResponse, "GET", "/v1/usage/summary", params=params)
+        return await self._call(
+            UsageSummaryResponse, "GET", "/v1/usage/summary", params=params
+        )
 
-    async def get_usage_daily(self, *, days: int | None = None, user_id: str | None = None) -> UsageDailyResponse:
+    async def get_usage_daily(
+        self, *, days: int | None = None, user_id: str | None = None
+    ) -> UsageDailyResponse:
         """Per-day, per-model usage (GET /v1/usage/daily)."""
         params = self._params(days=days, user_id=user_id)
-        return await self._call(UsageDailyResponse, "GET", "/v1/usage/daily", params=params)
+        return await self._call(
+            UsageDailyResponse, "GET", "/v1/usage/daily", params=params
+        )
 
     async def get_usage_by_key(
-        self, *, days: int | None = None, month: str | None = None, tag: str | None = None
+        self,
+        *,
+        days: int | None = None,
+        month: str | None = None,
+        tag: str | None = None,
     ) -> UsageByKeyResponse:
         """Usage per API key (GET /v1/usage/by-key); ``month`` (YYYY-MM) overrides ``days``."""
         params = self._params(days=days, month=month, tag=tag)
-        return await self._call(UsageByKeyResponse, "GET", "/v1/usage/by-key", params=params)
+        return await self._call(
+            UsageByKeyResponse, "GET", "/v1/usage/by-key", params=params
+        )
 
     # Embeddings and decisions --------------------------------------------------
 
@@ -177,7 +212,11 @@ class AsyncSferenceClient(BaseClient):
     ) -> EmbeddingResponse:
         """Create embeddings (POST /v1/embeddings)."""
         payload = self._embedding_payload(
-            model=model, input=input, encoding_format=encoding_format, dimensions=dimensions, user=user
+            model=model,
+            input=input,
+            encoding_format=encoding_format,
+            dimensions=dimensions,
+            user=user,
         )
         return await self._call(EmbeddingResponse, "POST", "/v1/embeddings", payload)
 
@@ -196,9 +235,15 @@ class AsyncSferenceClient(BaseClient):
         ``images`` accepts up to four PNG/JPEG/WebP data URLs or objects with
         ``content_type`` and ``base64``. Limits: 4 MiB/16 MP each, 8 MiB total.
         """
-        payload = self._decision_payload(model=model, state=state, questions=questions, images=images)
+        payload = self._decision_payload(
+            model=model, state=state, questions=questions, images=images
+        )
         return await self._call(
-            DecisionResponse, "POST", "/v1/decisions", payload, timeout=self._quiet_timeout(DECISION_READ_TIMEOUT)
+            DecisionResponse,
+            "POST",
+            "/v1/decisions",
+            payload,
+            timeout=self._quiet_timeout(DECISION_READ_TIMEOUT),
         )
 
     # Batches ------------------------------------------------------------------
@@ -212,7 +257,9 @@ class AsyncSferenceClient(BaseClient):
         window: str = "24h",
     ) -> Batch:
         """Submit a batch from a JSONL file or a list of requests (POST /v1/batches)."""
-        payload = self._batch_payload(input_file=input_file, requests=requests, model=model, window=window)
+        payload = self._batch_payload(
+            input_file=input_file, requests=requests, model=model, window=window
+        )
         return await self._call(Batch, "POST", "/v1/batches", payload)
 
     async def get_batch(self, batch_id: str) -> Batch:
@@ -231,8 +278,12 @@ class AsyncSferenceClient(BaseClient):
     async def cancel_batch(self, batch_id: str) -> Batch:
         return await self._call(Batch, "POST", f"/v1/batches/{batch_id}/cancel")
 
-    async def download_results_jsonl(self, batch_id: str, out: str | Path | BinaryIO) -> None:
-        content = (await self._send("GET", f"/v1/batches/{batch_id}/results.jsonl")).content
+    async def download_results_jsonl(
+        self, batch_id: str, out: str | Path | BinaryIO
+    ) -> None:
+        content = (
+            await self._send("GET", f"/v1/batches/{batch_id}/results.jsonl")
+        ).content
         if isinstance(out, (str, Path)):
             Path(out).write_bytes(content)
         else:
@@ -254,7 +305,9 @@ class AsyncSferenceClient(BaseClient):
     # Streams ------------------------------------------------------------------
 
     async def create_stream(self, name: str, window: StreamWindow = "24h") -> Stream:
-        return await self._call(Stream, "POST", "/v1/streams", {"name": name, "window": window})
+        return await self._call(
+            Stream, "POST", "/v1/streams", {"name": name, "window": window}
+        )
 
     async def list_streams(self) -> StreamList:
         return await self._call(StreamList, "GET", "/v1/streams")
@@ -263,10 +316,14 @@ class AsyncSferenceClient(BaseClient):
         return await self._call(Stream, "GET", f"/v1/streams/{stream_id}")
 
     async def archive_stream(self, stream_id: str) -> Stream:
-        return await self._call(Stream, "PATCH", f"/v1/streams/{stream_id}", {"status": "archived"})
+        return await self._call(
+            Stream, "PATCH", f"/v1/streams/{stream_id}", {"status": "archived"}
+        )
 
     async def cancel_stream(self, stream_id: str) -> Stream:
-        return await self._call(Stream, "PATCH", f"/v1/streams/{stream_id}", {"status": "cancelled"})
+        return await self._call(
+            Stream, "PATCH", f"/v1/streams/{stream_id}", {"status": "cancelled"}
+        )
 
     # Responses ----------------------------------------------------------------
 
@@ -330,7 +387,9 @@ class AsyncSferenceClient(BaseClient):
             payload,
             extra_headers=headers,
             # Background creates return at once; blocking ones wait for the whole generation.
-            timeout=httpx.USE_CLIENT_DEFAULT if background else self._quiet_timeout(BLOCKING_RESPONSE_READ_TIMEOUT),
+            timeout=httpx.USE_CLIENT_DEFAULT
+            if background
+            else self._quiet_timeout(BLOCKING_RESPONSE_READ_TIMEOUT),
         )
 
     def stream_response(
@@ -397,7 +456,9 @@ class AsyncSferenceClient(BaseClient):
         )
         return self._iter_stream(request)
 
-    async def _iter_stream(self, request: httpx.Request) -> AsyncIterator[ResponseStreamEvent]:
+    async def _iter_stream(
+        self, request: httpx.Request
+    ) -> AsyncIterator[ResponseStreamEvent]:
         response = await self._client.send(request, stream=True)
         try:
             if response.is_error:
@@ -419,7 +480,12 @@ class AsyncSferenceClient(BaseClient):
         finally:
             await response.aclose()
 
-    async def wait_for_response(self, response_id: str, poll_interval: float = 2.0, timeout: float | None = 3600.0) -> Response:
+    async def wait_for_response(
+        self,
+        response_id: str,
+        poll_interval: float = 2.0,
+        timeout: float | None = 3600.0,
+    ) -> Response:
         """Poll GET /v1/responses/{id} until terminal; ``timeout=None`` waits indefinitely."""
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
@@ -437,7 +503,9 @@ class AsyncSferenceClient(BaseClient):
         """Cancel a pending or running response."""
         return await self._call(Response, "DELETE", f"/v1/responses/{response_id}")
 
-    async def list_responses(self, *, limit: int = 100, stream_id: str | None = None) -> ResponseList:
+    async def list_responses(
+        self, *, limit: int = 100, stream_id: str | None = None
+    ) -> ResponseList:
         """List responses, optionally only those in one stream."""
         params = self._params(limit=limit, stream_id=stream_id)
         return await self._call(ResponseList, "GET", "/v1/responses", params=params)
@@ -459,7 +527,9 @@ class AsyncSferenceClient(BaseClient):
             starting_after=starting_after,
             ending_before=ending_before,
         )
-        return await self._call(StreamEventList, "GET", "/v1/responses/events", params=params)
+        return await self._call(
+            StreamEventList, "GET", "/v1/responses/events", params=params
+        )
 
     async def iter_responses_events(
         self,
@@ -484,17 +554,23 @@ class AsyncSferenceClient(BaseClient):
             for ev in reversed(page.data):
                 yield ev
                 if checkpoint:
-                    save_checkpoint(self.base_url, ck_stream, consumer_name, ev.completion_id)
+                    save_checkpoint(
+                        self.base_url, ck_stream, consumer_name, ev.completion_id
+                    )
             return
 
         while True:
-            page = await self.list_responses_events(stream_id=stream_id, limit=100, starting_after=cur)
+            page = await self.list_responses_events(
+                stream_id=stream_id, limit=100, starting_after=cur
+            )
             if not page.data:
                 return
             for ev in page.data:
                 yield ev
                 if checkpoint:
-                    save_checkpoint(self.base_url, ck_stream, consumer_name, ev.completion_id)
+                    save_checkpoint(
+                        self.base_url, ck_stream, consumer_name, ev.completion_id
+                    )
                 cur = ev.completion_id
             if not page.has_more:
                 return

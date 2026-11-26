@@ -33,7 +33,9 @@ def _batch_result_row(custom_id: str | None) -> dict[str, Any]:
     }
 
 
-def _response_payload(response_id: str, *, custom_id: str | None = None) -> dict[str, Any]:
+def _response_payload(
+    response_id: str, *, custom_id: str | None = None
+) -> dict[str, Any]:
     text = _mock_completion_text(custom_id)
     return {
         "id": response_id,
@@ -67,7 +69,7 @@ class MockSferenceState:
 class MockSferenceHandler(BaseHTTPRequestHandler):
     state: MockSferenceState
 
-    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+    def log_message(self, format: str, *args: Any) -> None:
         return
 
     def _read_json(self) -> dict[str, Any]:
@@ -75,7 +77,7 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length) if length else b"{}"
         parsed = json.loads(raw.decode("utf-8"))
         if not isinstance(parsed, dict):
-            raise ValueError("expected JSON object")
+            raise TypeError("expected JSON object")
         return parsed
 
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
@@ -86,7 +88,7 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         path = urlparse(self.path).path
         if path == "/v1/batches":
             body = self._read_json()
@@ -125,7 +127,7 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"detail": "not found"})
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         path = urlparse(self.path).path
 
         batch_match = re.fullmatch(r"/v1/batches/([^/]+)", path)
@@ -154,7 +156,9 @@ class MockSferenceHandler(BaseHTTPRequestHandler):
             batch_id = results_match.group(1)
             requests = self.state.batches.get(batch_id, [])
             results = [
-                _batch_result_row(req.get("custom_id") if isinstance(req, dict) else None)
+                _batch_result_row(
+                    req.get("custom_id") if isinstance(req, dict) else None
+                )
                 for req in requests
             ]
             self._send_json(

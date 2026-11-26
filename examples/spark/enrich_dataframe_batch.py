@@ -15,7 +15,6 @@ import sys
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 
@@ -60,13 +59,10 @@ def main() -> None:
     )
 
     # Executors format prompts; driver owns the single-model batch contract.
-    prompt_rows = (
-        df.select(
-            "ticket_id",
-            F.concat(F.lit("Ticket:\n"), F.col("body")).alias("user_content"),
-        )
-        .collect()
-    )
+    prompt_rows = df.select(
+        "ticket_id",
+        F.concat(F.lit("Ticket:\n"), F.col("body")).alias("user_content"),
+    ).collect()
 
     requests = [
         InferenceRequest.chat(
@@ -93,7 +89,9 @@ def main() -> None:
     summaries = [
         {
             "ticket_id": row.ticket_id,
-            "summary": (by_id[row.ticket_id].completion_text if row.ticket_id in by_id else ""),
+            "summary": (
+                by_id[row.ticket_id].completion_text if row.ticket_id in by_id else ""
+            ),
         }
         for row in prompt_rows
     ]

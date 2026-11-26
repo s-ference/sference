@@ -10,17 +10,17 @@ import warnings
 import webbrowser
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NoReturn, Optional, TypeVar
-
-import typer
+from typing import Any, NoReturn, TypeVar
 
 import sference_sdk
+import typer
 from sference_sdk import COMPLETION_WINDOWS, ApiError, SferenceClient
-
-from sference_cli import __version__ as _CLI_VERSION
 from sference_sdk.checkpoint import clear_checkpoint, load_checkpoint, save_checkpoint
 
+from sference_cli import __version__ as _CLI_VERSION
+
 from . import stream_cache as stream_cache_mod
+from ._discovery import is_retired
 from .device_auth import (
     CLIENT_ID_SFERENCE_CLI,
     EXPIRY_SKEW_SECONDS,
@@ -29,9 +29,13 @@ from .device_auth import (
     refresh_tokens,
     start_device_login,
 )
-from ._discovery import is_retired
 from .launch import register_launch_commands
-from .settings import DEFAULT_API_BASE_URL, DEFAULT_MODEL, resolve_api_base_url, resolve_model
+from .settings import (
+    DEFAULT_API_BASE_URL,
+    DEFAULT_MODEL,
+    resolve_api_base_url,
+    resolve_model,
+)
 
 _T = TypeVar("_T")
 
@@ -39,13 +43,28 @@ _logger = logging.getLogger(__name__)
 
 
 app = typer.Typer(help="sference CLI", invoke_without_command=True)
-auth_app = typer.Typer(help="Sign in and inspect the current credential.", invoke_without_command=True)
-batch_app = typer.Typer(help="Batches: submit a JSONL file, wait, fetch results.", invoke_without_command=True)
-stream_app = typer.Typer(help="Streams: long-lived queues of responses.", invoke_without_command=True)
-responses_app = typer.Typer(help="Single responses (POST /v1/responses).", invoke_without_command=True)
-models_app = typer.Typer(help="List models (GET /v1/models).", invoke_without_command=True)
-embeddings_app = typer.Typer(help="Embeddings (POST /v1/embeddings).", invoke_without_command=True)
-decisions_app = typer.Typer(help="Realtime decisions (POST /v1/decisions).", invoke_without_command=True)
+auth_app = typer.Typer(
+    help="Sign in and inspect the current credential.", invoke_without_command=True
+)
+batch_app = typer.Typer(
+    help="Batches: submit a JSONL file, wait, fetch results.",
+    invoke_without_command=True,
+)
+stream_app = typer.Typer(
+    help="Streams: long-lived queues of responses.", invoke_without_command=True
+)
+responses_app = typer.Typer(
+    help="Single responses (POST /v1/responses).", invoke_without_command=True
+)
+models_app = typer.Typer(
+    help="List models (GET /v1/models).", invoke_without_command=True
+)
+embeddings_app = typer.Typer(
+    help="Embeddings (POST /v1/embeddings).", invoke_without_command=True
+)
+decisions_app = typer.Typer(
+    help="Realtime decisions (POST /v1/decisions).", invoke_without_command=True
+)
 app.add_typer(auth_app, name="auth")
 app.add_typer(batch_app, name="batch")
 app.add_typer(stream_app, name="stream")
@@ -66,7 +85,10 @@ BASE_URL_OPTION = typer.Option(
 )
 JSON_OPTION = typer.Option(False, "--json", help="Print the raw API response as JSON.")
 MODEL_OPTION = typer.Option(
-    None, "--model", "-m", help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL})."
+    None,
+    "--model",
+    "-m",
+    help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
 )
 BATCH_MODEL_OPTION = typer.Option(
     None,
@@ -120,7 +142,7 @@ def _read_credentials_file() -> dict | None:
         return None
     try:
         payload = json.loads(CREDENTIALS_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except (OSError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
 
@@ -148,9 +170,15 @@ def _read_device_credentials() -> dict | None:
     if not isinstance(expires_at, (int, float)):
         return None
     if time.time() < expires_at - EXPIRY_SKEW_SECONDS:
-        return {"access_token": access_token, "refresh_token": refresh_token, "expires_at": expires_at}
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+        }
     try:
-        tokens = refresh_tokens(_device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token)
+        tokens = refresh_tokens(
+            _device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token
+        )
     except DeviceAuthError as exc:
         typer.echo(
             f"Device login could not be refreshed ({exc.description}).\n"
@@ -177,7 +205,9 @@ def _has_device_grant() -> bool:
     payload = _read_credentials_file()
     if payload is None:
         return False
-    return isinstance(payload.get("access_token"), str) and isinstance(payload.get("refresh_token"), str)
+    return isinstance(payload.get("access_token"), str) and isinstance(
+        payload.get("refresh_token"), str
+    )
 
 
 def _env_api_key() -> str | None:
@@ -207,7 +237,9 @@ def _recover_from_unauthorized() -> str | None:
     if not isinstance(refresh_token, str):
         return None
     try:
-        tokens = refresh_tokens(_device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token)
+        tokens = refresh_tokens(
+            _device_flow_base_url(), CLIENT_ID_SFERENCE_CLI, refresh_token
+        )
     except DeviceAuthError as exc:
         _device_grant_dead = True
         _warn_once(
@@ -261,17 +293,19 @@ _active_client: SferenceClient | None = None
 
 
 def _client(
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     *,
     timeout: float | None = None,
-    token: Optional[str] = None,
+    token: str | None = None,
 ) -> SferenceClient:
     """Build a client. ``token`` pins the credential instead of resolving one —
     used right after a login, which must validate what it just minted rather
     than whatever ``_read_token`` would pick."""
     global _active_client
     _active_client = SferenceClient(
-        base_url=resolve_api_base_url(base_url), api_key=token or _read_token(), timeout=timeout
+        base_url=resolve_api_base_url(base_url),
+        api_key=token or _read_token(),
+        timeout=timeout,
     )
     return _active_client
 
@@ -360,7 +394,9 @@ def _get_batch_or_missing(client: SferenceClient, batch_id: str) -> Any | None:
     return _call_api(fetch)
 
 
-def _submit_batch(client: SferenceClient, *, input_file: str, model: Optional[str], window: str) -> Any:
+def _submit_batch(
+    client: SferenceClient, *, input_file: str, model: str | None, window: str
+) -> Any:
     """Submit a JSONL file, turning local parse errors into a clean exit."""
     with warnings.catch_warnings():
         # The SDK warns that --model is ignored for envelope lines; that is
@@ -369,7 +405,9 @@ def _submit_batch(client: SferenceClient, *, input_file: str, model: Optional[st
             warnings.simplefilter("ignore")
         try:
             return _call_api(
-                lambda: client.submit_batch(input_file=input_file, model=resolve_model(model), window=window)
+                lambda: client.submit_batch(
+                    input_file=input_file, model=resolve_model(model), window=window
+                )
             )
         except (ValueError, OSError) as exc:
             _fail(f"Could not read {input_file}: {exc}")
@@ -389,7 +427,11 @@ def _print(value: object, as_json: bool) -> None:
         return
     width = max((len(str(k)) for k in value), default=0)
     for key, val in value.items():
-        rendered = val if isinstance(val, (str, int, float)) or val is None else json.dumps(val, default=str)
+        rendered = (
+            val
+            if isinstance(val, (str, int, float)) or val is None
+            else json.dumps(val, default=str)
+        )
         typer.echo(f"{str(key).ljust(width)}  {'—' if rendered is None else rendered}")
 
 
@@ -447,7 +489,16 @@ def _print_models_table(payload: object) -> None:
         typer.echo("No models.")
         return
 
-    headers = ("id", "name", "modality", "context", "vision", "thinking", "tools", "note")
+    headers = (
+        "id",
+        "name",
+        "modality",
+        "context",
+        "vision",
+        "thinking",
+        "tools",
+        "note",
+    )
     table = []
     for row in rows:
         ctx = row.get("context_tokens")
@@ -472,7 +523,9 @@ def _print_models_table(payload: object) -> None:
 def _window_choice(value: str) -> str:
     if value not in COMPLETION_WINDOWS:
         allowed = ", ".join(f'"{w}"' for w in COMPLETION_WINDOWS)
-        raise typer.BadParameter(f"Window must be one of {allowed}.", param_hint="--window")
+        raise typer.BadParameter(
+            f"Window must be one of {allowed}.", param_hint="--window"
+        )
     return value
 
 
@@ -489,7 +542,9 @@ def _root(
 ) -> None:
     """Print help when invoked without a command."""
     if version:
-        typer.echo(f"sference-cli {_CLI_VERSION} (sference-sdk {sference_sdk.__version__})")
+        typer.echo(
+            f"sference-cli {_CLI_VERSION} (sference-sdk {sference_sdk.__version__})"
+        )
         raise typer.Exit(code=0)
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
@@ -528,13 +583,11 @@ def _responses_root(ctx: typer.Context) -> None:
         raise typer.Exit(code=0)
 
 
-
-
 @models_app.callback()
 def _models_root(
     ctx: typer.Context,
     as_json: bool = JSON_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """List models (GET /v1/models)."""
     if ctx.invoked_subcommand is not None:
@@ -546,7 +599,7 @@ def _models_root(
 @models_app.command("list")
 def models_list(
     as_json: bool = JSON_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """List models (GET /v1/models)."""
     _ensure_api_credential()
@@ -555,13 +608,26 @@ def models_list(
 
 @embeddings_app.command("create")
 def embeddings_create(
-    model: str = typer.Option(..., "--model", "-m", help="Embedding model id (modality=embedding in `sference models`)."),
-    input_text: list[str] = typer.Option(..., "--input", help="Text to embed (repeat for multiple strings)."),
-    encoding_format: str = typer.Option("float", "--encoding-format", help='"float" or "base64".'),
-    dimensions: Optional[int] = typer.Option(None, "--dimensions"),
-    timeout: float = typer.Option(600.0, "--timeout", help="HTTP read timeout in seconds."),
-    base_url: Optional[str] = BASE_URL_OPTION,
-    _as_json: bool = typer.Option(False, "--json", hidden=True, help="No-op: output is always JSON."),
+    model: str = typer.Option(
+        ...,
+        "--model",
+        "-m",
+        help="Embedding model id (modality=embedding in `sference models`).",
+    ),
+    input_text: list[str] = typer.Option(
+        ..., "--input", help="Text to embed (repeat for multiple strings)."
+    ),
+    encoding_format: str = typer.Option(
+        "float", "--encoding-format", help='"float" or "base64".'
+    ),
+    dimensions: int | None = typer.Option(None, "--dimensions"),
+    timeout: float = typer.Option(
+        600.0, "--timeout", help="HTTP read timeout in seconds."
+    ),
+    base_url: str | None = BASE_URL_OPTION,
+    _as_json: bool = typer.Option(
+        False, "--json", hidden=True, help="No-op: output is always JSON."
+    ),
 ) -> None:
     """Create embeddings (POST /v1/embeddings). Prints the response as JSON."""
     _ensure_api_credential()
@@ -585,7 +651,11 @@ def _read_json_option(raw: str, option: str) -> object:
     if raw.startswith("@"):
         source = raw[1:]
         try:
-            raw = sys.stdin.read() if source == "-" else Path(source).read_text(encoding="utf-8")
+            raw = (
+                sys.stdin.read()
+                if source == "-"
+                else Path(source).read_text(encoding="utf-8")
+            )
         except OSError as exc:
             _fail(f"{option}: could not read {source}: {exc}")
     try:
@@ -608,36 +678,47 @@ def _format_answer(answer: dict) -> str:
 @decisions_app.command("create")
 def decisions_create(
     model: str = typer.Option(
-        ..., "--model", "-m", help="Decisions model id (modality=decisions in `sference models`)."
+        ...,
+        "--model",
+        "-m",
+        help="Decisions model id (modality=decisions in `sference models`).",
     ),
     questions: str = typer.Option(
         ...,
         "--questions",
         help='JSON object {name: {"type": "choice"|"score"|"noul", ...}}; @path reads a file, @- stdin.',
     ),
-    state: Optional[str] = typer.Option(None, "--state", help="Text to decide about."),
-    state_json: Optional[str] = typer.Option(
-        None, "--state-json", help="State as a JSON value instead of text; @path reads a file, @- stdin."
+    state: str | None = typer.Option(None, "--state", help="Text to decide about."),
+    state_json: str | None = typer.Option(
+        None,
+        "--state-json",
+        help="State as a JSON value instead of text; @path reads a file, @- stdin.",
     ),
     # Unset leaves the SDK's per-call read timeout, which outlasts the server's own deadline.
-    timeout: Optional[float] = typer.Option(
-        None, "--timeout", help="HTTP read timeout in seconds (default: as long as the server may take)."
+    timeout: float | None = typer.Option(
+        None,
+        "--timeout",
+        help="HTTP read timeout in seconds (default: as long as the server may take).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Answer up to 64 questions about one state in a single realtime call (POST /v1/decisions)."""
     _ensure_api_credential()
     if (state is None) == (state_json is None):
         _fail("Pass exactly one of --state or --state-json.")
-    state_value = state if state is not None else _read_json_option(state_json, "--state-json")
+    state_value = (
+        state if state is not None else _read_json_option(state_json, "--state-json")
+    )
     parsed_questions = _read_json_option(questions, "--questions")
     if not isinstance(parsed_questions, dict):
         _fail("--questions must be a JSON object keyed by question name.")
     client = _client(base_url, timeout=timeout)
     try:
         resp = _call_api(
-            lambda: client.create_decision(model=model, state=state_value, questions=parsed_questions)
+            lambda: client.create_decision(
+                model=model, state=state_value, questions=parsed_questions
+            )
         )
     except ValueError as exc:
         _fail(f"Invalid --questions: {exc}")
@@ -651,7 +732,7 @@ def decisions_create(
     typer.echo(f"input_tokens: {payload['usage']['input_tokens']}")
 
 
-def _validate_login(base_url: Optional[str], token: str, as_json: bool) -> None:
+def _validate_login(base_url: str | None, token: str, as_json: bool) -> None:
     """Call GET /v1/auth/me with the credential just saved and say who it is."""
     me = _plain(_call_api(_client(base_url, token=token).get_me))
     if as_json:
@@ -664,25 +745,31 @@ def _validate_login(base_url: Optional[str], token: str, as_json: bool) -> None:
 
 @auth_app.command("login")
 def auth_login(
-    api_key: Optional[str] = typer.Option(
+    api_key: str | None = typer.Option(
         None,
         "--api-key",
         help="API key (sk_...) or JWT. Non-interactive: saves immediately (e.g. CI).",
     ),
-    as_json: bool = typer.Option(False, "--json", help="Print authenticated user as JSON after validation."),
+    as_json: bool = typer.Option(
+        False, "--json", help="Print authenticated user as JSON after validation."
+    ),
     validate: bool = typer.Option(
         True,
         "--validate/--no-validate",
         help="Validate the credential by calling GET /v1/auth/me and print the authenticated user.",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
-    console_url: Optional[str] = typer.Option(
+    base_url: str | None = BASE_URL_OPTION,
+    console_url: str | None = typer.Option(
         None,
         "--console-url",
         envvar="SFERENCE_CONSOLE_URL",
         help="Override the console URL the browser opens (default: the server-provided verification URI).",
     ),
-    no_browser: bool = typer.Option(False, "--no-browser", help="Do not open a browser; print the URL and code only."),
+    no_browser: bool = typer.Option(
+        False,
+        "--no-browser",
+        help="Do not open a browser; print the URL and code only.",
+    ),
 ) -> None:
     """Authenticate this device: approve a code in the console (RFC 8628 device flow).
 
@@ -703,7 +790,7 @@ def auth_login(
     api_base = resolve_api_base_url(base_url)
     try:
         device_label = platform.node() or None
-    except Exception:
+    except OSError:
         device_label = None
     try:
         start = start_device_login(api_base, CLIENT_ID_SFERENCE_CLI, device_label)
@@ -722,7 +809,7 @@ def auth_login(
         typer.echo(f"Opening {approve_url} in your browser...")
         try:
             webbrowser.open(approve_url)
-        except Exception:
+        except (webbrowser.Error, OSError):
             typer.echo("Could not open the browser automatically.")
     typer.echo("")
     typer.echo(f"Approve this device at: {approve_url}")
@@ -748,7 +835,7 @@ def auth_login(
 
 @auth_app.command("me")
 def auth_me(
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show the user the current credential belongs to (GET /v1/auth/me)."""
@@ -759,15 +846,17 @@ def auth_me(
 @responses_app.command("create")
 def responses_create(
     content: str = typer.Option(..., "--content", help="User message text."),
-    model: Optional[str] = MODEL_OPTION,
-    instructions: Optional[str] = typer.Option(None, "--instructions", help="System prompt."),
-    max_output_tokens: Optional[int] = typer.Option(None, "--max-output-tokens"),
+    model: str | None = MODEL_OPTION,
+    instructions: str | None = typer.Option(
+        None, "--instructions", help="System prompt."
+    ),
+    max_output_tokens: int | None = typer.Option(None, "--max-output-tokens"),
     include_reasoning: bool = typer.Option(
         True,
         "--include-reasoning/--no-include-reasoning",
         help="Include extracted reasoning in the response output.",
     ),
-    enable_thinking: Optional[bool] = typer.Option(
+    enable_thinking: bool | None = typer.Option(
         None,
         "--enable-thinking/--disable-thinking",
         help="Turn thinking on/off for thinking-capable models (omit for the model default). "
@@ -784,10 +873,12 @@ def responses_create(
         ),
     ),
     # Unset leaves the SDK's per-call read timeout, which outlasts the server's own deadline.
-    timeout: Optional[float] = typer.Option(
-        None, "--timeout", help="HTTP read timeout in seconds (default: as long as the server may take)."
+    timeout: float | None = typer.Option(
+        None,
+        "--timeout",
+        help="HTTP read timeout in seconds (default: as long as the server may take).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Create one response (POST /v1/responses) and print it as JSON."""
     _ensure_api_credential()
@@ -813,9 +904,11 @@ _TERMINAL_RESPONSE_STATUSES = ("completed", "failed", "cancelled", "incomplete")
 def responses_result(
     id: str = typer.Option(..., "--id", help="Response id from `responses create`."),
     poll_interval: float = typer.Option(
-        0.5, "--poll-interval", help="Seconds between status polls while waiting for completion."
+        0.5,
+        "--poll-interval",
+        help="Seconds between status polls while waiting for completion.",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Wait for a response to reach a terminal status and print the final JSON. Ctrl-C stops waiting."""
     _ensure_api_credential()
@@ -833,25 +926,31 @@ def responses_result(
 
 @responses_app.command("tail")
 def responses_tail(
-    stream_id: Optional[str] = typer.Option(
+    stream_id: str | None = typer.Option(
         None,
         "--stream-id",
         help="Optional stream UUID; omit to tail non-stream completion events only.",
     ),
-    consumer: str = typer.Option("default", "--consumer", help="Checkpoint namespace for resume."),
+    consumer: str = typer.Option(
+        "default", "--consumer", help="Checkpoint namespace for resume."
+    ),
     from_latest: bool = typer.Option(
         False,
         "--from-latest",
         help="Ignore saved checkpoint and start from the latest events page.",
     ),
-    no_checkpoint: bool = typer.Option(False, "--no-checkpoint", help="Do not read or write checkpoints."),
+    no_checkpoint: bool = typer.Option(
+        False, "--no-checkpoint", help="Do not read or write checkpoints."
+    ),
     poll_interval: float = typer.Option(
         5.0,
         "--poll-interval",
         help="Seconds to long-poll while catching up (capped at 30s server-side).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
-    _as_json: bool = typer.Option(False, "--json", hidden=True, help="No-op: output is always JSONL."),
+    base_url: str | None = BASE_URL_OPTION,
+    _as_json: bool = typer.Option(
+        False, "--json", hidden=True, help="No-op: output is always JSONL."
+    ),
 ) -> None:
     """Print completion events as JSONL (GET /v1/responses/events). Ctrl-C to stop.
 
@@ -873,7 +972,7 @@ def responses_tail(
     try:
         while True:
             page = _call_api(
-                lambda: client.list_responses_events(
+                lambda last=last: client.list_responses_events(
                     stream_id=stream_id, limit=50, starting_after=last, wait_ms=wait_ms
                 )
             )
@@ -892,7 +991,7 @@ def responses_tail(
 
 @batch_app.command("list")
 def batch_list(
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """List batches."""
@@ -925,10 +1024,12 @@ _WINDOW_OPTION = typer.Option(
 
 @batch_app.command("submit")
 def batch_submit(
-    input_file: str = typer.Option(..., "--input-file", help="JSONL file (see README: JSONL input formats)."),
-    model: Optional[str] = BATCH_MODEL_OPTION,
+    input_file: str = typer.Option(
+        ..., "--input-file", help="JSONL file (see README: JSONL input formats)."
+    ),
+    model: str | None = BATCH_MODEL_OPTION,
     window: str = _WINDOW_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Submit a JSONL file as one batch (POST /v1/batches)."""
@@ -941,7 +1042,7 @@ def batch_submit(
 @batch_app.command("status")
 def batch_status(
     batch_id: str = typer.Option(..., "--batch-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show one batch."""
@@ -955,14 +1056,20 @@ _TERMINAL_BATCH_STATUSES = ("completed", "failed", "cancelled")
 
 @batch_app.command("stream")
 def batch_stream(
-    input_file: str = typer.Option(..., "--input-file", help="JSONL file (see README: JSONL input formats)."),
-    model: Optional[str] = BATCH_MODEL_OPTION,
+    input_file: str = typer.Option(
+        ..., "--input-file", help="JSONL file (see README: JSONL input formats)."
+    ),
+    model: str | None = BATCH_MODEL_OPTION,
     window: str = _WINDOW_OPTION,
     poll_interval: float = typer.Option(
-        2.0, "--poll-interval", help="Seconds between status polls while the batch is running."
+        2.0,
+        "--poll-interval",
+        help="Seconds between status polls while the batch is running.",
     ),
-    no_cache: bool = typer.Option(False, "--no-cache", help="Skip resumable cache; always submit a new batch."),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Skip resumable cache; always submit a new batch."
+    ),
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Submit a JSONL batch, wait until it finishes, print JSONL results to stdout (progress on stderr).
 
@@ -998,10 +1105,15 @@ def batch_stream(
     batch_id, status = _batch_id_and_status(batch)
     start = time.monotonic()
     while status not in _TERMINAL_BATCH_STATUSES:
-        typer.echo(f"Batch {batch_id} status={status} ({int(time.monotonic() - start)}s)", err=True)
+        typer.echo(
+            f"Batch {batch_id} status={status} ({int(time.monotonic() - start)}s)",
+            err=True,
+        )
         time.sleep(poll_interval)
         _, status = _batch_id_and_status(_call_api(lambda: client.get_batch(batch_id)))
-    typer.echo(f"Batch {batch_id} status={status} ({int(time.monotonic() - start)}s)", err=True)
+    typer.echo(
+        f"Batch {batch_id} status={status} ({int(time.monotonic() - start)}s)", err=True
+    )
 
     try:
         _call_api(lambda: client.download_results_jsonl(batch_id, sys.stdout.buffer))
@@ -1015,9 +1127,13 @@ def batch_stream(
 @batch_app.command("wait")
 def batch_wait(
     batch_id: str = typer.Option(..., "--batch-id"),
-    poll_interval: float = typer.Option(1.0, "--poll-interval", help="Seconds between status polls."),
-    timeout: float = typer.Option(30.0, "--timeout", help="Give up after this many seconds."),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    poll_interval: float = typer.Option(
+        1.0, "--poll-interval", help="Seconds between status polls."
+    ),
+    timeout: float = typer.Option(
+        30.0, "--timeout", help="Give up after this many seconds."
+    ),
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Poll a batch until it reaches a terminal status (or --timeout)."""
@@ -1025,17 +1141,21 @@ def batch_wait(
     client = _client(base_url)
     try:
         batch = _call_api(
-            lambda: client.wait_for_completion(batch_id, poll_interval=poll_interval, timeout=timeout)
+            lambda: client.wait_for_completion(
+                batch_id, poll_interval=poll_interval, timeout=timeout
+            )
         )
     except TimeoutError as exc:
-        _fail(f"{exc}. Raise --timeout, or use `sference batch stream`, which waits without a limit.")
+        _fail(
+            f"{exc}. Raise --timeout, or use `sference batch stream`, which waits without a limit."
+        )
     _print(batch.model_dump(), as_json)
 
 
 @batch_app.command("results")
 def batch_results(
     batch_id: str = typer.Option(..., "--batch-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show a finished batch's results (GET /v1/batches/{id}/results)."""
@@ -1047,7 +1167,7 @@ def batch_results(
 @batch_app.command("cancel")
 def batch_cancel(
     batch_id: str = typer.Option(..., "--batch-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Cancel a batch."""
@@ -1060,8 +1180,10 @@ def batch_cancel(
 def batch_download_results(
     batch_id: str = typer.Option(..., "--batch-id"),
     out: Path = typer.Option(..., "--out", help="Output path for downloaded results."),
-    format: str = typer.Option("jsonl", "--format", help="Download format (only jsonl is supported)."),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    format: str = typer.Option(
+        "jsonl", "--format", help="Download format (only jsonl is supported)."
+    ),
+    base_url: str | None = BASE_URL_OPTION,
 ) -> None:
     """Download a batch's results as JSONL to a file."""
     _ensure_api_credential()
@@ -1078,18 +1200,21 @@ def batch_download_results(
 def stream_create(
     name: str = typer.Option(..., "--name"),
     window: str = _WINDOW_OPTION,
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Create a stream."""
     _ensure_api_credential()
     client = _client(base_url)
-    _print(_call_api(lambda: client.create_stream(name=name, window=window)).model_dump(), as_json)
+    _print(
+        _call_api(lambda: client.create_stream(name=name, window=window)).model_dump(),
+        as_json,
+    )
 
 
 @stream_app.command("list")
 def stream_list(
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """List streams."""
@@ -1101,7 +1226,7 @@ def stream_list(
 @stream_app.command("status")
 def stream_status(
     stream_id: str = typer.Option(..., "--stream-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Show one stream with its counters."""
@@ -1123,7 +1248,9 @@ _STREAM_LINE_FIELDS = (
 )
 
 
-def _stream_line_request(line_no: int, data: object, *, model: Optional[str], stream_id: str) -> dict[str, Any]:
+def _stream_line_request(
+    line_no: int, data: object, *, model: str | None, stream_id: str
+) -> dict[str, Any]:
     """Map one ``stream submit`` JSONL line to ``create_response`` kwargs.
 
     Accepts the same shapes as batch JSONL — content-only ``{"content"}``, a
@@ -1140,7 +1267,9 @@ def _stream_line_request(line_no: int, data: object, *, model: Optional[str], st
     elif "input" in data or "messages" in data:
         body = {k: v for k, v in data.items() if k != "custom_id"}
     else:
-        _fail(f"Line {line_no}: expected {{content}}, {{input, ...}} or a batch envelope {{body: {{...}}}}.")
+        _fail(
+            f"Line {line_no}: expected {{content}}, {{input, ...}} or a batch envelope {{body: {{...}}}}."
+        )
 
     if "input" not in body and "messages" in body:
         body["input"] = body.pop("messages")
@@ -1178,13 +1307,13 @@ def stream_submit(
         dir_okay=False,
         help="JSONL: {content}, {input, ...}, or a batch envelope {custom_id?, body: {...}} per line.",
     ),
-    model: Optional[str] = typer.Option(
+    model: str | None = typer.Option(
         None,
         "--model",
         "-m",
         help=f"Model for lines without their own (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
     ),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Queue one background response per JSONL line on a stream (POST /v1/responses).
@@ -1195,21 +1324,31 @@ def stream_submit(
     """
     _ensure_api_credential()
     requests = []
-    for line_no, line in enumerate(input_file.read_text(encoding="utf-8").splitlines(), start=1):
+    for line_no, line in enumerate(
+        input_file.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         if not line.strip():
             continue
         try:
             data = json.loads(line)
         except json.JSONDecodeError as exc:
             _fail(f"Line {line_no}: invalid JSON: {exc}")
-        requests.append(_stream_line_request(line_no, data, model=model, stream_id=stream_id))
+        requests.append(
+            _stream_line_request(line_no, data, model=model, stream_id=stream_id)
+        )
     if not requests:
         _fail(f"{input_file} has no requests.")
 
     client = _client(base_url)
-    created = [_call_api(lambda req=req: client.create_response(**req)).model_dump() for req in requests]
+    created = [
+        _call_api(lambda req=req: client.create_response(**req)).model_dump()
+        for req in requests
+    ]
     if as_json:
-        _print({"stream_id": stream_id, "total_items": len(created), "items": created}, True)
+        _print(
+            {"stream_id": stream_id, "total_items": len(created), "items": created},
+            True,
+        )
         return
     for r in created:
         typer.echo(f"{r.get('id')}  {r.get('status')}")
@@ -1219,7 +1358,7 @@ def stream_submit(
 @stream_app.command("archive")
 def stream_archive(
     stream_id: str = typer.Option(..., "--stream-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Finalize a stream; it accepts no new items."""
@@ -1231,7 +1370,7 @@ def stream_archive(
 @stream_app.command("cancel")
 def stream_cancel(
     stream_id: str = typer.Option(..., "--stream-id"),
-    base_url: Optional[str] = BASE_URL_OPTION,
+    base_url: str | None = BASE_URL_OPTION,
     as_json: bool = JSON_OPTION,
 ) -> None:
     """Stop accepting new items and stop enqueueing pending work; in-flight items are not auto-cancelled."""

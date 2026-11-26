@@ -6,6 +6,8 @@ This repo is the source of the `sference-sdk` and `sference-cli` Python packages
 
 ```bash
 uv sync --group dev --group examples-test
+uvx pre-commit install  # runs ruff on every commit
+uv run ruff check --fix . && uv run ruff format .
 uv run pytest -q
 ```
 

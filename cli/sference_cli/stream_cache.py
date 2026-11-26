@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +55,7 @@ def set_cached_batch(key: str, batch_id: str, base_url: str) -> None:
     data[key] = {
         "batch_id": batch_id,
         "base_url": base_url.rstrip("/"),
-        "created_at": datetime.now(tz=timezone.utc).isoformat(),
+        "created_at": datetime.now(tz=UTC).isoformat(),
     }
     _save_all(data)
 

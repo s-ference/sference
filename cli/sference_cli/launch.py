@@ -12,7 +12,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -208,9 +207,14 @@ def launch_claude_code(
     # prime costs the /model entries, not the session.
     try:
         cache_path = prime_picker_cache(model_entries, base_url)
-        typer.echo(f"sference: /model picker cache primed ({len(model_entries)} model(s) -> {cache_path})", err=True)
+        typer.echo(
+            f"sference: /model picker cache primed ({len(model_entries)} model(s) -> {cache_path})",
+            err=True,
+        )
     except (OSError, ValueError, TypeError) as e:
-        typer.echo(f"sference: warning: could not prime the /model picker cache: {e}", err=True)
+        typer.echo(
+            f"sference: warning: could not prime the /model picker cache: {e}", err=True
+        )
 
     _exec(claude_bin, cmd, env)
 
@@ -287,7 +291,7 @@ def _build_pi_models(*, base_url: str, api_key: str, model: str) -> list[dict]:
     """
     try:
         entries = fetch_sference_model_entries(base_url, api_key)
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog is optional; fall back
         typer.echo(
             f"note: could not fetch model catalog from {base_url}/models; "
             f"registered only --model {model}. The /model picker will show just "
@@ -359,7 +363,9 @@ def launch_pi(
         raise typer.Exit(code=1)
 
     models = _build_pi_models(base_url=base_url, api_key=api_key, model=model)
-    models_json = _write_pi_models_json(base_url=base_url, api_key=api_key, models=models)
+    models_json = _write_pi_models_json(
+        base_url=base_url, api_key=api_key, models=models
+    )
     env = os.environ.copy()
     # Pi reads providers from ~/.pi/agent/models.json; no env vars needed.
     # `--models sference/**` scopes the /model picker (and Ctrl+P cycling) to the
@@ -369,7 +375,16 @@ def launch_pi(
     # Sference model ids contain a slash (e.g. `deepseek-ai/DeepSeek-V4.1-Flash-1017`), so `sference/*`
     # would match nothing (`*` does not cross `/`) and the picker would fall back
     # to showing every configured provider.
-    cmd = [pi_bin, "--provider", "sference", "--model", model, "--models", "sference/**", *pi_args]
+    cmd = [
+        pi_bin,
+        "--provider",
+        "sference",
+        "--model",
+        model,
+        "--models",
+        "sference/**",
+        *pi_args,
+    ]
 
     if dry_run:
         typer.echo(f"Wrote provider 'sference' to {models_json}")
@@ -405,7 +420,7 @@ def _thinks_always(entry: dict) -> bool:
     return any("glm-5.3" in i.lower() for i in ids)
 
 
-def _opencode_variants(entry: Optional[dict]) -> dict:
+def _opencode_variants(entry: dict | None) -> dict:
     """The thinking-effort variants for one model entry (empty: no variants).
 
     No entry (the model list could not be fetched, or the model was typed but not
@@ -424,7 +439,7 @@ def _opencode_variants(entry: Optional[dict]) -> dict:
     return {level: {"reasoningEffort": level} for level in levels}
 
 
-def _opencode_model_entry(model_id: str, entry: Optional[dict]) -> dict:
+def _opencode_model_entry(model_id: str, entry: dict | None) -> dict:
     config: dict = {"name": model_id}
     variants = _opencode_variants(entry)
     if variants:
@@ -433,7 +448,11 @@ def _opencode_model_entry(model_id: str, entry: Optional[dict]) -> dict:
 
 
 def _write_opencode_config(
-    *, base_url: str, model: str, models: set[str], entries: Optional[dict[str, dict]] = None
+    *,
+    base_url: str,
+    model: str,
+    models: set[str],
+    entries: dict[str, dict] | None = None,
 ) -> Path:
     """Merge a ``sference`` OpenAI-compatible provider into the opencode config.
 
@@ -530,7 +549,7 @@ def launch_opencode(
     # still works.
     try:
         entries = {e["id"]: e for e in fetch_sference_model_entries(base_url, api_key)}
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog is optional; fall back
         entries = {}
     models = set(entries)
 
@@ -593,7 +612,7 @@ _CODEX_CATALOG_ENTRY_OVERRIDES: dict = {
 }
 
 
-def bundled_codex_catalog(codex_bin: str) -> Optional[list[dict]]:
+def bundled_codex_catalog(codex_bin: str) -> list[dict] | None:
     """The model catalog shipped with the installed Codex, or None if unavailable.
 
     Read from ``codex debug models --bundled`` at launch rather than vendored, so the
@@ -613,7 +632,7 @@ def bundled_codex_catalog(codex_bin: str) -> Optional[list[dict]]:
     return models if isinstance(models, list) else None
 
 
-def codex_catalog_template(models: list[dict]) -> Optional[dict]:
+def codex_catalog_template(models: list[dict]) -> dict | None:
     """The first bundled entry Codex doesn't run in a GPT-only mode, or None."""
     for entry in models:
         if (
@@ -672,7 +691,7 @@ def write_codex_catalog(catalog: dict) -> Path:
 
 
 def build_codex_overrides(
-    *, base_url: str, model: str, entry: Optional[dict], model_catalog: Optional[Path] = None
+    *, base_url: str, model: str, entry: dict | None, model_catalog: Path | None = None
 ) -> list[str]:
     """``-c`` overrides that point Codex at Sference for this process only.
 
@@ -714,7 +733,9 @@ def build_codex_overrides(
 
 def _codex_config_path() -> Path:
     home = os.environ.get("CODEX_HOME")
-    return Path(home) / "config.toml" if home else Path.home() / ".codex" / "config.toml"
+    return (
+        Path(home) / "config.toml" if home else Path.home() / ".codex" / "config.toml"
+    )
 
 
 def _codex_pins_subagent_model() -> bool:
@@ -728,7 +749,10 @@ def _codex_pins_subagent_model() -> bool:
         text = _codex_config_path().read_text(encoding="utf-8")
     except OSError:
         return False
-    return re.search(r"^\s*(agents\.)?default_subagent_model\s*=", text, re.MULTILINE) is not None
+    return (
+        re.search(r"^\s*(agents\.)?default_subagent_model\s*=", text, re.MULTILINE)
+        is not None
+    )
 
 
 def launch_codex(
@@ -751,11 +775,11 @@ def launch_codex(
 
     try:
         entry_list = fetch_sference_model_entries(base_url, api_key)
-    except Exception:
+    except Exception:  # noqa: BLE001 - catalog is optional; fall back
         entry_list = []
     entries = {e["id"]: e for e in entry_list}
 
-    catalog: Optional[dict] = None
+    catalog: dict | None = None
     if entry_list:
         bundled = bundled_codex_catalog(codex_bin)
         template = codex_catalog_template(bundled) if bundled else None
@@ -785,7 +809,10 @@ def launch_codex(
     if catalog is not None:
         catalog_path = codex_catalog_path() if dry_run else write_codex_catalog(catalog)
     overrides = build_codex_overrides(
-        base_url=base_url, model=model, entry=entries.get(model), model_catalog=catalog_path
+        base_url=base_url,
+        model=model,
+        entry=entries.get(model),
+        model_catalog=catalog_path,
     )
     cmd = [codex_bin, *overrides, *codex_args]
 
@@ -795,7 +822,9 @@ def launch_codex(
         typer.echo(f"model: {model}")
         typer.echo("apiKey: $SFERENCE_API_KEY (injected at launch)")
         if catalog is not None:
-            typer.echo(f"model_catalog_json: {catalog_path} ({len(catalog['models'])} Sference models)")
+            typer.echo(
+                f"model_catalog_json: {catalog_path} ({len(catalog['models'])} Sference models)"
+            )
         typer.echo(f"command: {' '.join(cmd)}")
         return
 
@@ -819,7 +848,10 @@ def _provision_cursor_api_key(base_url: str, jwt_token: str) -> dict:
             {"name": name, "tag": CURSOR_API_KEY_TAG},
         )
     except DeviceAuthError as exc:
-        typer.echo(f"ERROR: could not create an API key for Cursor: {exc.description}", err=True)
+        typer.echo(
+            f"ERROR: could not create an API key for Cursor: {exc.description}",
+            err=True,
+        )
         raise typer.Exit(code=1) from None
     if status != 201 or not isinstance(body.get("plaintext"), str):
         detail = body.get("detail") if isinstance(body, dict) else None
@@ -828,7 +860,12 @@ def _provision_cursor_api_key(base_url: str, jwt_token: str) -> dict:
             err=True,
         )
         raise typer.Exit(code=1)
-    return {"id": str(body["id"]), "plaintext": body["plaintext"], "name": name, "tag": CURSOR_API_KEY_TAG}
+    return {
+        "id": str(body["id"]),
+        "plaintext": body["plaintext"],
+        "name": name,
+        "tag": CURSOR_API_KEY_TAG,
+    }
 
 
 def _revoke_cursor_api_key(base_url: str, credential: str, key_id: str) -> bool:
@@ -838,7 +875,9 @@ def _revoke_cursor_api_key(base_url: str, credential: str, key_id: str) -> bool:
     if credential.startswith("sk_"):
         return False
     try:
-        status, _ = control_request(base_url, "DELETE", f"/control/v1/auth/api-keys/{key_id}", credential)
+        status, _ = control_request(
+            base_url, "DELETE", f"/control/v1/auth/api-keys/{key_id}", credential
+        )
     except DeviceAuthError:
         return False
     return status in (204, 404)
@@ -846,13 +885,13 @@ def _revoke_cursor_api_key(base_url: str, credential: str, key_id: str) -> bool:
 
 def _cursor_resolve_key(
     *,
-    explicit: Optional[str],
-    credential: Optional[str],
-    backup: Optional[dict],
+    explicit: str | None,
+    credential: str | None,
+    backup: dict | None,
     plan_state: dict,
     base_url: str,
     dry_run: bool,
-) -> tuple[Optional[str], Optional[dict], str]:
+) -> tuple[str | None, dict | None, str]:
     """Pick the Sference key Cursor will use; never writes anything.
 
     Returns ``(key, provisioned, source_label)``. ``key`` is None only in a dry
@@ -888,10 +927,10 @@ def _cursor_resolve_key(
 
 def _cursor_on(
     *,
-    model: Optional[str],
-    models: Optional[str],
-    base_url: Optional[str],
-    api_key: Optional[str],
+    model: str | None,
+    models: str | None,
+    base_url: str | None,
+    api_key: str | None,
     sference_only: bool,
     replace_existing_key: bool,
     force: bool,
@@ -933,7 +972,11 @@ def _cursor_on(
                 and reactive.get("openAIBaseUrl") == openai_base_url
             )
             if already_on:
-                key, provisioned, key_source = None, None, "already configured in Cursor"
+                key, provisioned, key_source = (
+                    None,
+                    None,
+                    "already configured in Cursor",
+                )
             else:
                 key, provisioned, key_source = _cursor_resolve_key(
                     explicit=api_key,
@@ -961,7 +1004,7 @@ def _cursor_on(
                 try:
                     entries = fetch_sference_model_entries(openai_base_url, fetch_key)
                     model_ids = [e["id"] for e in entries]
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - catalog is optional; fall back
                     typer.echo(
                         f"note: could not fetch the model catalog ({e}); registering only {default_model}.",
                         err=True,
@@ -988,12 +1031,16 @@ def _cursor_on(
             typer.echo(f"openAIBaseUrl: {openai_base_url}")
             typer.echo("useOpenAIKey: true")
             typer.echo(f"default model: {default_model}")
-            typer.echo(f"models added to the picker: {len(model_ids)} ({', '.join(model_ids)})")
+            typer.echo(
+                f"models added to the picker: {len(model_ids)} ({', '.join(model_ids)})"
+            )
             if sference_only:
                 typer.echo("sference-only: all Cursor-provided models disabled")
             typer.echo(f"key: <redacted> ({key_source})")
             if replace_existing_key:
-                typer.echo("replace-existing-key: the currently saved OpenAI key is removed")
+                typer.echo(
+                    "replace-existing-key: the currently saved OpenAI key is removed"
+                )
             typer.echo("dry run: nothing was written")
             return
 
@@ -1025,9 +1072,15 @@ def _cursor_on(
             if key is None:
                 new_backup["openai_key_row"] = backup["openai_key_row"]
             else:
-                new_backup["openai_key_row"]["existed"] = backup["openai_key_row"]["existed"]
+                new_backup["openai_key_row"]["existed"] = backup["openai_key_row"][
+                    "existed"
+                ]
         new_backup["provisioned_key"] = (
-            {"id": provisioned["id"], "tag": provisioned["tag"], "name": provisioned["name"]}
+            {
+                "id": provisioned["id"],
+                "tag": provisioned["tag"],
+                "name": provisioned["name"],
+            }
             if provisioned
             else (backup or {}).get("provisioned_key")
         )
@@ -1043,7 +1096,9 @@ def _cursor_on(
     typer.echo(f"  key: {key_source}")
     typer.echo(f"  backup for `launch cursor off`: {path}")
     if cursor_config.cursor_running_pid(config_dir) is not None:
-        typer.echo("Cursor is running — fully restart it for the change to take effect.")
+        typer.echo(
+            "Cursor is running — fully restart it for the change to take effect."
+        )
     else:
         typer.echo(f"Start Cursor: new chats use {default_model} on Sference.")
 
@@ -1062,7 +1117,9 @@ def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
         )
         raise typer.Exit(code=1)
     if not db_path.exists():
-        typer.echo(f"Cursor settings not found at {db_path}; nothing to restore.", err=True)
+        typer.echo(
+            f"Cursor settings not found at {db_path}; nothing to restore.", err=True
+        )
         raise typer.Exit(code=1)
     pid = cursor_config.cursor_running_pid(config_dir)
     if pid is not None and not force:
@@ -1073,10 +1130,14 @@ def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
         raise typer.Exit(code=1)
 
     if dry_run:
-        typer.echo(f"Would restore Cursor settings from {cursor_config.backup_path()} "
-                   f"(written {backup.get('written_at', 'unknown')})")
+        typer.echo(
+            f"Would restore Cursor settings from {cursor_config.backup_path()} "
+            f"(written {backup.get('written_at', 'unknown')})"
+        )
         if revoke_key and backup.get("provisioned_key"):
-            typer.echo(f"Would revoke API key '{backup['provisioned_key'].get('name')}'")
+            typer.echo(
+                f"Would revoke API key '{backup['provisioned_key'].get('name')}'"
+            )
         typer.echo("dry run: nothing was written")
         return
 
@@ -1094,7 +1155,9 @@ def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
         credential = _read_token()
         key_id = backup["provisioned_key"]["id"]
         revoke_base = backup.get("openai_base_url") or resolve_api_base_url(None)
-        if credential is not None and _revoke_cursor_api_key(revoke_base, credential, key_id):
+        if credential is not None and _revoke_cursor_api_key(
+            revoke_base, credential, key_id
+        ):
             notes.append(f"Revoked API key '{backup['provisioned_key'].get('name')}'.")
         else:
             notes.append(
@@ -1107,7 +1170,9 @@ def _cursor_off(*, revoke_key: bool, force: bool, dry_run: bool) -> None:
     for note in notes:
         typer.echo(f"  note: {note}")
     if cursor_config.cursor_running_pid(config_dir) is not None:
-        typer.echo("Cursor is running — fully restart it for the change to take effect.")
+        typer.echo(
+            "Cursor is running — fully restart it for the change to take effect."
+        )
 
 
 def _cursor_status() -> None:
@@ -1127,7 +1192,11 @@ def _cursor_status() -> None:
     finally:
         conn.close()
     backup = cursor_config.read_backup()
-    ai = reactive.get("aiSettings") if isinstance(reactive.get("aiSettings"), dict) else {}
+    ai = (
+        reactive.get("aiSettings")
+        if isinstance(reactive.get("aiSettings"), dict)
+        else {}
+    )
     base_url = reactive.get("openAIBaseUrl")
     use_key = reactive.get("useOpenAIKey") is True
     has_key = (
@@ -1138,7 +1207,9 @@ def _cursor_status() -> None:
     routing_on = bool(use_key and base_url and has_key)
 
     membership = plan_state.get("membership") or "unknown"
-    typer.echo(f"Cursor: {'signed in' if plan_state['signed_in'] else 'signed out'} (plan: {membership})")
+    typer.echo(
+        f"Cursor: {'signed in' if plan_state['signed_in'] else 'signed out'} (plan: {membership})"
+    )
     typer.echo(f"Sference routing: {'ON' if routing_on else 'off'}")
     if base_url:
         typer.echo(f"  openAIBaseUrl: {base_url}")
@@ -1151,11 +1222,16 @@ def _cursor_status() -> None:
     if added:
         typer.echo(f"  custom models in picker: {', '.join(str(m) for m in added)}")
     if backup is not None:
-        typer.echo(f"  `launch cursor off` backup: {cursor_config.backup_path()} (written {backup.get('written_at', 'unknown')})")
+        typer.echo(
+            f"  `launch cursor off` backup: {cursor_config.backup_path()} (written {backup.get('written_at', 'unknown')})"
+        )
 
 
 def register_launch_commands(app: typer.Typer) -> None:
-    launch_app = typer.Typer(help="Launch external tools configured for Sference.", invoke_without_command=True)
+    launch_app = typer.Typer(
+        help="Launch external tools configured for Sference.",
+        invoke_without_command=True,
+    )
 
     @launch_app.callback()
     def launch_root(ctx: typer.Context) -> None:
@@ -1170,13 +1246,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def claude(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Pinned catalog model (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1188,12 +1264,12 @@ def register_launch_commands(app: typer.Typer) -> None:
             hidden=True,
             help="Deprecated no-op: the direct env-var mode is now the only mode.",
         ),
-        models: Optional[str] = typer.Option(
+        models: str | None = typer.Option(
             None,
             "--models",
             help="Comma-separated catalog ids for the /model picker (default: live GET /v1/models).",
         ),
-        proxy_port: Optional[int] = typer.Option(
+        proxy_port: int | None = typer.Option(
             None,
             "--proxy-port",
             hidden=True,
@@ -1231,10 +1307,15 @@ def register_launch_commands(app: typer.Typer) -> None:
         # so long sessions start on a fresh grant. Skipped when SFERENCE_API_KEY
         # overrides the file — the env token is not the file's grant, and
         # refreshing would swap identities mid-session.
-        device_creds = None if os.environ.get("SFERENCE_API_KEY") else _read_device_credentials()
+        device_creds = (
+            None if os.environ.get("SFERENCE_API_KEY") else _read_device_credentials()
+        )
         if device_creds and device_creds.get("refresh_token"):
             try:
-                from sference_cli.device_auth import CLIENT_ID_SFERENCE_CLI, refresh_tokens
+                from sference_cli.device_auth import (
+                    CLIENT_ID_SFERENCE_CLI,
+                    refresh_tokens,
+                )
 
                 tokens = refresh_tokens(
                     resolved_base, CLIENT_ID_SFERENCE_CLI, device_creds["refresh_token"]
@@ -1253,9 +1334,14 @@ def register_launch_commands(app: typer.Typer) -> None:
         api_key = _launcher_credential()
 
         if no_anthropic:
-            typer.echo("note: --no-anthropic is deprecated; the direct env-var mode is now the only mode.", err=True)
+            typer.echo(
+                "note: --no-anthropic is deprecated; the direct env-var mode is now the only mode.",
+                err=True,
+            )
         if proxy_port is not None:
-            typer.echo("note: --proxy-port is deprecated; there is no proxy anymore.", err=True)
+            typer.echo(
+                "note: --proxy-port is deprecated; there is no proxy anymore.", err=True
+            )
 
         # Resolve the picker model set.
         if models:
@@ -1263,12 +1349,22 @@ def register_launch_commands(app: typer.Typer) -> None:
         else:
             try:
                 model_entries = fetch_sference_model_entries(resolved_base, api_key)
-            except (OSError, ValueError, KeyError) as e:  # URLError/timeouts are OSError
-                typer.echo(f"ERROR: could not fetch models from {resolved_base}/v1/models: {e}", err=True)
+            except (
+                OSError,
+                ValueError,
+                KeyError,
+            ) as e:  # URLError/timeouts are OSError
+                typer.echo(
+                    f"ERROR: could not fetch models from {resolved_base}/v1/models: {e}",
+                    err=True,
+                )
                 typer.echo("Pass --models explicitly to bypass the lookup.", err=True)
                 raise typer.Exit(code=1) from None
             if not model_entries:
-                typer.echo("ERROR: /v1/models returned no text-generation models for this account.", err=True)
+                typer.echo(
+                    "ERROR: /v1/models returned no text-generation models for this account.",
+                    err=True,
+                )
                 raise typer.Exit(code=1)
 
         launch_claude_code(
@@ -1288,13 +1384,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def pi(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1340,13 +1436,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def opencode(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1382,13 +1478,13 @@ def register_launch_commands(app: typer.Typer) -> None:
     )
     def codex(
         ctx: typer.Context,
-        model: Optional[str] = typer.Option(
+        model: str | None = typer.Option(
             None,
             "--model",
             "-m",
             help=f"Catalog model id (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
         ),
-        base_url: Optional[str] = typer.Option(
+        base_url: str | None = typer.Option(
             None,
             "--base-url",
             envvar="SFERENCE_BASE_URL",
@@ -1431,7 +1527,9 @@ def register_launch_commands(app: typer.Typer) -> None:
         help=f"Default model for new chats (default: SFERENCE_MODEL or {DEFAULT_MODEL}).",
     )
     models_opt = typer.Option(
-        None, "--models", help="Comma-separated catalog ids for the picker (default: live GET /v1/models)."
+        None,
+        "--models",
+        help="Comma-separated catalog ids for the picker (default: live GET /v1/models).",
     )
     base_url_opt = typer.Option(
         None,
@@ -1455,17 +1553,21 @@ def register_launch_commands(app: typer.Typer) -> None:
         help="Replace an OpenAI key already saved in Cursor (the old key cannot be restored).",
     )
     force_opt = typer.Option(
-        False, "--force", help="Write even while Cursor is running (you must fully restart Cursor afterwards)."
+        False,
+        "--force",
+        help="Write even while Cursor is running (you must fully restart Cursor afterwards).",
     )
-    dry_run_opt = typer.Option(False, "--dry-run", help="Print what would change without writing anything.")
+    dry_run_opt = typer.Option(
+        False, "--dry-run", help="Print what would change without writing anything."
+    )
 
     @cursor_app.callback()
     def cursor_root(
         ctx: typer.Context,
-        model: Optional[str] = model_opt,
-        models: Optional[str] = models_opt,
-        base_url: Optional[str] = base_url_opt,
-        api_key: Optional[str] = api_key_opt,
+        model: str | None = model_opt,
+        models: str | None = models_opt,
+        base_url: str | None = base_url_opt,
+        api_key: str | None = api_key_opt,
         sference_only: bool = sference_only_opt,
         replace_existing_key: bool = replace_key_opt,
         force: bool = force_opt,
@@ -1485,12 +1587,14 @@ def register_launch_commands(app: typer.Typer) -> None:
             dry_run=dry_run,
         )
 
-    @cursor_app.command("on", help="Turn Sference routing on (same as `sference launch cursor`).")
+    @cursor_app.command(
+        "on", help="Turn Sference routing on (same as `sference launch cursor`)."
+    )
     def cursor_on_cmd(
-        model: Optional[str] = model_opt,
-        models: Optional[str] = models_opt,
-        base_url: Optional[str] = base_url_opt,
-        api_key: Optional[str] = api_key_opt,
+        model: str | None = model_opt,
+        models: str | None = models_opt,
+        base_url: str | None = base_url_opt,
+        api_key: str | None = api_key_opt,
         sference_only: bool = sference_only_opt,
         replace_existing_key: bool = replace_key_opt,
         force: bool = force_opt,
@@ -1507,19 +1611,25 @@ def register_launch_commands(app: typer.Typer) -> None:
             dry_run=dry_run,
         )
 
-    @cursor_app.command("off", help="Restore Cursor's settings from before `launch cursor`.")
+    @cursor_app.command(
+        "off", help="Restore Cursor's settings from before `launch cursor`."
+    )
     def cursor_off_cmd(
         revoke_key: bool = typer.Option(
             False,
             "--revoke-key",
             help="Also revoke the Sference API key that was created for Cursor.",
         ),
-        force: bool = typer.Option(False, "--force", help="Restore even while Cursor is running."),
+        force: bool = typer.Option(
+            False, "--force", help="Restore even while Cursor is running."
+        ),
         dry_run: bool = dry_run_opt,
     ) -> None:
         _cursor_off(revoke_key=revoke_key, force=force, dry_run=dry_run)
 
-    @cursor_app.command("status", help="Show whether Cursor chats on Sference right now.")
+    @cursor_app.command(
+        "status", help="Show whether Cursor chats on Sference right now."
+    )
     def cursor_status_cmd() -> None:
         _cursor_status()
 

@@ -37,7 +37,7 @@ Read from the environment or pass explicitly. Keep keys in env or a gitignored `
 ```python
 from sference_sdk import SferenceClient
 
-client = SferenceClient()                  # reads SFERENCE_API_KEY
+client = SferenceClient()  # reads SFERENCE_API_KEY
 client = SferenceClient(api_key="sk_...")  # explicit
 ```
 
@@ -72,14 +72,14 @@ from sference_sdk import SferenceClient
 client = SferenceClient(api_key=os.environ["SFERENCE_API_KEY"])
 
 resp = client.create_response(
-    model="<model-id>",                       # a model deployed on the user's sference
+    model="<model-id>",  # a model deployed on the user's sference
     input="Summarize this incident report.",  # str, or [{"role": "user", "content": "..."}]
     background=True,
-    metadata={"completion_window": "24h"},     # "24h" only (background only)
+    metadata={"completion_window": "24h"},  # "24h" only (background only)
 )
 
 done = client.wait_for_response(resp.id, poll_interval=2.0, timeout=3600.0)
-print(done.status)                             # completed | failed | cancelled
+print(done.status)  # completed | failed | cancelled
 ```
 
 `wait_for_response` defaults to `timeout=3600.0`; pass a larger value for long jobs.
@@ -134,9 +134,11 @@ for ev in client.iter_responses_events(stream_id=stream.id, checkpoint=False):
 Use when the user already has a JSONL file and wants one job with bulk results.
 
 ```python
-batch = client.submit_batch(input_file="./prompts.jsonl", model="<model-id>", window="24h")
+batch = client.submit_batch(
+    input_file="./prompts.jsonl", model="<model-id>", window="24h"
+)
 done = client.wait_for_completion(batch.id, poll_interval=5.0, timeout=86_400.0)
-client.download_results_jsonl(done.id, out="./out.jsonl")   # arg is `out`
+client.download_results_jsonl(done.id, out="./out.jsonl")  # arg is `out`
 ```
 
 `wait_for_completion` waits until the batch is terminal by default (`timeout=None`); pass `timeout=` to bound it.
@@ -159,14 +161,18 @@ JSONL line shapes (both accepted; OpenAI envelope sends only `custom_id` + inner
 import asyncio, os
 from sference_sdk import AsyncSferenceClient
 
+
 async def main() -> None:
     async with AsyncSferenceClient(api_key=os.environ["SFERENCE_API_KEY"]) as client:
         resp = await client.create_response(
-            model="<model-id>", input="hi", background=True,
+            model="<model-id>",
+            input="hi",
+            background=True,
             metadata={"completion_window": "24h"},
         )
         done = await client.wait_for_response(resp.id, timeout=3600.0)
         print(done.status)
+
 
 asyncio.run(main())
 ```
@@ -219,6 +225,7 @@ from sference_sdk import SferenceClient
 
 client = SferenceClient()  # SFERENCE_API_KEY from env
 
+
 @task(name="create-response-request", retries=2)
 def create_response_request(prompt: AnalysisPrompt) -> str:
     created = client.create_response(
@@ -229,11 +236,13 @@ def create_response_request(prompt: AnalysisPrompt) -> str:
     )
     return created.id
 
+
 @task(name="wait-for-response-completion", retries=2)
 def wait_for_response_completion(response_id: str) -> dict:
     done = client.wait_for_response(response_id)
     # extract text from done.output (message → output_text parts)
     return {"id": done.id, "status": done.status, "text": "..."}
+
 
 @flow
 def my_flow() -> None:

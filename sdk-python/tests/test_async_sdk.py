@@ -4,7 +4,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from sference_sdk.async_client import AsyncSferenceClient
 from sference_sdk.client import ApiError
 
@@ -26,7 +25,10 @@ async def test_async_submit_batch_raises_api_error_on_http_failure() -> None:
                         "custom_id": "request-1",
                         "method": "POST",
                         "url": "/v1/chat/completions",
-                        "body": {"model": "deepseek-ai/DeepSeek-V4.1-Flash-1017", "messages": [{"role": "user", "content": "hi"}]},
+                        "body": {
+                            "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                            "messages": [{"role": "user", "content": "hi"}],
+                        },
                     }
                 ]
             )
@@ -35,13 +37,18 @@ async def test_async_submit_batch_raises_api_error_on_http_failure() -> None:
 @pytest.mark.asyncio
 async def test_async_download_results_jsonl_via_mock_transport(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET" and request.url.path == "/v1/batches/batch_abc/results.jsonl":
+        if (
+            request.method == "GET"
+            and request.url.path == "/v1/batches/batch_abc/results.jsonl"
+        ):
             assert request.headers.get("authorization") == "Bearer tok"
             return httpx.Response(status_code=200, content=b'{"x": 1}\n{"x": 2}\n')
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
     out_path = tmp_path / "out.jsonl"
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
+    async with AsyncSferenceClient(
+        transport=httpx.MockTransport(handler), api_key="tok"
+    ) as client:
         await client.download_results_jsonl("batch_abc", out_path)
     assert out_path.read_text(encoding="utf-8").splitlines() == ['{"x": 1}', '{"x": 2}']
 
@@ -71,7 +78,9 @@ async def test_async_wait_for_completion_via_mock_transport() -> None:
             if len(calls) < 3:
                 return httpx.Response(
                     status_code=200,
-                    json=_minimal_batch_payload(batch_id="batch_wait", status="pending"),
+                    json=_minimal_batch_payload(
+                        batch_id="batch_wait", status="pending"
+                    ),
                 )
             return httpx.Response(
                 status_code=200,
@@ -79,8 +88,12 @@ async def test_async_wait_for_completion_via_mock_transport() -> None:
             )
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        batch = await client.wait_for_completion("batch_wait", poll_interval=0.01, timeout=5.0)
+    async with AsyncSferenceClient(
+        transport=httpx.MockTransport(handler), api_key="tok"
+    ) as client:
+        batch = await client.wait_for_completion(
+            "batch_wait", poll_interval=0.01, timeout=5.0
+        )
     assert batch.status == "completed"
     assert len(calls) == 3
 
@@ -105,8 +118,12 @@ async def test_async_wait_for_response_treats_incomplete_as_terminal() -> None:
             )
         return httpx.Response(status_code=404, json={"detail": "not found"})
 
-    async with AsyncSferenceClient(transport=httpx.MockTransport(handler), api_key="tok") as client:
-        resp = await client.wait_for_response("resp_trunc", poll_interval=0.01, timeout=1.0)
+    async with AsyncSferenceClient(
+        transport=httpx.MockTransport(handler), api_key="tok"
+    ) as client:
+        resp = await client.wait_for_response(
+            "resp_trunc", poll_interval=0.01, timeout=1.0
+        )
     assert len(calls) == 1
     assert resp.status == "incomplete"
     assert resp.incomplete_details is not None

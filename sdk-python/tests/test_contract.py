@@ -20,10 +20,10 @@ def _load_openapi() -> dict[str, Any]:
 def _build_operation_index(openapi: dict[str, Any]) -> dict[str, dict[str, Any]]:
     paths = openapi.get("paths") or {}
     out: dict[str, dict[str, Any]] = {}
-    for _path, spec in paths.items():
+    for spec in paths.values():
         if not isinstance(spec, dict):
             continue
-        for _method, op in spec.items():
+        for op in spec.values():
             if not isinstance(op, dict):
                 continue
             operation_id = op.get("operationId")
@@ -47,7 +47,9 @@ def _deref_schema(openapi: dict[str, Any], node: Any) -> Any:
     return node
 
 
-def _schema_for(openapi: dict[str, Any], operation_id: str, status_code: str) -> dict[str, Any]:
+def _schema_for(
+    openapi: dict[str, Any], operation_id: str, status_code: str
+) -> dict[str, Any]:
     op_index = _build_operation_index(openapi)
     op = op_index.get(operation_id)
     if op is None:
@@ -59,7 +61,9 @@ def _schema_for(openapi: dict[str, Any], operation_id: str, status_code: str) ->
     content = (resp.get("content") or {}).get("application/json") or {}
     schema = content.get("schema")
     if schema is None:
-        raise KeyError(f"operationId {operation_id} response {status_code} has no application/json schema")
+        raise KeyError(
+            f"operationId {operation_id} response {status_code} has no application/json schema"
+        )
     resolved = _deref_schema(openapi, schema)
     if not isinstance(resolved, dict):
         raise TypeError("Resolved schema is not an object")
@@ -91,7 +95,9 @@ def test_mock_fixtures_validate_against_openapi_contract() -> None:
     for f in fixture_files:
         rel = f.relative_to(fixtures_root)
         if len(rel.parts) != 2:
-            raise AssertionError(f"Fixture must be fixtures/{{operationId}}/{{statusCode}}.json, got {rel.as_posix()}")
+            raise AssertionError(
+                f"Fixture must be fixtures/{{operationId}}/{{statusCode}}.json, got {rel.as_posix()}"
+            )
         operation_id = rel.parts[0]
         status_code = rel.stem
         instance = json.loads(f.read_text(encoding="utf-8"))
@@ -100,14 +106,23 @@ def test_mock_fixtures_validate_against_openapi_contract() -> None:
 
 
 def test_decision_image_data_url_contract_preserves_constraints() -> None:
-    schema = _deref_schema(_load_openapi(), {"$ref": "#/components/schemas/DecisionRequest"})
+    schema = _deref_schema(
+        _load_openapi(), {"$ref": "#/components/schemas/DecisionRequest"}
+    )
     images = schema["properties"]["images"]
-    string = next(item for item in images["items"]["oneOf"] if item.get("type") == "string")
+    string = next(
+        item for item in images["items"]["oneOf"] if item.get("type") == "string"
+    )
     assert string["pattern"] == r"^[Dd][Aa][Tt][Aa]:"
     assert string["maxLength"] == 5_592_440
     validator = jsonschema.Draft202012Validator(images)
-    assert validator.is_valid(["data:image/png;base64,eA==", "DATA:image/png;base64,eA==",
-                               {"content_type": "image/png", "base64": "eA=="}])
+    assert validator.is_valid(
+        [
+            "data:image/png;base64,eA==",
+            "DATA:image/png;base64,eA==",
+            {"content_type": "image/png", "base64": "eA=="},
+        ]
+    )
     assert not validator.is_valid(["https://example.com/image.png"])
     assert not validator.is_valid(["data:" + "x" * (5_592_440 - 4)])
 

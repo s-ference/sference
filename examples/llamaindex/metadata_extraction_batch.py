@@ -16,7 +16,6 @@ import sys
 
 from llama_index.core import Document
 from llama_index.core.node_parser import SentenceSplitter
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 
@@ -55,9 +54,7 @@ POLICY_DOCS = [
     ),
 ]
 
-SYSTEM = (
-    "Extract metadata as one line: THEME: <short label> | ENTITIES: comma-separated nouns"
-)
+SYSTEM = "Extract metadata as one line: THEME: <short label> | ENTITIES: comma-separated nouns"
 
 
 def main() -> None:

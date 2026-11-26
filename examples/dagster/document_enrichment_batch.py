@@ -16,7 +16,6 @@ import sys
 from typing import Any
 
 from dagster import Definitions, asset, materialize
-
 from sference_sdk import SferenceClient
 from sference_sdk.models import InferenceRequest
 

@@ -105,7 +105,11 @@ For per-request async Responses without a batch id, use `POST /v1/responses` wit
 from sference_sdk import SferenceClient
 
 client = SferenceClient(api_key="sk_...")
-batch = client.submit_batch(input_file="workload.jsonl", model="deepseek-ai/DeepSeek-V4.1-Flash-1017", window="24h")
+batch = client.submit_batch(
+    input_file="workload.jsonl",
+    model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
+    window="24h",
+)
 done = client.wait_for_completion(batch.id, poll_interval=5.0, timeout=86_400.0)
 client.download_results_jsonl(done.id, out="./out.jsonl")
 ```

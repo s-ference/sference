@@ -40,7 +40,9 @@ class DeviceAuthError(Exception):
         self.description = description
 
 
-def post_json(url: str, payload: dict[str, Any], timeout: float = 15.0) -> tuple[int, dict[str, Any]]:
+def post_json(
+    url: str, payload: dict[str, Any], timeout: float = 15.0
+) -> tuple[int, dict[str, Any]]:
     """POST a JSON body; return ``(status, parsed_json)`` for ANY status.
 
     The device-flow endpoints signal pending/slow_down/expired via 400 bodies,
@@ -70,12 +72,13 @@ def post_json(url: str, payload: dict[str, Any], timeout: float = 15.0) -> tuple
 
 def _api_root(base_url: str) -> str:
     root = base_url.rstrip("/")
-    if root.endswith("/v1"):
-        root = root[: -len("/v1")]
+    root = root.removesuffix("/v1")
     return root + "/v1"
 
 
-def start_device_login(base_url: str, client_id: str, device_label: str | None = None) -> dict[str, Any]:
+def start_device_login(
+    base_url: str, client_id: str, device_label: str | None = None
+) -> dict[str, Any]:
     """POST /v1/oauth/device_code; return the parsed DeviceCodeResponse."""
     payload: dict[str, Any] = {"client_id": client_id}
     if device_label:
@@ -84,7 +87,10 @@ def start_device_login(base_url: str, client_id: str, device_label: str | None =
     if status != 200:
         raise DeviceAuthError(
             str(body.get("error") or f"http_{status}"),
-            str(body.get("error_description") or f"device_code request failed ({status})"),
+            str(
+                body.get("error_description")
+                or f"device_code request failed ({status})"
+            ),
         )
     return body
 
@@ -112,21 +118,31 @@ def poll_for_tokens(
     while True:
         status, body = post_json(
             url,
-            {"grant_type": GRANT_TYPE_DEVICE_CODE, "client_id": client_id, "device_code": device_code},
+            {
+                "grant_type": GRANT_TYPE_DEVICE_CODE,
+                "client_id": client_id,
+                "device_code": device_code,
+            },
         )
         if status == 200:
             return body
         error = str(body.get("error") or f"http_{status}")
-        description = str(body.get("error_description") or f"token poll failed ({status})")
+        description = str(
+            body.get("error_description") or f"token poll failed ({status})"
+        )
         if error == "authorization_pending":
             if monotonic() + wait > deadline:
-                raise DeviceAuthError("expired_token", "device code expired before approval")
+                raise DeviceAuthError(
+                    "expired_token", "device code expired before approval"
+                )
             sleep(wait)
             continue
         if error == "slow_down":
             wait += 5
             if monotonic() + wait > deadline:
-                raise DeviceAuthError("expired_token", "device code expired before approval")
+                raise DeviceAuthError(
+                    "expired_token", "device code expired before approval"
+                )
             sleep(wait)
             continue
         raise DeviceAuthError(error, description)
@@ -142,7 +158,11 @@ def refresh_tokens(base_url: str, client_id: str, refresh_token: str) -> dict[st
     """
     status, body = post_json(
         f"{_api_root(base_url)}/oauth/token",
-        {"grant_type": GRANT_TYPE_REFRESH_TOKEN, "client_id": client_id, "refresh_token": refresh_token},
+        {
+            "grant_type": GRANT_TYPE_REFRESH_TOKEN,
+            "client_id": client_id,
+            "refresh_token": refresh_token,
+        },
     )
     if status != 200:
         raise DeviceAuthError(
@@ -169,8 +189,7 @@ def control_request(
     at the origin root.
     """
     origin = base_url.rstrip("/")
-    if origin.endswith("/v1"):
-        origin = origin[: -len("/v1")]
+    origin = origin.removesuffix("/v1")
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     if data is not None:

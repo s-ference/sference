@@ -20,10 +20,10 @@ def _load_openapi() -> dict[str, Any]:
 def _build_operation_index(openapi: dict[str, Any]) -> dict[str, dict[str, Any]]:
     paths = openapi.get("paths") or {}
     out: dict[str, dict[str, Any]] = {}
-    for _path, spec in paths.items():
+    for spec in paths.values():
         if not isinstance(spec, dict):
             continue
-        for _method, op in spec.items():
+        for op in spec.values():
             if not isinstance(op, dict):
                 continue
             operation_id = op.get("operationId")
@@ -47,7 +47,9 @@ def _deref_schema(openapi: dict[str, Any], node: Any) -> Any:
     return node
 
 
-def _schema_for(openapi: dict[str, Any], operation_id: str, status_code: str) -> dict[str, Any]:
+def _schema_for(
+    openapi: dict[str, Any], operation_id: str, status_code: str
+) -> dict[str, Any]:
     op_index = _build_operation_index(openapi)
     op = op_index.get(operation_id)
     if op is None:
@@ -59,7 +61,9 @@ def _schema_for(openapi: dict[str, Any], operation_id: str, status_code: str) ->
     content = (resp.get("content") or {}).get("application/json") or {}
     schema = content.get("schema")
     if schema is None:
-        raise KeyError(f"operationId {operation_id} response {status_code} has no application/json schema")
+        raise KeyError(
+            f"operationId {operation_id} response {status_code} has no application/json schema"
+        )
     resolved = _deref_schema(openapi, schema)
     if not isinstance(resolved, dict):
         raise TypeError("Resolved schema is not an object")
@@ -75,10 +79,11 @@ def test_mock_fixtures_validate_against_openapi_contract() -> None:
     for f in fixture_files:
         rel = f.relative_to(fixtures_root)
         if len(rel.parts) != 2:
-            raise AssertionError(f"Fixture must be fixtures/{{operationId}}/{{statusCode}}.json, got {rel.as_posix()}")
+            raise AssertionError(
+                f"Fixture must be fixtures/{{operationId}}/{{statusCode}}.json, got {rel.as_posix()}"
+            )
         operation_id = rel.parts[0]
         status_code = rel.stem
         instance = json.loads(f.read_text(encoding="utf-8"))
         schema = _schema_for(openapi, operation_id, status_code)
         jsonschema.validate(instance=instance, schema=schema)
-

@@ -23,6 +23,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=0.25.0",
     "jsonschema>=4.23",
+    "ruff>=0.17.6",
 ]
 examples = [
     "prefect>=3.0",
@@ -58,3 +59,7 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 package = false
+
+[tool.ruff.lint.flake8-bugbear]
+# Typer declares CLI options as argument defaults by design.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]

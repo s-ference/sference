@@ -31,7 +31,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 REACTIVE_KEY = (
     "src.vs.platform.reactivestorage.browser.reactiveStorageServiceImpl"
@@ -65,7 +65,14 @@ def default_config_dir() -> Path:
         base = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
         return base / "Cursor" / "User" / "globalStorage"
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "Cursor" / "User" / "globalStorage"
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "Cursor"
+            / "User"
+            / "globalStorage"
+        )
     return Path.home() / ".config" / "Cursor" / "User" / "globalStorage"
 
 
@@ -81,7 +88,7 @@ def backup_path() -> Path:
     return Path.home() / ".sference" / "cursor" / "backup.json"
 
 
-def cursor_running_pid(config_dir: Path) -> Optional[int]:
+def cursor_running_pid(config_dir: Path) -> int | None:
     """The pid of the running Cursor main process, or None.
 
     Cursor writes its pid to ``code.lock`` next to ``User/``; a stale lock
@@ -108,7 +115,7 @@ def connect(config_dir: Path) -> sqlite3.Connection:
     return conn
 
 
-def _read_item(conn: sqlite3.Connection, key: str) -> Optional[str]:
+def _read_item(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute("SELECT value FROM ItemTable WHERE key = ?", (key,)).fetchone()
     if row is None or row[0] is None:
         return None
@@ -128,7 +135,9 @@ def read_reactive(conn: sqlite3.Connection) -> dict[str, Any]:
             "Refusing to modify it."
         ) from exc
     if not isinstance(data, dict):
-        raise CursorConfigError("Cursor's settings blob is not a JSON object; refusing to modify it.")
+        raise CursorConfigError(
+            "Cursor's settings blob is not a JSON object; refusing to modify it."
+        )
     return data
 
 
@@ -160,8 +169,16 @@ def _keychain_item_present() -> bool:
         return False
     try:
         proc = subprocess.run(
-            ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", KEYCHAIN_ACCOUNT],
+            [
+                "security",
+                "find-generic-password",
+                "-s",
+                KEYCHAIN_SERVICE,
+                "-a",
+                KEYCHAIN_ACCOUNT,
+            ],
             capture_output=True,
+            check=False,
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
@@ -179,8 +196,16 @@ def _keychain_delete() -> bool:
         return False
     try:
         proc = subprocess.run(
-            ["security", "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", KEYCHAIN_ACCOUNT],
+            [
+                "security",
+                "delete-generic-password",
+                "-s",
+                KEYCHAIN_SERVICE,
+                "-a",
+                KEYCHAIN_ACCOUNT,
+            ],
             capture_output=True,
+            check=False,
             timeout=60,
         )
     except (OSError, subprocess.SubprocessError):
@@ -222,10 +247,16 @@ def build_on_changes(
     user's other custom models survive, and the composer default is pointed at
     ``default_model`` so a fresh chat uses Sference without a picker visit.
     """
-    ai = reactive.get("aiSettings") if isinstance(reactive.get("aiSettings"), dict) else {}
+    ai = (
+        reactive.get("aiSettings")
+        if isinstance(reactive.get("aiSettings"), dict)
+        else {}
+    )
     user_added = _union_ordered(ai.get("userAddedModels") or [], model_ids)
     enabled = _union_ordered(ai.get("modelOverrideEnabled") or [], model_ids)
-    disabled = [m for m in (ai.get("modelOverrideDisabled") or []) if m not in model_ids]
+    disabled = [
+        m for m in (ai.get("modelOverrideDisabled") or []) if m not in model_ids
+    ]
     if sference_only:
         catalog_names = [
             m.get("name")
@@ -237,8 +268,14 @@ def build_on_changes(
                 "--sference-only needs Cursor's cached model catalog to know what to disable, "
                 "but it is empty. Open Cursor once, let it load the model list, and re-run."
             )
-        disabled = sorted({*disabled, *(n for n in catalog_names if n not in model_ids)})
-    composer = ai.get("modelConfig", {}).get("composer", {}) if isinstance(ai.get("modelConfig"), dict) else {}
+        disabled = sorted(
+            {*disabled, *(n for n in catalog_names if n not in model_ids)}
+        )
+    composer = (
+        ai.get("modelConfig", {}).get("composer", {})
+        if isinstance(ai.get("modelConfig"), dict)
+        else {}
+    )
     model_config = dict(ai.get("modelConfig") or {})
     model_config["composer"] = {
         "modelName": default_model,
@@ -260,10 +297,20 @@ def build_on_changes(
 
 def snapshot_for_backup(reactive: dict[str, Any]) -> dict[str, Any]:
     """The prior values ``off`` restores verbatim (absence recorded explicitly)."""
-    ai = reactive.get("aiSettings") if isinstance(reactive.get("aiSettings"), dict) else {}
+    ai = (
+        reactive.get("aiSettings")
+        if isinstance(reactive.get("aiSettings"), dict)
+        else {}
+    )
     return {
-        "openAIBaseUrl": {"present": "openAIBaseUrl" in reactive, "value": reactive.get("openAIBaseUrl")},
-        "useOpenAIKey": {"present": "useOpenAIKey" in reactive, "value": reactive.get("useOpenAIKey")},
+        "openAIBaseUrl": {
+            "present": "openAIBaseUrl" in reactive,
+            "value": reactive.get("openAIBaseUrl"),
+        },
+        "useOpenAIKey": {
+            "present": "useOpenAIKey" in reactive,
+            "value": reactive.get("useOpenAIKey"),
+        },
         "aiSettings": {
             "userAddedModels": list(ai.get("userAddedModels") or []),
             "modelOverrideEnabled": list(ai.get("modelOverrideEnabled") or []),
@@ -280,7 +327,7 @@ def preflight_on(
     api_key: str,
     replace_existing_key: bool,
     force: bool,
-    backup: Optional[dict[str, Any]] = None,
+    backup: dict[str, Any] | None = None,
     already_on: bool = False,
 ) -> None:
     """Raise CursorConfigError when turning on is not safe right now.
@@ -310,10 +357,15 @@ def preflight_on(
     if replace_existing_key or already_on:
         return
     stored = plan_state.get("openai_key_row")
-    written_fingerprint = (backup or {}).get("openai_key_row", {}).get("written_fingerprint")
+    written_fingerprint = (
+        (backup or {}).get("openai_key_row", {}).get("written_fingerprint")
+    )
     stored_is_ours = stored is not None and (
         stored == api_key
-        or (written_fingerprint is not None and key_fingerprint(stored) == written_fingerprint)
+        or (
+            written_fingerprint is not None
+            and key_fingerprint(stored) == written_fingerprint
+        )
     )
     if stored is not None and not stored_is_ours:
         raise CursorConfigError(
@@ -339,7 +391,7 @@ def apply_on(
     conn: sqlite3.Connection,
     *,
     openai_base_url: str,
-    api_key: Optional[str],
+    api_key: str | None,
     model_ids: list[str],
     default_model: str,
     sference_only: bool,
@@ -362,9 +414,12 @@ def apply_on(
         "reactive": snapshot_for_backup(reactive),
         "openai_key_row": {
             "existed": _read_item(conn, OPENAI_KEY_ROW) is not None,
-            "written_fingerprint": key_fingerprint(api_key) if api_key is not None else None,
+            "written_fingerprint": key_fingerprint(api_key)
+            if api_key is not None
+            else None,
         },
-        "secret_row_deleted": _read_item(conn, SECRET_KEY_ROW) is not None and replace_existing_key,
+        "secret_row_deleted": _read_item(conn, SECRET_KEY_ROW) is not None
+        and replace_existing_key,
         "keychain_item_deleted": False,
         "provisioned_key": None,
     }
@@ -412,7 +467,7 @@ def write_backup(backup: dict[str, Any]) -> Path:
     return path
 
 
-def read_backup() -> Optional[dict[str, Any]]:
+def read_backup() -> dict[str, Any] | None:
     path = backup_path()
     if not path.exists():
         return None
@@ -420,7 +475,11 @@ def read_backup() -> Optional[dict[str, Any]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    return data if isinstance(data, dict) and data.get("version") == BACKUP_VERSION else None
+    return (
+        data
+        if isinstance(data, dict) and data.get("version") == BACKUP_VERSION
+        else None
+    )
 
 
 def apply_off(conn: sqlite3.Connection, backup: dict[str, Any]) -> list[str]:
@@ -434,7 +493,11 @@ def apply_off(conn: sqlite3.Connection, backup: dict[str, Any]) -> list[str]:
             reactive[field] = saved["value"]
         else:
             reactive.pop(field, None)
-    ai = reactive.get("aiSettings") if isinstance(reactive.get("aiSettings"), dict) else {}
+    ai = (
+        reactive.get("aiSettings")
+        if isinstance(reactive.get("aiSettings"), dict)
+        else {}
+    )
     saved_ai = prior["aiSettings"]
     reactive["aiSettings"] = {
         **ai,
