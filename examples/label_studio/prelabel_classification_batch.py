@@ -4,11 +4,12 @@
 # Reads a minimal LS export JSON, writes predictions JSON for import.
 #
 # Run:
-#   uv run python examples/label_studio/prelabel_classification_batch.py
+#   uv run python examples/label_studio/prelabel_classification_batch.py [--out predictions.json]
 # ---
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -72,7 +73,7 @@ def build_prediction(task: dict[str, Any], label: str) -> dict[str, Any]:
     }
 
 
-def main() -> None:
+def main(out: Path = PREDICTIONS_PATH) -> None:
     require_api_key()
     tasks = load_tasks()
     print(f"Loaded {len(tasks)} Label Studio tasks from {TASKS_PATH.name}\n")
@@ -106,11 +107,14 @@ def main() -> None:
         label = raw if raw in LABELS else "account"
         predictions.append(build_prediction(task, label))
 
-    PREDICTIONS_PATH.write_text(json.dumps(predictions, indent=2), encoding="utf-8")
-    print(f"Wrote {len(predictions)} pre-annotations → {PREDICTIONS_PATH}")
-    print("Import in Label Studio: Project → Import → upload sample_predictions.json")
+    out.write_text(json.dumps(predictions, indent=2), encoding="utf-8")
+    print(f"Wrote {len(predictions)} pre-annotations → {out}")
+    print(f"Import in Label Studio: Project → Import → upload {out.name}")
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Pre-label Label Studio tasks with a sference batch.")
+    parser.add_argument("--out", type=Path, default=PREDICTIONS_PATH, help="Where to write the predictions JSON.")
+    args = parser.parse_args()
     print(f"Model: {model_id()}  window: {COMPLETION_WINDOW}")
-    main()
+    main(args.out)

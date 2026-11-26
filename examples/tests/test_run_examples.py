@@ -25,6 +25,8 @@ class ExampleScriptCase:
     expected_rows: int | None = None
     row_id_pattern: str | None = None
     output_json: Path | None = None
+    # Scripts that take --out write here, under tmp_path, instead of into the source tree.
+    out_name: str | None = None
     local_only: bool = False
     needs_prefect_home: bool = False
 
@@ -71,13 +73,13 @@ EXAMPLE_CASES: tuple[ExampleScriptCase, ...] = (
         "label_studio/prelabel_classification_batch.py",
         stdout_contains=("Loaded 3 Label Studio tasks", "Wrote 3 pre-annotations"),
         expected_rows=3,
-        output_json=EXAMPLES_ROOT / "label_studio" / "sample_predictions.json",
+        out_name="predictions.json",
     ),
     ExampleScriptCase(
         "argilla/suggestion_batch.py",
         stdout_contains=("Loaded 2 Argilla-style records", "Wrote suggestions"),
         expected_rows=2,
-        output_json=EXAMPLES_ROOT / "argilla" / "sample_suggestions.json",
+        out_name="suggestions.json",
     ),
     ExampleScriptCase(
         "prefect/ai_data_analyst_batch_responses.py",
@@ -138,7 +140,8 @@ def _assert_row_count(case: ExampleScriptCase, stdout: str, output_json: Path | 
     if case.row_id_pattern:
         assert _count_pattern(stdout, case.row_id_pattern) == case.expected_rows, stdout
 
-    if output_json is not None and output_json.exists():
+    if output_json is not None:
+        assert output_json.is_file(), f"{case.rel_path} did not write {output_json}"
         payload = json.loads(output_json.read_text(encoding="utf-8"))
         assert isinstance(payload, list)
         assert len(payload) == case.expected_rows
@@ -169,14 +172,15 @@ def test_example_script(case: ExampleScriptCase, mock_sference_server, tmp_path:
     # Intentionally NOT setting RAY_ENABLE_UV_RUN_RUNTIME_ENV here: the Ray example
     # must disable it itself (before `import ray`) for `uv run` to work.
 
-    output_json = case.output_json
-    if output_json is not None and output_json.parent.exists():
+    output_json = tmp_path / case.out_name if case.out_name else case.output_json
+    if output_json is not None:
         output_json.unlink(missing_ok=True)
+    out_args = ["--out", str(output_json)] if case.out_name else []
 
     combined_path = tmp_path / "combined.txt"
     with combined_path.open("w", encoding="utf-8") as combined_file:
         proc = subprocess.run(
-            [sys.executable, str(script)],
+            [sys.executable, str(script), *out_args],
             cwd=REPO_ROOT,
             env=env,
             stdout=combined_file,

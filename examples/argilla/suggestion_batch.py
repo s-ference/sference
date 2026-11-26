@@ -5,11 +5,12 @@
 #   uv pip install argilla
 #
 # Run (writes local JSON either way):
-#   uv run python examples/argilla/suggestion_batch.py
+#   uv run python examples/argilla/suggestion_batch.py [--out suggestions.json]
 # ---
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -47,7 +48,7 @@ SYSTEM = (
 )
 
 
-def main() -> None:
+def main(out: Path = SUGGESTIONS_PATH) -> None:
     require_api_key()
     records: list[dict[str, Any]] = json.loads(RECORDS_PATH.read_text(encoding="utf-8"))
     print(f"Loaded {len(records)} Argilla-style records\n")
@@ -85,8 +86,8 @@ def main() -> None:
             }
         )
 
-    SUGGESTIONS_PATH.write_text(json.dumps(suggestions, indent=2), encoding="utf-8")
-    print(f"Wrote suggestions → {SUGGESTIONS_PATH}")
+    out.write_text(json.dumps(suggestions, indent=2), encoding="utf-8")
+    print(f"Wrote suggestions → {out}")
 
     if os.getenv("ARGILLA_API_URL") and os.getenv("ARGILLA_API_KEY"):
         push_to_argilla(suggestions)
@@ -130,5 +131,8 @@ def push_to_argilla(suggestions: list[dict[str, Any]]) -> None:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Draft Argilla suggestions with a sference batch.")
+    parser.add_argument("--out", type=Path, default=SUGGESTIONS_PATH, help="Where to write the suggestions JSON.")
+    args = parser.parse_args()
     print(f"Model: {model_id()}  window: {COMPLETION_WINDOW}")
-    main()
+    main(args.out)

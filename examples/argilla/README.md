@@ -4,7 +4,7 @@
 
 1. Read [`sample_records.json`](sample_records.json) (minimal Argilla record shape).
 2. Batch-generate reply drafts on sference.
-3. Write [`sample_suggestions.json`](sample_suggestions.json) for inspection.
+3. Write `sample_suggestions.json` next to the script (or `--out PATH`) for inspection.
 
 Optionally push to a live Argilla server when `ARGILLA_API_URL` and `ARGILLA_API_KEY` are set.
 
@@ -24,6 +24,7 @@ export SFERENCE_API_KEY=sk_...
 
 ```bash
 uv run python examples/argilla/suggestion_batch.py
+# or: --out suggestions.json
 ```
 
 Human annotators correct drafts in Argilla; nothing is sent to customers automatically.
