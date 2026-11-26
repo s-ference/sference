@@ -60,14 +60,25 @@ sference batch wait --batch-id <id>
 | [sdk-python](sdk-python/) | `sference-sdk` | Sync and async Python clients |
 | [cli](cli/) | `sference-cli` | `sference` command-line interface |
 
-## Coding agents (Cursor, Claude Code, …)
+## Coding agents
 
-1. **Paste [PROMPT.txt](PROMPT.txt)** into your project rules or `CLAUDE.md` — short rules for vibe coding with `sference-sdk`.
-2. Optionally install the full **[SKILL.md](SKILL.md)** as a Cursor skill (`.cursor/skills/sference-sdk/SKILL.md`).
+[SKILL.md](SKILL.md) teaches a coding agent how to use `sference-sdk`: which calls to default to, models, auth, streams and batches. Add it to your own project as a skill:
 
-Raw URLs (no clone): [PROMPT.txt](https://raw.githubusercontent.com/s-ference/sference/main/PROMPT.txt) · [SKILL.md](https://raw.githubusercontent.com/s-ference/sference/main/SKILL.md)
+| Agent | Path in your project |
+|-------|----------------------|
+| Claude Code | `.claude/skills/sference-sdk/SKILL.md` (or `~/.claude/skills/…` for all projects) |
+| Codex, Cursor, GitHub Copilot and other [Agent Skills](https://agentskills.io) tools | `.agents/skills/sference-sdk/SKILL.md` |
 
-Details: **[AGENTS.md](AGENTS.md)** · website: [sference.com/docs/sdk](https://sference.com/docs/sdk)
+```bash
+mkdir -p .agents/skills/sference-sdk
+curl -fsSL https://raw.githubusercontent.com/s-ference/sference/main/SKILL.md -o .agents/skills/sference-sdk/SKILL.md
+```
+
+For an agent without skill support, add a line to your `CLAUDE.md` or `AGENTS.md` instead:
+
+```text
+When writing code that calls sference, follow https://raw.githubusercontent.com/s-ference/sference/main/SKILL.md
+```
 
 ## Examples
 
